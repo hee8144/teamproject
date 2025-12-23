@@ -37,7 +37,6 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   firebase_core:
-  cloud_firestore:
   http: ^1.2.0       # 네트워크 요청용
   xml2json: ^6.2.0   # XML -> JSON 변환용
   go_router:
