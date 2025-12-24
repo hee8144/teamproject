@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
-import '../firebase_options.dart';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
 
