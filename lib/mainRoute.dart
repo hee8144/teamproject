@@ -14,7 +14,10 @@ void main() async {
 
 final GoRouter router = GoRouter(
   routes: [
-    GoRoute(path: '/', builder: (context, state) => gameMain())
+    GoRoute(path: '/', builder: (context, state) => GameMain()),
+    // 게임 시작 페이지
+    // GoRoute(path: '/gameMain', builder: (context, state) => gameMain())
+
     // // case1 : 기본 페이지
     // GoRoute(path: '/', builder: (context, state) => RootPage()),
     // // case2 : page1주소로 이동시 실행 페이지
