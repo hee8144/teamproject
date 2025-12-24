@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-// mainUI.dart 파일이 같은 lib 폴더 내에 있다고 가정합니다.
-// 실제 파일 경로에 맞춰 import 문을 확인해주세요.
 import 'mainUI.dart';
 
 void main() {
@@ -97,7 +95,7 @@ class LoginScreen extends StatelessWidget {
 
   Widget _buildLogo(double width) {
     return Image.asset(
-      'assets/app_project.png',
+      'assets/Logo.png',
       width: width,
       fit: BoxFit.contain,
     );
