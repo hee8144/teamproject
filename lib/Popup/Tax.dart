@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import '../firebase_options.dart';
+import 'Takeover.dart';
 import 'TaxDialog.dart';
+import 'Construction.dart';
 import 'Island.dart';
 
 void main() async{
@@ -95,7 +97,7 @@ class TaxPage extends StatelessWidget {
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (_) => const TaxDialog(user: 3,),
+                          builder: (_) => const IslandDialog(user: 1,),
                         );
                       },
                       style: ElevatedButton.styleFrom(
@@ -106,7 +108,7 @@ class TaxPage extends StatelessWidget {
                         ),
                       ),
                       child: const Text(
-                        "문화재 보호구역",
+                        "무인도",
                         style: TextStyle(fontSize: 22),
                       ),
                     ),
@@ -116,12 +118,10 @@ class TaxPage extends StatelessWidget {
               ElevatedButton(onPressed: () async {
                 final result=
                 await showDialog(context: context,barrierDismissible: false, builder: (context)=>ConstructionDialog(buildingId: 1,user: 1,));
-                if(result != null){
-                  print("결과:${result["user"]}");
-                  print("결과:${result["index"]}");
-                  print("결과:${result["level"]}");
-                }
               }, child: Text("건설")),
+              ElevatedButton(onPressed: () async {
+                await showDialog(context: context,barrierDismissible: false, builder: (context)=>TakeoverDialog(buildingId: 1,user: 1,));
+              }, child: Text("인수")),
             ],
           ),
         ),
