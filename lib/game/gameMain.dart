@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
 import 'dice.dart'; // 위에서 만든 dice.dart 파일 import
+import '../Popup/Island.dart';
+import '../Popup/TaxDialog.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -61,14 +63,36 @@ class _GameMainState extends State<GameMain> {
       });
     }
   }
+  
+  Future<void> _setPlayer() async {
+    await _readPlayer();
+    await fs.collection("games").doc("users").set(players);
+  }
 
   // 주사위 수만큼 움직이는 함수 (콜백으로 실행됨)
-  void movePlayer(int num, int player){
+  void movePlayer(int num, int player) async {
+    int changePosition = players["user$player"]["position"]+num > 32 ?
+      (players["user$player"]["position"]+num)% 32 :
+      players["user$player"]["position"];
+
+    await fs.collection("games").doc("users").update({"user$player.position": players});
     setState(() {
       players["user$player"]["position"] += num;
       // 31번 넘어가면 0번으로 순환
       players["user$player"]["position"] %= 32;
     });
+    if(boardList["b${players["user$player"]["position"]}"]["type"] == "land"){
+      await showDialog(context: context, builder: (context)=>
+        ConstructionDialog(user: player,buildingId: players["user$player"]["position"],)
+      );
+    } else if(players["user$player"]["position"] == 30){
+      await showDialog(context: context, builder: (context)=>
+        TaxDialog()
+      );
+    }
+    _setPlayer();
+
+
   }
 
   Future<void> rankChange() async{
@@ -231,7 +255,7 @@ class _GameMainState extends State<GameMain> {
     double offsetX = (tileSize / 2) - (4 * 11 / 2) + (playerIndex * 11);
     double offsetY = tileSize * 0.7; // 타일 하단 배치
 
-    final List<Color> userColors = [Colors.red, Colors.blue, Colors.green, Colors.orange];
+    final List<Color> userColors = [Colors.red, Colors.blue, Colors.orange, Colors.green];
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 500), // 0.5초 동안 부드럽게 이동
@@ -239,8 +263,8 @@ class _GameMainState extends State<GameMain> {
       top: pos['top']! + offsetY,
       left: pos['left']! + offsetX,
       child: Container(
-        width: 8,
-        height: 8,
+        width: 10,
+        height: 10,
         decoration: BoxDecoration(
             color: userColors[playerIndex],
             shape: BoxShape.circle,
