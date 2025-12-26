@@ -4,6 +4,7 @@ class QuizQuestion {
   final List<String> choices;  // 선택지 (4개 고정)
   final int correctIndex;      // 정답 인덱스 (0~3)
   final List<String> explanations; // 선택지별 해설
+  final String? imageUrl;      // 문화재 이미지 URL (추가됨)
 
   const QuizQuestion({
     required this.title,
@@ -11,5 +12,6 @@ class QuizQuestion {
     required this.choices,
     required this.correctIndex,
     required this.explanations,
+    this.imageUrl,
   });
 }
