@@ -1,7 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ 추가
+import 'package:firebase_core/firebase_core.dart';
 import 'mainUI.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // ✅ 필수
+
+  // ✅ Firebase 초기화 (가장 중요)
+  await Firebase.initializeApp();
+  // FlutterFire CLI 사용 중이면 ↓
+  // await Firebase.initializeApp(
+  //   options: DefaultFirebaseOptions.currentPlatform,
+  // );
+
+  // ✅ 가로모드만 허용
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+
   runApp(const MyApp());
 }
 
@@ -26,7 +43,8 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -51,8 +69,8 @@ class LoginScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: isLandscape
-                      ? _buildLandscapeLayout(context, size) // context 추가 전달
-                      : _buildPortraitLayout(context, size), // context 추가 전달
+                      ? _buildLandscapeLayout(context, size)
+                      : _buildPortraitLayout(context, size),
                 ),
               ),
             ),
@@ -68,7 +86,7 @@ class LoginScreen extends StatelessWidget {
       children: [
         _buildLogo(size.width * 0.7),
         const SizedBox(height: 30),
-        _buildLoginPanel(context, size.width * 0.85), // context 추가
+        _buildLoginPanel(context, size.width * 0.85),
       ],
     );
   }
@@ -86,7 +104,7 @@ class LoginScreen extends StatelessWidget {
         const SizedBox(width: 20),
         Expanded(
           child: Center(
-            child: _buildLoginPanel(context, size.width * 0.45), // context 추가
+            child: _buildLoginPanel(context, size.width * 0.45),
           ),
         ),
       ],
@@ -120,9 +138,23 @@ class LoginScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text("주사위로 떠나는", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF5D4037))),
+          const Text(
+            "주사위로 떠나는",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF5D4037),
+            ),
+          ),
           const SizedBox(height: 5),
-          const Text("우리 문화유산 여행", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3E2723))),
+          const Text(
+            "우리 문화유산 여행",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF3E2723),
+            ),
+          ),
           const SizedBox(height: 20),
           _buildCustomButton(
             text: "로그인 (추후 제작 예정...)",
@@ -140,10 +172,11 @@ class LoginScreen extends StatelessWidget {
             endColor: const Color(0xFFE64A19),
             borderColor: const Color(0xFFBF360C),
             onTap: () {
-              // Navigator를 사용하여 MainScreen(mainUI.dart)으로 이동
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const MainScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const MainScreen(),
+                ),
               );
             },
           ),
@@ -158,13 +191,17 @@ class LoginScreen extends StatelessWidget {
     required Color startColor,
     required Color endColor,
     required Color borderColor,
-    required VoidCallback onTap, // onTap 파라미터 추가
+    required VoidCallback onTap,
   }) {
     return Container(
       width: double.infinity,
       height: 50,
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [startColor, endColor], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+        gradient: LinearGradient(
+          colors: [startColor, endColor],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: borderColor, width: 2),
       ),
@@ -172,9 +209,16 @@ class LoginScreen extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(30),
-          onTap: onTap, // 전달받은 함수 호출
+          onTap: onTap,
           child: Center(
-            child: Text(text, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Text(
+              text,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ),
       ),
