@@ -40,7 +40,7 @@ dependencies:
   xml2json: ^6.2.0   # XML -> JSON 변환용
   go_router:
   flutter_animate: ^4.5.0 # 카드 이펙트용
-  lottie: ^3.1.0 # 카드 이펙트용
+  confetti: ^0.7.0 # 카드 이펙트
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +60,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/
+    - assets/Cards/
     - .env
 
   # The following line ensures that the Material Icons font is
