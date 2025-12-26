@@ -46,13 +46,21 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
   // [기능 1] 32칸 전체 초기화
+  // [기능 1] 32칸 전체 초기화
   Future<void> _initializeBoardLayout() async {
     Map<String, dynamic> fullBoardData = {};
+
+    // [중요] 반드시 for문 밖에서 선언해야 카운트가 누적됩니다.
+    int landCount = 0;
+
+    print("--- 통행료 계산 시작 ---"); // 디버깅용 로그
+
     for (int i = 0; i < 32; i++) {
       String key = "b$i";
       String type = "land";
-      String name = "일반 땅";
+      String? name;
 
+      // 1. 칸 종류 지정
       if (i == 0) { type = "start"; name = "출발지"; }
       else if (i == 8) { type = "island"; name = "무인도"; }
       else if (i == 16) { type = "festival"; name = "지역축제"; }
@@ -63,25 +71,47 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
       Map<String, dynamic> blockData = {
         "index": i,
         "type": type,
-        "name": (type == "land") ? null : name,
+        "name": name,
       };
 
+      // 2. 땅(land)일 때만 가격 계산 로직 수행
       if (type == "land") {
+        // 계산: 10만원 + (현재까지 나온 땅 개수 * 1만원)
+        int calculatedToll = 100000 + (landCount * 10000);
+
         blockData.addAll({
+          "name": "일반 땅 ${landCount + 1}", // DB에서 확인 쉽도록 번호 붙임
           "level": 0,
           "owner": "N",
-          "tollPrice": 100000,
+          "tollPrice": calculatedToll,
           "isFestival": false,
           "multiply": 1,
         });
+
+        // [중요] 디버그 콘솔(Run 탭)에서 이 로그가 찍히는지 확인하세요.
+        print("칸번호: $i / 땅순서: $landCount / 가격: $calculatedToll");
+
+        landCount++; // 다음 땅을 위해 카운트 1 증가
       }
+
       fullBoardData[key] = blockData;
     }
+
+    print("--- 데이터 생성 완료, DB 전송 시작 ---");
+
     try {
       await _fs.collection("games").doc("board").set(fullBoardData);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("전체 32칸 초기화 완료!")));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("초기화 완료! 총 땅 개수: $landCount개")),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("에러: $e")));
+      print("에러 발생: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("에러: $e")));
+      }
     }
   }
 
