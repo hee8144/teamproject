@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'Bankruptcy.dart';
 
 class TaxDialog extends StatefulWidget {
-  const TaxDialog({super.key});
+  final int user;
+  const TaxDialog({super.key, required this.user});
 
   @override
   State<TaxDialog> createState() => _TaxDialogState();
@@ -30,15 +31,15 @@ class _TaxDialogState extends State<TaxDialog> {
     if (boardSnap.exists) {
       boardData = boardSnap.data()!;
       boardData.forEach((key, value) {
-        if (value is Map && value["owner"] == "1") {
+        if (value is Map && value["owner"] == widget.user) {
           totalTollPrice += (value["tollPrice"] as int? ?? 0);
         }
       });
     }
 
     if (userSnap.exists) {
-      final user1 = userSnap.data()!["user1"];
-      userMoney = user1["money"];
+      final user = userSnap.data()!["user${widget.user}"];
+      userMoney = user["money"];
       tax = (totalTollPrice * 0.1).toInt();
       remainMoney = userMoney - tax;
     }
@@ -47,8 +48,7 @@ class _TaxDialogState extends State<TaxDialog> {
   /// 세금 차감
   Future<void> _updateMoney() async {
     await fs.collection("games").doc("users").update({
-      "user1.money": FieldValue.increment(-tax),
-      "user1.totalMoney": FieldValue.increment(-tax),
+      "user${widget.user}.money": FieldValue.increment(-tax),
     });
   }
 
