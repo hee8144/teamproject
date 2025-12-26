@@ -1,21 +1,24 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
+import 'gameMain.dart';
 
 
 // 기존 CreateApp 클래스를 아래 코드로 교체하세요.
 
 // 이 코드를 기존 CreateApp 대신 사용하세요.
 
-class CreateApp extends StatefulWidget {
-  const CreateApp({super.key});
+class DiceApp extends StatefulWidget {
+  final Function(int, int) onRoll;
+
+  const DiceApp({super.key, required this.onRoll});
   @override
-  CreateAppState createState() => CreateAppState();
+  DiceAppState createState() => DiceAppState();
 }
 
-class CreateAppState extends State<CreateApp> with TickerProviderStateMixin {
-  // [수정 1] 주사위 크기를 40으로 더 줄임 (확실히 작아지도록)
-  final double _size = 40.0;
+class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
+  final double _size = 40.0; // 주사위 크기
+  int turn = 1;
 
   double _x1 = 0.0, _y1 = 0.0;
   double _x2 = 0.0, _y2 = 0.0;
@@ -68,7 +71,20 @@ class CreateAppState extends State<CreateApp> with TickerProviderStateMixin {
       _totalResult = val1 + val2;
       _isDouble = (val1 == val2);
       _isRolling = false;
+
+      widget.onRoll(_totalResult, turn);
+
+      if(!_isDouble && turn != 4){
+        turn++;
+      } else if(!_isDouble && turn == 4){
+        turn = 1;
+      } else {
+        turn = turn;
+      }
+
+
     });
+
   }
 
   void runAllDice() {
@@ -95,43 +111,65 @@ class CreateAppState extends State<CreateApp> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+
     return FittedBox(
       fit: BoxFit.scaleDown,
-      child: Padding(
-        padding: const EdgeInsets.all(4.0), // 패딩 최소화
+      child: Container(
+        // [수정] 모달창 느낌을 위한 배경 디자인 추가
+        width: 260, // 모달의 고정 너비 (FittedBox가 알아서 축소함)
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.75), // 반투명 검은색 배경
+          borderRadius: BorderRadius.circular(20), // 둥근 모서리
+          border: Border.all(color: Colors.white24, width: 1.5), // 연한 테두리
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 10,
+              spreadRadius: 2,
+            )
+          ],
+        ),
         child: Column(
+          mainAxisSize: MainAxisSize.min, // 내용물 크기만큼만 차지
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // "더블!!" 텍스트 영역
             SizedBox(
-              height: 18,
+              height: 20,
               child: _isDouble && !_isRolling
-                  ? const Text("더블!! ✨", style: TextStyle(color: Colors.yellowAccent, fontSize: 14, fontWeight: FontWeight.bold))
+                  ? const Text("✨ DOUBLE!! ✨", style: TextStyle(color: Colors.yellowAccent, fontSize: 16, fontWeight: FontWeight.bold))
                   : null,
             ),
             // 점수 표시 영역
             Text(
-                _isRolling ? "Rolling..." : "합계: $_totalResult",
-                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+              "user$turn님의 턴",
+                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
             ),
-            const SizedBox(height: 15),
+            Text(
+                _isRolling ? "Rolling..." : "TOTAL: $_totalResult",
+                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
+            ),
+            const SizedBox(height: 25),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildDice(1, _x1, _y1),
-                const SizedBox(width: 15),
+                const SizedBox(width: 25),
                 _buildDice(2, _x2, _y2),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
             ElevatedButton(
               onPressed: runAllDice,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                backgroundColor: Colors.indigoAccent,
-                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                backgroundColor: Colors.amber[700], // 버튼 색상을 눈에 띄게 변경
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                elevation: 5,
               ),
-              child: const Text("굴리기 🎲", style: TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text("ROLL DICE 🎲", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -154,7 +192,6 @@ class CreateAppState extends State<CreateApp> with TickerProviderStateMixin {
   void dispose() { _controller1.dispose(); _controller2.dispose(); super.dispose(); }
 }
 
-// [수정 2] Cube 위젯: 그림자 효과를 줄여서 '흰색'이 잘 보이도록 수정
 class Cube extends StatelessWidget {
   const Cube({super.key, required this.x, required this.y, required this.size});
   final double x, y, size;
@@ -179,9 +216,7 @@ class Cube extends StatelessWidget {
   }
 
   Widget _side(double rx, double ry, double rz, int val) {
-    // 그림자 농도 조절 (기존 0.4 -> 0.1로 아주 연하게)
-    double shading = (cos(ry).abs() * 0) + (cos(rx).abs() * 0);
-
+    // [수정] 그림자 계산 로직과 foregroundDecoration을 완전히 삭제했습니다.
     return Transform(
       alignment: Alignment.center,
       transform: Matrix4.identity()..rotateX(rx)..rotateY(ry)..rotateZ(rz)..translate(0.0, 0.0, size / 2),
@@ -189,13 +224,11 @@ class Cube extends StatelessWidget {
         child: Container(
           width: size, height: size,
           decoration: BoxDecoration(
-              color: Colors.white,
-              // 테두리를 얇게 (2 -> 1)
-              border: Border.all(width: 1, color: Colors.black26),
-              borderRadius: BorderRadius.circular(size * 0.15)
+            color: Colors.white,
+            // 테두리를 얇게 유지
+            border: Border.all(width: 1.0, color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(size * 0.15),
           ),
-          // 검은색 그림자를 아주 연하게 적용 (흰색이 잘 보이도록)
-          foregroundDecoration: BoxDecoration(color: Colors.black.withOpacity(shading.clamp(0.0, 0.1))),
           child: CustomPaint(painter: DiceDotsPainter(val)),
         ),
       ),
@@ -208,8 +241,8 @@ class DiceDotsPainter extends CustomPainter {
   DiceDotsPainter(this.value);
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black87; // 점 색상 (검정)
-    final r = size.width * 0.1; // 점 크기 비율
+    final paint = Paint()..color = Colors.black; // 점 색상 (완전 검정)
+    final r = size.width * 0.1;
     final w = size.width, h = size.height;
     void draw(double x, double y) => canvas.drawCircle(Offset(x, y), r, paint);
     if (value % 2 != 0) draw(w / 2, h / 2);
