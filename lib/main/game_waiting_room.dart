@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class GameWaitingRoom extends StatefulWidget {
   const GameWaitingRoom({super.key});
@@ -8,6 +9,47 @@ class GameWaitingRoom extends StatefulWidget {
 }
 
 class _GameWaitingRoomState extends State<GameWaitingRoom> {
+  final FirebaseFirestore fs = FirebaseFirestore.instance;
+
+  /// 🔢 슬롯 index → 표시 번호 매핑
+  /// [좌상, 우상, 좌하, 우하] = [2, 4, 3, 1]
+  final List<int> displayOrder = [2, 4, 3, 1];
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get usersStream =>
+      fs.collection('games').doc('users').snapshots();
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayerFour();
+  }
+
+  /// ✅ 처음 입장 시 4번 자리를 플레이어로 자동 세팅
+  Future<void> _initPlayerFour() async {
+    final doc = await fs.collection('games').doc('users').get();
+    if (!doc.exists) return;
+
+    final data = doc.data();
+    if (data == null) return;
+
+    final user4 = data['user4'];
+    if (user4 != null && user4['type'] == "N") {
+      await fs.collection('games').doc('users').update({
+        'user4.type': "P",
+      });
+    }
+  }
+
+  Future<void> _updateUserType(int index, String type) async {
+    await fs.collection('games').doc('users').update({
+      'user${index + 1}.type': type,
+    });
+  }
+
+  Future<void> _clearUser(int index) async {
+    await _updateUserType(index, "N");
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -33,19 +75,30 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
           // ================== 메인 콘텐츠 ==================
           SafeArea(
             child: Padding(
-              padding: EdgeInsets.only(
-                top: 20,
-                left: 20,
-                right: 20,
-                bottom: isLandscape ? 20 : 100,
+              padding: const EdgeInsets.all(20),
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: usersStream,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
+
+                  final users = snapshot.data!.data()!;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 48),
+                    child: isLandscape
+                        ? _buildLandscapeGrid(users)
+                        : _buildPortraitGrid(users),
+                  );
+                },
               ),
-              child: isLandscape
-                  ? _buildLandscapeGrid(size)
-                  : _buildPortraitGrid(),
             ),
           ),
 
-          // ================== X 버튼 ==================
+          // ================== 나가기 X 버튼 ==================
           Positioned(
             top: 12,
             right: 12,
@@ -72,101 +125,135 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   }
 
   /* ================== 플레이어 그리드 - 세로 ================== */
-  Widget _buildPortraitGrid() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 15,
-          crossAxisSpacing: 15,
-          childAspectRatio: 1.2,
-        ),
-        itemCount: 4,
-        itemBuilder: (context, index) {
-          // 호스트만 Master, 나머지는 empty
-          String type = index == 0 ? "player" : "empty";
-          return _buildPlayerSlot(index, type);
-        },
+  Widget _buildPortraitGrid(Map<String, dynamic> users) {
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 15,
+        crossAxisSpacing: 15,
+        childAspectRatio: 1.2,
       ),
+      itemCount: 4,
+      itemBuilder: (context, index) {
+        final user = users['user${index + 1}'];
+        return _buildPlayerSlot(index, user['type']);
+      },
     );
   }
 
   /* ================== 플레이어 그리드 - 가로 ================== */
-  Widget _buildLandscapeGrid(Size size) {
-    final double padding = 20;
-    final double spacing = 10;
-    final int crossCount = 2;
+  Widget _buildLandscapeGrid(Map<String, dynamic> users) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const int crossCount = 2;
+        const double spacing = 12;
 
-    final double totalWidth = size.width - padding * 2 - spacing * (crossCount - 1);
-    final double slotWidth = totalWidth / crossCount;
+        final double totalWidth =
+            constraints.maxWidth - spacing * (crossCount - 1);
+        final double totalHeight =
+            constraints.maxHeight - spacing * (crossCount - 1);
 
-    final double totalHeight = size.height - padding * 2 - spacing * (crossCount - 1) - 80;
-    final double slotHeight = totalHeight / crossCount;
+        final double slotWidth = totalWidth / crossCount;
+        final double slotHeight = totalHeight / crossCount;
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossCount,
-        mainAxisSpacing: spacing,
-        crossAxisSpacing: spacing,
-        childAspectRatio: slotWidth / slotHeight,
-      ),
-      itemCount: 4,
-      itemBuilder: (context, index) {
-        // 호스트만 Master, 나머지는 empty
-        String type = index == 0 ? "player" : "empty";
-        return _buildPlayerSlot(index, type);
+        return GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossCount,
+            mainAxisSpacing: spacing,
+            crossAxisSpacing: spacing,
+            childAspectRatio: slotWidth / slotHeight,
+          ),
+          itemCount: 4,
+          itemBuilder: (context, index) {
+            final user = users['user${index + 1}'];
+            return _buildPlayerSlot(index, user['type']);
+          },
+        );
       },
     );
   }
 
   /* ================== 플레이어 슬롯 ================== */
   Widget _buildPlayerSlot(int index, String type) {
-    final isHost = index == 0;
-    final isEmpty = type == "empty";
+    final bool isEmpty = type == "N";
+    final int displayNumber = displayOrder[index];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF5E6).withOpacity(isEmpty ? 0.6 : 1.0),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isHost ? const Color(0xFFE6AD5C) : const Color(0xFFD7C0A1),
-          width: isHost ? 3 : 1.5,
-        ),
-      ),
-      child: Center(
-        child: isEmpty
-            ? Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildAddButton(Icons.android),
-            const SizedBox(width: 8),
-            _buildAddButton(Icons.person_add),
-          ],
-        )
-            : Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.stars,
-              size: 30,
-              color: Color(0xFF5D4037),
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFDF5E6).withOpacity(isEmpty ? 0.6 : 1.0),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFD7C0A1),
+              width: 1.5,
             ),
-            const SizedBox(height: 6),
-            const Text(
-              "Master",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF5D4037),
+          ),
+          child: Center(
+            child: isEmpty
+                ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () => _updateUserType(index, "B"),
+                  child: _buildAddButton(Icons.android),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _updateUserType(index, "P"),
+                  child: _buildAddButton(Icons.person_add),
+                ),
+              ],
+            )
+                : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  type == "B" ? Icons.android : Icons.person,
+                  size: 30,
+                  color: const Color(0xFF5D4037),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  type == "B"
+                      ? "봇$displayNumber"
+                      : "플레이어$displayNumber",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (!isEmpty)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: GestureDetector(
+              onTap: () => _clearUser(index),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.9),
+                  border: Border.all(
+                    color: const Color(0xFFD7C0A1),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.close,
+                  size: 16,
+                  color: Color(0xFF5D4037),
+                ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 
@@ -182,42 +269,15 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     );
   }
 
-  /* ================== 게임 시작 버튼 ================== */
   Widget _buildStartButton() {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF5E6).withOpacity(0.95),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xFFD7C0A1), width: 2),
-      ),
-      child: SizedBox(
-        height: 42,
-        child: ElevatedButton(
-          onPressed: () {
-            debugPrint("게임 시작!");
-          },
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            backgroundColor: const Color(0xFFFFCC80),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(26),
-            ),
-          ),
-          child: const Text(
-            "게임 시작!",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF5D4037),
-              fontSize: 15,
-            ),
-          ),
-        ),
-      ),
+    return ElevatedButton(
+      onPressed: () {
+        debugPrint("게임 시작!");
+      },
+      child: const Text("게임 시작!"),
     );
   }
 
-  /* ================== 공통 ================== */
   Widget _buildCircleIcon(IconData icon) {
     return Container(
       padding: const EdgeInsets.all(8),

@@ -7,9 +7,7 @@ class MainScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final size = media.size;
-    final isLandscape = media.orientation == Orientation.landscape;
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       body: Stack(
@@ -26,15 +24,11 @@ class MainScreen extends StatelessWidget {
             ),
           ),
 
-          // ================= UI =================
+          // ================= UI (가로 전용) =================
           SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: isLandscape
-                    ? _buildLandscapeLayout(context, size)
-                    : _buildPortraitLayout(context, size),
-              ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30),
+              child: _buildLandscapeLayout(context, size),
             ),
           ),
         ],
@@ -42,44 +36,51 @@ class MainScreen extends StatelessWidget {
     );
   }
 
-  /* ===================== 세로 모드 ===================== */
-
-  Widget _buildPortraitLayout(BuildContext context, Size size) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Image.asset(
-          'assets/Logo.png',
-          width: size.width * 1, // 🔺 기존 0.65 → 더 크게
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(height: 20),
-        _buildButtonPanel(
-          context: context,
-          maxWidth: size.width * 0.65,
-        ),
-      ],
-    );
-  }
-
-  /* ===================== 가로 모드 ===================== */
+  /* ===================== 가로 모드 전용 ===================== */
 
   Widget _buildLandscapeLayout(BuildContext context, Size size) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // ---------- 로고 (더 크게) ----------
-        Image.asset(
-          'assets/Logo.png',
-          width: size.width * 1.0,   // 🔺 기존 0.7
-          height: size.height * 0.55, // 🔺 기존 0.35
-          fit: BoxFit.contain,
+        // ---------- 왼쪽 : 로고 ----------
+        Expanded(
+          flex: 6, // 🔥 로고 영역 자체를 키움
+          child: Image.asset(
+            'assets/Logo.png',
+            fit: BoxFit.contain,
+            height: size.height * 0.75, // 🔥 로고 높이 증가
+          ),
         ),
 
-        // ---------- 버튼 패널 ----------
-        _buildButtonPanel(
-          context: context,
-          maxWidth: size.width * 0.75,
+        const SizedBox(width: 30),
+
+        // ---------- 오른쪽 : 버튼 영역 ----------
+        Expanded(
+          flex: 4,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 🔼 게임 규칙 버튼 (대폭 확대)
+              _buildRuleButtonLarge(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const GameRulePage(),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 28),
+
+              // 🔽 방 만들기 버튼 패널
+              _buildButtonPanel(
+                context: context,
+                maxWidth: size.width * 0.45,
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -94,47 +95,32 @@ class MainScreen extends StatelessWidget {
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 25),
+        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 30),
         decoration: BoxDecoration(
-          color: const Color(0xFFFDF5E6).withOpacity(0.85),
-          borderRadius: BorderRadius.circular(25),
+          color: const Color(0xFFFDF5E6).withOpacity(0.88),
+          borderRadius: BorderRadius.circular(26),
           border: Border.all(color: const Color(0xFFD7C0A1), width: 2.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 15,
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 16,
               offset: const Offset(0, 6),
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 4,
-              child: _buildMainButton(
-                text: "방 만들기",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const GameWaitingRoom(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 15),
-            _buildCircleButton(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const GameRulePage(),
-                  ),
-                );
-              },
-            ),
-          ],
+        child: SizedBox(
+          width: 360,
+          child: _buildMainButton(
+            text: "방 만들기",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const GameWaitingRoom(),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -147,26 +133,26 @@ class MainScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Container(
-      height: 55,
+      height: 64,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFE6AD5C), width: 2),
+        borderRadius: BorderRadius.circular(34),
+        border: Border.all(color: const Color(0xFFE6AD5C), width: 2.2),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(34),
           onTap: onTap,
           child: Center(
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 18,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF5D4037),
               ),
@@ -177,39 +163,43 @@ class MainScreen extends StatelessWidget {
     );
   }
 
-  /* ===================== 룰 버튼 ===================== */
+  /* ===================== 룰 버튼 (초대형) ===================== */
 
-  Widget _buildCircleButton({
+  Widget _buildRuleButtonLarge({
     required VoidCallback onTap,
   }) {
-    return Container(
-      width: 55,
-      height: 55,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        border: Border.all(color: const Color(0xFFE6AD5C), width: 2),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: ClipOval(
-            child: SizedBox.expand(
-              child: Image.asset(
-                'assets/game_rule.png',
-                fit: BoxFit.cover, // 🔥 원을 꽉 채움
-              ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 130,
+        height: 130,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          border: Border.all(
+            color: const Color(0xFFE6AD5C),
+            width: 3.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.28),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Image.asset(
+            'assets/game_rule.png',
+            fit: BoxFit.contain,
           ),
         ),
       ),
     );
   }
-
 }
