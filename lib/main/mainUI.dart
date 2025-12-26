@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:teamproject/main/game_waiting_room.dart';
 import 'package:teamproject/main/game_rule.dart';
+import 'package:teamproject/main/login.dart';
 
 class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
@@ -44,11 +45,11 @@ class MainScreen extends StatelessWidget {
       children: [
         // ---------- 왼쪽 : 로고 ----------
         Expanded(
-          flex: 6, // 🔥 로고 영역 자체를 키움
+          flex: 6,
           child: Image.asset(
             'assets/Logo.png',
             fit: BoxFit.contain,
-            height: size.height * 0.75, // 🔥 로고 높이 증가
+            height: size.height * 0.75,
           ),
         ),
 
@@ -60,24 +61,22 @@ class MainScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 🔼 게임 규칙 버튼 (대폭 확대)
               _buildRuleButtonLarge(
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const GameRulePage(),
+                      builder: (_) => const GameRulePage(),
                     ),
                   );
                 },
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 20), // ⬇ 간격 축소
 
-              // 🔽 방 만들기 버튼 패널
               _buildButtonPanel(
                 context: context,
-                maxWidth: size.width * 0.45,
+                maxWidth: size.width * 0.55,
               ),
             ],
           ),
@@ -95,7 +94,10 @@ class MainScreen extends StatelessWidget {
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 30),
+        padding: const EdgeInsets.symmetric(
+          vertical: 16, // ⬅ 기존 22 → 16
+          horizontal: 26,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFFFDF5E6).withOpacity(0.88),
           borderRadius: BorderRadius.circular(26),
@@ -110,16 +112,35 @@ class MainScreen extends StatelessWidget {
         ),
         child: SizedBox(
           width: 360,
-          child: _buildMainButton(
-            text: "방 만들기",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const GameWaitingRoom(),
-                ),
-              );
-            },
+          child: Column(
+            children: [
+              _buildMainButton(
+                text: "방 만들기",
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const GameWaitingRoom(),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12), // ⬅ 기존 16 → 12
+
+              _buildMainButton(
+                text: "처음으로",
+                onTap: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginScreen(),
+                    ),
+                        (route) => false,
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -133,26 +154,26 @@ class MainScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Container(
-      height: 64,
+      height: 56, // ⬅ 기존 64 → 56
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(30),
         border: Border.all(color: const Color(0xFFE6AD5C), width: 2.2),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(34),
+          borderRadius: BorderRadius.circular(30),
           onTap: onTap,
           child: Center(
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 22,
+                fontSize: 20, // ⬅ 살짝만 축소
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF5D4037),
               ),
@@ -163,7 +184,7 @@ class MainScreen extends StatelessWidget {
     );
   }
 
-  /* ===================== 룰 버튼 (초대형) ===================== */
+  /* ===================== 룰 버튼 ===================== */
 
   Widget _buildRuleButtonLarge({
     required VoidCallback onTap,
