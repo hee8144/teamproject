@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
 import 'dice.dart'; // dice.dart 파일이 같은 폴더에 있어야 합니다.
 import '../Popup/TaxDialog.dart'; // 세금 다이얼로그 파일 import (경로 확인 필요)
-import '../Popup/Island.dart';
+import '../Popup/Construction.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
