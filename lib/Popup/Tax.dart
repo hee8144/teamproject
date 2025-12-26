@@ -113,8 +113,14 @@ class TaxPage extends StatelessWidget {
                   ),
                 ],
               ),
-              ElevatedButton(onPressed: (){
-                showDialog(context: context, builder: (context)=>ConstructionDialog(buildingId: "gyeongbokgung"));
+              ElevatedButton(onPressed: () async {
+                final result=
+                await showDialog(context: context,barrierDismissible: false, builder: (context)=>ConstructionDialog(buildingId: 1,user: 1,));
+                if(result != null){
+                  print("결과:${result["user"]}");
+                  print("결과:${result["index"]}");
+                  print("결과:${result["level"]}");
+                }
               }, child: Text("건설")),
             ],
           ),
