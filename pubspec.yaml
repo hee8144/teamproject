@@ -41,6 +41,7 @@ dependencies:
   go_router:
   flutter_animate: ^4.5.0 # 카드 이펙트용
   lottie: ^3.1.0 # 카드 이펙트용
+  carousel_slider: ^5.1.1
 
 dev_dependencies:
   flutter_test:
@@ -59,8 +60,7 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
-    - assets/cards/
-    - assets/lottie/
+    - assets/
     - .env
 
   # The following line ensures that the Material Icons font is

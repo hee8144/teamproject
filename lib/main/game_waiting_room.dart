@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../game/gameMain.dart';
 
 class GameWaitingRoom extends StatefulWidget {
   const GameWaitingRoom({super.key});
@@ -11,7 +12,6 @@ class GameWaitingRoom extends StatefulWidget {
 class _GameWaitingRoomState extends State<GameWaitingRoom> {
   final FirebaseFirestore fs = FirebaseFirestore.instance;
 
-  /// 🔢 슬롯 index → 표시 번호 매핑
   /// [좌상, 우상, 좌하, 우하] = [2, 4, 3, 1]
   final List<int> displayOrder = [2, 4, 3, 1];
 
@@ -24,7 +24,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     _initPlayerFour();
   }
 
-  /// ✅ 처음 입장 시 4번 자리를 플레이어로 자동 세팅
+  /// 처음 입장 시 4번 자리를 플레이어로 자동 세팅
   Future<void> _initPlayerFour() async {
     final doc = await fs.collection('games').doc('users').get();
     if (!doc.exists) return;
@@ -59,7 +59,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     return Scaffold(
       body: Stack(
         children: [
-          // ================== 배경 ==================
+          // ================= 배경 =================
           Container(
             width: size.width,
             height: size.height,
@@ -72,7 +72,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
           ),
           Container(color: Colors.black.withOpacity(0.05)),
 
-          // ================== 메인 콘텐츠 ==================
+          // ================= 메인 =================
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -87,18 +87,32 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
 
                   final users = snapshot.data!.data()!;
 
+                  final int activeCount = List.generate(4, (i) {
+                    return users['user${i + 1}']['type'];
+                  }).where((type) => type != "N").length;
+
+                  final bool canStart = activeCount >= 2;
+
                   return Padding(
                     padding: const EdgeInsets.only(top: 48),
-                    child: isLandscape
-                        ? _buildLandscapeGrid(users)
-                        : _buildPortraitGrid(users),
+                    child: Stack(
+                      children: [
+                        isLandscape
+                            ? _buildLandscapeGrid(users)
+                            : _buildPortraitGrid(users),
+
+                        Center(
+                          child: _buildStartButton(canStart),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
             ),
           ),
 
-          // ================== 나가기 X 버튼 ==================
+          // ================= 나가기 버튼 (유지) =================
           Positioned(
             top: 12,
             right: 12,
@@ -109,22 +123,12 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
               ),
             ),
           ),
-
-          // ================== 게임 시작 버튼 ==================
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: SafeArea(
-              top: false,
-              child: _buildStartButton(),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  /* ================== 플레이어 그리드 - 세로 ================== */
+  /* ================== 세로 ================== */
   Widget _buildPortraitGrid(Map<String, dynamic> users) {
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
@@ -142,20 +146,17 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     );
   }
 
-  /* ================== 플레이어 그리드 - 가로 ================== */
+  /* ================== 가로 ================== */
   Widget _buildLandscapeGrid(Map<String, dynamic> users) {
     return LayoutBuilder(
       builder: (context, constraints) {
         const int crossCount = 2;
         const double spacing = 12;
 
-        final double totalWidth =
-            constraints.maxWidth - spacing * (crossCount - 1);
-        final double totalHeight =
-            constraints.maxHeight - spacing * (crossCount - 1);
-
-        final double slotWidth = totalWidth / crossCount;
-        final double slotHeight = totalHeight / crossCount;
+        final double slotWidth =
+            (constraints.maxWidth - spacing) / crossCount;
+        final double slotHeight =
+            (constraints.maxHeight - spacing) / crossCount;
 
         return GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
@@ -175,7 +176,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     );
   }
 
-  /* ================== 플레이어 슬롯 ================== */
+  /* ================== 슬롯 ================== */
   Widget _buildPlayerSlot(int index, String type) {
     final bool isEmpty = type == "N";
     final int displayNumber = displayOrder[index];
@@ -230,30 +231,32 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
             ),
           ),
         ),
-        if (!isEmpty)
+
+        // ⭐ 슬롯 내부 X 버튼 위치만 아래로 이동
+        if (!isEmpty && !(index == 3 && type == "P"))
           Positioned(
-            top: 8,
+            top: 14, // ← 기존 8 → 14
             right: 8,
             child: GestureDetector(
               onTap: () => _clearUser(index),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.9),
-                  border: Border.all(
-                    color: const Color(0xFFD7C0A1),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.close,
-                  size: 16,
-                  color: Color(0xFF5D4037),
-                ),
-              ),
+              child: _buildCircleIcon(Icons.close),
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildStartButton(bool canStart) {
+    return ElevatedButton(
+      onPressed: canStart
+          ? () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const GameMain()),
+        );
+      }
+          : null,
+      child: const Text("게임 시작!"),
     );
   }
 
@@ -266,15 +269,6 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
         border: Border.all(color: const Color(0xFFD7C0A1)),
       ),
       child: Icon(icon, size: 20, color: const Color(0xFF8D6E63)),
-    );
-  }
-
-  Widget _buildStartButton() {
-    return ElevatedButton(
-      onPressed: () {
-        debugPrint("게임 시작!");
-      },
-      child: const Text("게임 시작!"),
     );
   }
 
