@@ -71,7 +71,7 @@ class TaxPage extends StatelessWidget {
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (_) => const TaxDialog(),
+                          builder: (_) => const TaxDialog(user: 2),
                         );
                       },
                       style: ElevatedButton.styleFrom(
@@ -95,7 +95,7 @@ class TaxPage extends StatelessWidget {
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (_) => const TaxDialog(),
+                          builder: (_) => const TaxDialog(user: 3,),
                         );
                       },
                       style: ElevatedButton.styleFrom(

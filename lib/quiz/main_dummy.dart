@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'quiz_dialog.dart';
 import 'quiz_result_popup.dart';
 import 'region_detail_popup.dart';
 import 'chance_card_quiz_after.dart';
 import 'quiz_question.dart';
-import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
-
+import 'quiz_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,37 +48,53 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
   QuizQuestion? _currentQuestion;
   bool? _lastQuizCorrect;
 
-  void _openQuiz(QuizSource source) {
+  // ---------------------------------------------------------------------------
+  // 퀴즈 열기 (DB 연동)
+  // ---------------------------------------------------------------------------
+  void _openQuiz(QuizSource source) async {
     _currentSource = source;
 
-    // 더미 문제 1개 (나중에 DB에서 로드하면 여기만 교체)
-    final question = QuizQuestion(
-      title: "경복궁 문화재 퀴즈!",
-      question: "경복궁은 어느 왕조 시대에 건설된 궁궐일까요?",
-      choices: ["고려", "조선", "신라", "대한제국"],
-      correctIndex: 1,
-      explanations: [
-        "고려는 아닙니다.",
-        "조선 시대에 건설된 궁궐입니다.",
-        "신라 시대는 아닙니다.",
-        "대한제국 이전에 건설되었습니다.",
-      ],
-    );
-
-    _currentQuestion = question;
-
+    // 로딩 인디케이터 표시
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => QuizDialog(
-        question: question,
-        onQuizFinished: (selectedIndex, isCorrect) {
-          _onQuizFinished(selectedIndex, isCorrect);
-        },
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF5D4037)),
       ),
     );
+
+    try {
+      // DB에서 랜덤 퀴즈 가져오기
+      final question = await QuizRepository.getRandomQuiz();
+
+      if (!mounted) return;
+      Navigator.pop(context); // 로딩 닫기
+
+      _currentQuestion = question;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => QuizDialog(
+          question: question,
+          onQuizFinished: (selectedIndex, isCorrect) {
+            _onQuizFinished(selectedIndex, isCorrect);
+          },
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // 로딩 닫기
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("퀴즈를 불러오지 못했습니다: $e")),
+      );
+    }
   }
 
+  // ---------------------------------------------------------------------------
+  // 퀴즈 종료 후 결과 팝업
+  // ---------------------------------------------------------------------------
   void _onQuizFinished(int selectedIndex, bool isCorrect) {
     _lastQuizCorrect = isCorrect;
 
@@ -98,7 +115,9 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
     });
   }
 
-
+  // ---------------------------------------------------------------------------
+  // 찬스 카드 후속 팝업
+  // ---------------------------------------------------------------------------
   void _openChanceAfter() async {
     final action = await showDialog<String>(
       context: context,
@@ -119,6 +138,9 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // 지역 상세 팝업
+  // ---------------------------------------------------------------------------
   void _openRegionDetail() {
     showDialog(
       context: context,
@@ -146,6 +168,14 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
               onPressed: () => _openQuiz(QuizSource.region),
               child: const Text("문화재 지역 퀴즈 발생"),
             ),
+            const SizedBox(height: 16),
+            // --- 디버깅용 버튼 추가 ---
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+              onPressed: _testLoadQ1,
+              child: const Text("DB 연결 테스트 (q1)"),
+            ),
+            // -----------------------
             if (_lastChanceAction != null) ...[
               const SizedBox(height: 24),
               Text(
@@ -161,5 +191,80 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
         ),
       ),
     );
+  }
+
+  // 디버깅용 메서드: games/quiz 문서 로드 후 q1 확인
+  Future<void> _testLoadQ1() async {
+    try {
+      showDialog(
+        context: context,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      print("🔥 [Test] Fetching games/quiz...");
+      final doc = await FirebaseFirestore.instance.collection('games').doc('quiz').get();
+      
+      if (!mounted) return;
+      Navigator.pop(context); // 로딩 닫기
+
+      if (doc.exists) {
+        final data = doc.data();
+        final q1Data = data?['q1'];
+
+        if (q1Data != null) {
+          print("✅ [Test] q1 Success: $q1Data");
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text("성공: q1 데이터"),
+              content: SingleChildScrollView(
+                child: Text(q1Data.toString()),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
+              ],
+            ),
+          );
+        } else {
+          print("❌ [Test] q1 field not found in quiz document");
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text("실패"),
+              content: const Text("quiz 문서 안에 'q1' 필드가 없습니다."),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
+              ],
+            ),
+          );
+        }
+      } else {
+        print("❌ [Test] quiz document not found in games collection");
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("실패"),
+            content: const Text("문서(games/quiz)가 존재하지 않습니다."),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // 로딩 닫기
+      print("❌ [Test] Error: $e");
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("에러 발생"),
+          content: Text(e.toString()),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
+          ],
+        ),
+      );
+    }
   }
 }

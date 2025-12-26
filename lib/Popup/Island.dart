@@ -170,7 +170,6 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
 
     await fs.collection("games").doc("users").update({
       "user${widget.user}.money": FieldValue.increment(-totalCost),
-      "user${widget.user}.totalMoney": FieldValue.increment(-totalCost)
     });
 
     await fs.collection("games").doc("board").update({
