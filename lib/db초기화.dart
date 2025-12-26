@@ -46,14 +46,9 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
   // [기능 1] 32칸 전체 초기화
-  // [기능 1] 32칸 전체 초기화
   Future<void> _initializeBoardLayout() async {
     Map<String, dynamic> fullBoardData = {};
-
-    // [중요] 반드시 for문 밖에서 선언해야 카운트가 누적됩니다.
     int landCount = 0;
-
-    print("--- 통행료 계산 시작 ---"); // 디버깅용 로그
 
     for (int i = 0; i < 32; i++) {
       String key = "b$i";
@@ -76,39 +71,29 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
 
       // 2. 땅(land)일 때만 가격 계산 로직 수행
       if (type == "land") {
-        // 계산: 10만원 + (현재까지 나온 땅 개수 * 1만원)
         int calculatedToll = 100000 + (landCount * 10000);
 
         blockData.addAll({
-          "name": "일반 땅 ${landCount + 1}", // DB에서 확인 쉽도록 번호 붙임
+          "name": "일반 땅 ${landCount + 1}",
           "level": 0,
           "owner": "N",
           "tollPrice": calculatedToll,
           "isFestival": false,
           "multiply": 1,
         });
-
-        // [중요] 디버그 콘솔(Run 탭)에서 이 로그가 찍히는지 확인하세요.
-        print("칸번호: $i / 땅순서: $landCount / 가격: $calculatedToll");
-
-        landCount++; // 다음 땅을 위해 카운트 1 증가
+        landCount++;
       }
-
       fullBoardData[key] = blockData;
     }
 
-    print("--- 데이터 생성 완료, DB 전송 시작 ---");
-
     try {
       await _fs.collection("games").doc("board").set(fullBoardData);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("초기화 완료! 총 땅 개수: $landCount개")),
         );
       }
     } catch (e) {
-      print("에러 발생: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("에러: $e")));
       }
@@ -163,13 +148,9 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     }
   }
 
-  // ----------------------------------------------------------------------
-  // [기능 4] 퀴즈 데이터 초기화 (New)
-  // q1 ~ q24 까지 null 값으로 채웁니다.
-  // ----------------------------------------------------------------------
+  // [기능 4] 퀴즈 데이터 초기화
   Future<void> _initializeQuizData() async {
     Map<String, dynamic> quizData = {};
-
     for (int i = 1; i <= 24; i++) {
       String key = 'q$i';
       quizData[key] = {
@@ -179,7 +160,6 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
         'times': null,
       };
     }
-
     try {
       await _fs.collection("games").doc("quiz").set(quizData);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -187,6 +167,43 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("퀴즈 에러: $e")));
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  // [기능 5] 유저 데이터 초기화 (New)
+  // user1 ~ user4를 초기 상태로 만듭니다.
+  // ----------------------------------------------------------------------
+  Future<void> _initializeUserData() async {
+    Map<String, dynamic> usersData = {};
+
+    // 4명의 플레이어 생성 (user1 ~ user4)
+    for (int i = 1; i <= 4; i++) {
+      usersData['user$i'] = {
+        'card': "N",
+        'level': 1,            // 레벨 1
+        'money': 7000000,      // 현금 700만
+        'totalMoney': 7000000, // 총자산 700만
+        'position': 0,         // 위치 0 (출발지)
+        'rank': 1,             // 랭킹 1
+        'turn': 0,             // 턴 0
+        'type': "N",           // 타입 N (요청사항)
+      };
+    }
+
+    try {
+      // 덮어쓰기(Set)로 초기화
+      await _fs.collection("games").doc("users").set(usersData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("👤 유저(user1~4) 정보 리셋 완료!")));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("유저 리셋 에러: $e")));
+      }
     }
   }
 
@@ -218,13 +235,23 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
             ),
             const SizedBox(height: 20),
 
-            // 섹션 3: 퀴즈 초기화 (새로 추가됨)
+            // 섹션 3: 퀴즈 초기화
             _buildSectionContainer(
               color: Colors.purple,
               title: "❓ 퀴즈 초기화 (q1~q24)",
               desc: "q1부터 q24까지 빈 퀴즈 데이터를 생성합니다.",
               btnText: "퀴즈 DB 생성하기",
               onPressed: _initializeQuizData,
+            ),
+            const SizedBox(height: 20),
+
+            // 섹션 4: 유저 초기화 (새로 추가됨)
+            _buildSectionContainer(
+              color: Colors.red,
+              title: "👤 유저 초기화 (user1~4)",
+              desc: "모든 유저를 출발지, 700만원, 레벨1 상태로 리셋합니다.",
+              btnText: "유저 리셋하기",
+              onPressed: _initializeUserData,
             ),
 
             const Divider(height: 40, thickness: 2),
@@ -257,7 +284,6 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     );
   }
 
-  // 디자인 중복을 줄이기 위한 위젯 헬퍼
   Widget _buildSectionContainer({
     required MaterialColor color,
     required String title,
