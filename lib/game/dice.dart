@@ -111,7 +111,7 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-
+    List<Color> colors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: Container(
@@ -164,7 +164,7 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
               onPressed: runAllDice,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                backgroundColor: Colors.amber[700], // 버튼 색상을 눈에 띄게 변경
+                backgroundColor: colors[turn - 1], // 버튼 색상을 눈에 띄게 변경
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 elevation: 5,

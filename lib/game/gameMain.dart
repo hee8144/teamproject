@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
-import 'dice.dart'; // 위에서 만든 dice.dart 파일 import
+import 'dice.dart'; // dice.dart 파일이 같은 폴더에 있어야 합니다.
+import '../Popup/TaxDialog.dart'; // 세금 다이얼로그 파일 import (경로 확인 필요)
 import '../Popup/Island.dart';
-import '../Popup/TaxDialog.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -15,6 +15,8 @@ class GameMain extends StatefulWidget {
 }
 
 class _GameMainState extends State<GameMain> {
+  // 💡 [수정됨] 불필요한 TickerProviderStateMixin 제거
+
   FirebaseFirestore fs = FirebaseFirestore.instance;
   String localName = "";
   int localcode = 0;
@@ -33,6 +35,15 @@ class _GameMainState extends State<GameMain> {
   ];
 
   Map<String, dynamic> players = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // 💡 [수정됨] 애니메이션 컨트롤러 초기화 코드 삭제
+    _setLocal();
+  }
+
+  // 💡 [수정됨] dispose 메서드 삭제 (해제할 컨트롤러가 없음)
 
   Future<void> _setLocal() async{
     int random = Random().nextInt(localList.length);
@@ -63,36 +74,65 @@ class _GameMainState extends State<GameMain> {
       });
     }
   }
-  
+
   Future<void> _setPlayer() async {
     await _readPlayer();
+    // 전체 덮어쓰기보다는 update가 안전할 수 있으나, 기존 로직 유지
     await fs.collection("games").doc("users").set(players);
   }
 
-  // 주사위 수만큼 움직이는 함수 (콜백으로 실행됨)
+  // 주사위 수만큼 움직이는 함수
   void movePlayer(int num, int player) async {
-    int changePosition = players["user$player"]["position"]+num > 32 ?
-      (players["user$player"]["position"]+num)% 32 :
-      players["user$player"]["position"];
+    int currentPos = players["user$player"]["position"];
+    int nextPos = currentPos + num;
 
-    await fs.collection("games").doc("users").update({"user$player.position": players});
+    // 32칸 순환 (0~31)
+    int changePosition = nextPos > 31 ? nextPos % 32 : nextPos;
+
+    // 한 바퀴 돌았을 때 레벨업 로직
+    if(nextPos > 31){
+      int level = players["user$player"]["level"];
+      if(level < 4){
+        await fs.collection("games").doc("users").update({"user$player.level": level + 1});
+      }
+    }
+
+    // UI 먼저 갱신
     setState(() {
-      players["user$player"]["position"] += num;
-      // 31번 넘어가면 0번으로 순환
-      players["user$player"]["position"] %= 32;
+      players["user$player"]["position"] = changePosition;
     });
-    if(boardList["b${players["user$player"]["position"]}"]["type"] == "land"){
-      await showDialog(context: context, builder: (context)=>
-        ConstructionDialog(user: player,buildingId: players["user$player"]["position"],)
+
+    // DB 업데이트
+    await fs.collection("games").doc("users").update({"user$player.position": changePosition});
+
+    String tileKey = "b$changePosition";
+
+    // 도착한 곳이 '땅(land)'일 경우
+    if(boardList[tileKey] != null && boardList[tileKey]["type"] == "land"){
+      final result = await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context){
+            return ConstructionDialog(user: player, buildingId: changePosition);
+          }
       );
-    } else if(players["user$player"]["position"] == 30){
+
+      // 건설 후 데이터 갱신
+      if (result != null && result is Map) {
+        setState(() {
+          if (boardList[tileKey] == null) boardList[tileKey] = {};
+          boardList[tileKey]["level"] = result["level"];
+          boardList[tileKey]["owner"] = result["user"];
+          // 💡 [수정됨] 애니메이션 트리거 코드 삭제됨
+        });
+      }
+    } else if(changePosition == 30){
+      // 국세청 등 특수 지역 로직
       await showDialog(context: context, builder: (context)=>
-        TaxDialog()
+          TaxDialog(user: player)
       );
     }
     _setPlayer();
-
-
   }
 
   Future<void> rankChange() async{
@@ -248,17 +288,17 @@ class _GameMainState extends State<GameMain> {
     String userKey = "user${playerIndex + 1}";
     int position = players[userKey]?["position"] ?? 0;
 
-    // 타일 위치 가져오기
     Map<String, double> pos = _getTilePosition(position, boardSize, tileSize);
 
     // 겹치지 않게 미세 조정
     double offsetX = (tileSize / 2) - (4 * 11 / 2) + (playerIndex * 11);
-    double offsetY = tileSize * 0.7; // 타일 하단 배치
+    double offsetY = tileSize * 0.7;
 
-    final List<Color> userColors = [Colors.red, Colors.blue, Colors.orange, Colors.green];
+    // 색상 통일 (1:Red, 2:Blue, 3:Green, 4:Yellow)
+    final List<Color> userColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
 
     return AnimatedPositioned(
-      duration: const Duration(milliseconds: 500), // 0.5초 동안 부드럽게 이동
+      duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOut,
       top: pos['top']! + offsetY,
       left: pos['left']! + offsetX,
@@ -273,12 +313,6 @@ class _GameMainState extends State<GameMain> {
         ),
       ),
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _setLocal();
   }
 
   @override
@@ -333,7 +367,6 @@ class _GameMainState extends State<GameMain> {
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      // 주사위 앱 연결 (콜백 함수 전달)
                       child: DiceApp(
                         onRoll: (int result, int turn) {
                           movePlayer(result, turn);
@@ -347,7 +380,7 @@ class _GameMainState extends State<GameMain> {
                     return _buildGameTile(index, tileSize);
                   }),
 
-                  // (3) ★ 애니메이션 플레이어 말 (최상단 레이어)
+                  // (3) 애니메이션 플레이어 말 (최상단 레이어)
                   ...List.generate(4, (index) {
                     return _buildAnimatedPlayer(index, boardSize, tileSize);
                   }),
@@ -355,11 +388,11 @@ class _GameMainState extends State<GameMain> {
               ),
             ),
 
-            // 3. [플레이어 정보 패널]
-            _buildPlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'], color : Colors.blue, name : "user2"),
-            _buildPlayerInfoPanel(alignment: Alignment.topRight, playerData: players['user4'], color : Colors.green, name : "user4"),
-            _buildPlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'], color: Colors.amber, name : "user3"),
+            // 3. [플레이어 정보 패널] (색상 순서 통일)
             _buildPlayerInfoPanel(alignment: Alignment.bottomRight, playerData: players['user1'], color: Colors.red, name : "user1"),
+            _buildPlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'], color : Colors.blue, name : "user2"),
+            _buildPlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'], color: Colors.green, name : "user3"),
+            _buildPlayerInfoPanel(alignment: Alignment.topRight, playerData: players['user4'], color : Colors.yellow, name : "user4"),
           ],
         ),
       ),
@@ -469,48 +502,120 @@ class _GameMainState extends State<GameMain> {
     );
   }
 
-  // 일반 땅 내부 디자인 (수정됨: 정수/실수 타입안전, 오버플로우 방지 Stack)
+  // 💡 [수정됨] 일반 땅 내부 디자인 (이미지 제거 -> 레벨/소유자 뱃지 표시)
   Widget _buildLandContent(Color color, String name, int price, int index) {
-    double multiply = (boardList["b$index"]?["multiply"] as num? ?? 0).toDouble();
+    var tileData = boardList["b$index"] ?? {};
+    bool isFestival = boardList["b$index"]["isFestival"];
+    double multiply = (tileData["multiply"] as num? ?? 0).toDouble();
     int tollPrice = (price * multiply).round();
 
-    return Column(
-      children: [
-        Expanded(
-          flex: 2,
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(6.0), topRight: Radius.circular(6.0)),
-            ),
-            child: (multiply != 1)
-                ? Text("X${multiply == multiply.toInt() ? multiply.toInt() : multiply}", style: TextStyle(color: Colors.black.withOpacity(0.7), fontSize: 9, fontWeight: FontWeight.bold))
-                : null,
-          ),
-        ),
-        Expanded(
-          flex: 5,
-          child: Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(name, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if(price > 0)
-                      Text("${(tollPrice/10000).floor()}만", style: TextStyle(fontSize: 8, color: Colors.grey[600])),
-                  ],
+    multiply = isFestival ? multiply * 2 : multiply;
+
+    int level = tileData["level"] ?? 0;
+    // 소유자 정보
+    int owner = int.tryParse(tileData["owner"].toString()) ?? 0;
+
+    // 플레이어 색상 (0:없음, 1:Red, 2:Blue, 3:Green, 4:Yellow)
+    final List<Color> ownerColors = [Colors.transparent, Colors.red, Colors.blue, Colors.green, Colors.yellow];
+    Color badgeColor = (owner >= 1 && owner <= 4) ? ownerColors[owner] : Colors.transparent;
+
+    // 1. 전체를 Stack으로 감싸고 ClipRRect로 둥근 모서리를 정리합니다.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6.0), // 타일 외곽선과 동일하게 맞춤
+      child: Stack(
+        children: [
+          // 2. 기존 내용물 (Column)
+          Column(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Container(
+                  alignment: Alignment.centerLeft,
+                  decoration: BoxDecoration(
+                    color: color,
+                    // borderRadius는 상위 ClipRRect에서 처리하므로 제거해도 됨
+                  ),
+                  child: (multiply != 1)
+                      ? Padding(
+                        padding: const EdgeInsets.fromLTRB(3.0, 0, 0, 0),
+                        child: Text("X${multiply == multiply.toInt() ? multiply.toInt() : multiply}",
+                        style: TextStyle(color: Colors.black.withOpacity(0.7), fontSize: 6, fontWeight: FontWeight.bold)),
+                      )
+                      : null,
                 ),
-                // 플레이어 점은 여기서 그리지 않고 최상단 Stack에서 그립니다.
-              ],
-            ),
+              ),
+              Expanded(
+                flex: 5,
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // 1️⃣ [배경] 축제 아이콘 (투명도 조절)
+                      // 만약 특정 조건(예: isFestival)일 때만 보여주려면 앞에 if문을 붙이세요.
+
+                      Opacity(
+                        opacity: isFestival ? 0.15 : 0, // 0.1 ~ 0.2 정도로 아주 연하게 설정
+                        child: const Icon(
+                          Icons.celebration, // 요청하신 아이콘
+                          size: 30,       // 타일 크기에 맞춰 조절 (너무 크면 글씨 방해됨)
+                          color: Colors.purple, // 축제 느낌의 색상 (또는 Colors.black)
+                        ),
+                      ),
+
+                      // 2️⃣ [전경] 텍스트 정보 (기존 Column)
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (price > 0)
+                            Text(
+                              "$tollPrice", // 위에서 계산된 tollPrice 변수 사용
+                              style: TextStyle(fontSize: 8, color: Colors.grey[600]),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+
+          // ★ 3. [새로 추가됨] 우측 상단 대각선 배너
+          if (level > 0)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: ClipPath(
+                clipper: _TopRightTriangleClipper(), // 파일 하단에 정의한 클리퍼 사용
+                child: Container(
+                  width: 28, // 삼각형 너비 조절
+                  height: 28, // 삼각형 높이 조절
+                  color: badgeColor, // 소유자 색상
+                  alignment: Alignment.topRight, // 텍스트를 우상단으로 정렬
+                  padding: const EdgeInsets.only(top: 3, right: 5), // 텍스트 위치 미세 조정
+                  child: Text(
+                    "$level", // 숫자만 표시 (예: "1", "3")
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        // 노랑 배경일 때만 검은 글씨, 나머지는 흰 글씨
+                        color: (owner == 4) ? Colors.black : Colors.white
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -521,7 +626,7 @@ class _GameMainState extends State<GameMain> {
         color: isStart ? Colors.white : Colors.grey[100],
         borderRadius: BorderRadius.circular(6.0),
       ),
-      child: Column( // Stack 제거하고 심플하게 Column (플레이어 점을 따로 그리므로)
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, size: 20, color: Colors.black87),
@@ -531,4 +636,20 @@ class _GameMainState extends State<GameMain> {
       ),
     );
   }
+}
+
+class _TopRightTriangleClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    // (0,0)은 컨테이너의 좌상단, (width, 0)은 우상단
+    path.moveTo(size.width, 0); // 우상단에서 시작
+    path.lineTo(0, 0); // 좌상단으로 선 긋기
+    path.lineTo(size.width, size.height); // 우하단으로 선 긋기
+    path.close(); // 다시 우상단으로 연결하여 삼각형 완성
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

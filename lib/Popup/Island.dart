@@ -205,7 +205,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
           children: [
             _header(),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(5),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(4, _buildItem),
@@ -223,7 +223,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             ElevatedButton(
               onPressed: totalCost == 0 ? null : () async {
                 final targetLevel = getTargetLevel();
@@ -236,7 +236,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
               },
               child: Text("구매 (${formatMoney(totalCost)})"),
             ),
-            const SizedBox(height: 16),
+            // const SizedBox(height: 16),
           ],
         ),
       ),
