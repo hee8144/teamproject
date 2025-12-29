@@ -207,7 +207,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
           children: [
             _header(),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(5),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(4, _buildItem),
@@ -246,7 +246,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                 }, child: Text("취소"))
               ],
             ),
-            const SizedBox(height: 16),
+            // const SizedBox(height: 16),
           ],
         ),
       ),
