@@ -25,6 +25,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   String eventNow = "";
   int _eventPlayer = 0;
+  int itsFestival = 0; // 페스티벌 로직 유지
 
   // 💡 턴 관리 변수
   int currentTurn = 1;
@@ -80,14 +81,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(total, currentTurn, isDouble);
+    movePlayer(4, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 시 상태 체크
   void _checkAndStartTurn() {
     String type = players["user$currentTurn"]?["type"] ?? "N";
     if (type == "N") {
-      _nextTurn(); // N이면 바로 다음 턴으로 넘김
+      _nextTurn();
       return;
     }
 
@@ -141,7 +142,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         _setPlayer();
       }
     } else if(event == "festival"){
-      // 축제 로직
+      // 💡 페스티벌 로직 유지
+      if(itsFestival != 0){
+        await fs.collection("games").doc("board").update({"b$itsFestival.isFestival" : false});
+      }
+      await fs.collection("games").doc("board").update({"b$index.isFestival" : true});
+      setState(() {
+        itsFestival = index;
+      });
+      await _readLocal();
     } else if (event == "trip"){
       _movePlayerTo(index, _eventPlayer);
     }
@@ -484,7 +493,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   Widget _buildAnimatedPlayer(int playerIndex, double boardSize, double tileSize) {
     String userKey = "user${playerIndex + 1}";
 
-    // 💡 [수정] N 타입이면 표시 안 함
+    // N 타입이면 표시 안 함
     String type = players[userKey]?["type"] ?? "N";
     if (type == "N") return const SizedBox();
 
@@ -546,22 +555,24 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               height: boardSize,
               child: Stack(
                 children: [
-                  if (_highlightOwner == null)
-                    Center(
-                      child: Container(
-                        width: boardSize * 0.75,
-                        height: boardSize * 0.75,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: DiceApp(
-                          turn: currentTurn,
-                          totalTurn: totalTurn,
-                          onRoll: (int v1, int v2) => _onDiceRoll(v1, v2),
-                        ),
+                  Center(
+                    child: Container(
+                      width: boardSize * 0.75,
+                      height: boardSize * 0.75,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
                       ),
+                      // 💡 [수정됨] 주사위 화면 또는 안내 멘트 위젯 표시
+                      child: _highlightOwner == null
+                          ? DiceApp(
+                        turn: currentTurn,
+                        totalTurn: totalTurn,
+                        onRoll: (int v1, int v2) => _onDiceRoll(v1, v2),
+                      )
+                          : _showEventDialog(),
                     ),
+                  ),
 
                   ...List.generate(28, (index) {
                     return _buildGameTile(index, tileSize, boardSize);
@@ -583,18 +594,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Widget _buildPlayerInfoPanel({required Alignment alignment, required Map<String, dynamic> playerData, required Color color, required String name}) {
-    // 💡 [수정] 타입 체크 및 이름 변경 로직
     String type = playerData['type'] ?? "N";
 
-    // 1. N이면 숨김
     if (type == "N") return const SizedBox();
 
-    // 2. B이면 이름을 'bot'으로 변경
+    // 💡 봇 이름 변경 로직 유지
     String displayName = name;
-    int botCount = 1;
     if (type == "B") {
-      displayName = "bot$botCount";
-      botCount++;
+      displayName = "bot";
     }
 
     bool isTop = alignment.y < 0;
@@ -652,6 +659,41 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     );
   }
 
+  // 💡 [추가] 안내 멘트 위젯
+  Widget _showEventDialog() {
+    String eventText = "";
+    if(eventNow == "trip") eventText = "여행갈 땅을 선택해주세요!";
+    else if(eventNow == "festival") eventText = "축제가 열릴 땅을 선택해주세요!";
+    else if(eventNow == "start") eventText = "건설할 땅을 선택해주세요!";
+
+    // 여행 등 이벤트 발생 시 중앙에 표시될 위젯
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFDF5E6),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFC0A060), width: 4),
+          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+            const SizedBox(height: 10),
+            Text(
+              eventText,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildGameTile(int index, double size, double boardSize) {
     double? top, bottom, left, right;
 
@@ -701,7 +743,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   Widget _buildLandContent(Color color, String name, int price, int index) {
     var tileData = boardList["b$index"] ?? {};
-    bool isFestival = boardList["b$index"] != null ? boardList["b$index"]["isFestival"] ?? false : false;
+    bool isFestival = itsFestival == index; // 💡 페스티벌 로직 유지
     double multiply = (tileData["multiply"] as num? ?? 0).toDouble();
     int buildLevel = tileData["level"] ?? 0;
 
@@ -712,9 +754,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       case 3: levelvalue = 14; break;
       case 4: levelvalue = 40; break;
     }
-    int tollPrice = (price * multiply * levelvalue).round();
-
     if (isFestival && multiply == 1) multiply *= 2;
+
+    int tollPrice = (price * multiply * levelvalue).round();
 
     int level = tileData["level"] ?? 0;
     int owner = int.tryParse(tileData["owner"].toString()) ?? 0;
@@ -737,6 +779,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       onTap: () {
         if (shouldGlow) {
           _stopHighlight(index, eventNow);
+        } else {
+          // 지역 상세정보 보여주기
         }
       },
       child: AnimatedBuilder(
