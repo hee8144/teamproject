@@ -196,6 +196,7 @@ class _TaxDialogState extends State<TaxDialog> {
                                           builder: (_) => BankruptDialog(
                                             lackMoney: lackMoney,
                                             reason: "toll",
+                                            user: widget.user,
                                           ),
                                         );
                                       });
