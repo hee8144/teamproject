@@ -107,7 +107,7 @@ class _GameRulePageState extends State<GameRulePage> {
                             ],
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.only(top: 36),
+                            padding: const EdgeInsets.only(top: 0),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(27),
                               child: CarouselSlider(
@@ -126,7 +126,9 @@ class _GameRulePageState extends State<GameRulePage> {
                                 items: rules.map((rule) {
                                   return Padding(
                                     padding: const EdgeInsets.all(28),
-                                    child: _buildRuleSlide(rule),
+                                    child: SingleChildScrollView(
+                                      child: _buildRuleSlide(rule),
+                                    ),
                                   );
                                 }).toList(),
                               ),
@@ -195,7 +197,7 @@ class _GameRulePageState extends State<GameRulePage> {
   // =============================
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -232,7 +234,7 @@ class _GameRulePageState extends State<GameRulePage> {
             child: const Text(
               "게 임 규 칙",
               style: TextStyle(
-                fontSize: 26,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF5D4037),
                 letterSpacing: 3,
@@ -271,16 +273,16 @@ class _GameRulePageState extends State<GameRulePage> {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 5),
         ...rule.contents.map(
               (text) => Padding(
-            padding: const EdgeInsets.only(bottom: 12, left: 34),
+            padding: const EdgeInsets.only(bottom: 0, left: 34),
             child: Text(
               "• $text",
               style: const TextStyle(
                 fontSize: 18,
                 color: Color(0xFF8D6E63),
-                height: 1.8,
+                height: 1.4,
               ),
             ),
           ),
