@@ -1,16 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // ✅ 추가
 import '../game/gameMain.dart';
 import 'mainUI.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(const GameResultTestApp());
-}
-
-class GameResultTestApp extends StatelessWidget {
-  const GameResultTestApp({super.key});
+class GameResult extends StatelessWidget {
+  const GameResult({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -65,13 +60,13 @@ class GameResultPage extends StatelessWidget {
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center, // Row 전체 중앙 배치
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // ================= 왼쪽 =================
                     Flexible(
                       flex: 7,
                       child: Padding(
-                        padding: const EdgeInsets.only(right: 32), // 왼쪽 컬럼 오른쪽 여백
+                        padding: const EdgeInsets.only(right: 32),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -117,7 +112,7 @@ class GameResultPage extends StatelessWidget {
                     Flexible(
                       flex: 3,
                       child: Padding(
-                        padding: const EdgeInsets.only(left: 32), // 버튼 컬럼 왼쪽 여백
+                        padding: const EdgeInsets.only(left: 32),
                         child: SizedBox(
                           height: double.infinity,
                           child: Column(
@@ -126,25 +121,14 @@ class GameResultPage extends StatelessWidget {
                               _buildActionButton(
                                 text: "다시 시작",
                                 onTap: () {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const GameMain(),
-                                    ),
-                                  );
+                                  context.go("/gameMain"); // ✅ GoRouter
                                 },
                               ),
-                              const SizedBox(height: 16), // 버튼 간격 확대
+                              const SizedBox(height: 16),
                               _buildActionButton(
                                 text: "종료",
                                 onTap: () {
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const MainScreen(),
-                                    ),
-                                        (_) => false,
-                                  );
+                                  context.go("/main"); // ✅ GoRouter
                                 },
                               ),
                             ],
