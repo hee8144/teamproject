@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../game/gameMain.dart';
 
 class GameWaitingRoom extends StatefulWidget {
@@ -10,44 +9,40 @@ class GameWaitingRoom extends StatefulWidget {
 }
 
 class _GameWaitingRoomState extends State<GameWaitingRoom> {
-  final FirebaseFirestore fs = FirebaseFirestore.instance;
+  /// 슬롯 상태: N = 비어있음, P = 플레이어, B = 봇
+  final List<String> userTypes = ["N", "N", "N", "P"]; // 4번 슬롯 기본 플레이어
 
-  /// [좌상, 우상, 좌하, 우하] = [2, 4, 3, 1]
+  /// 참가 순서 (index 저장)
+  final List<int> joinOrder = [];
+
+  /// [좌상, 우상, 좌하, 우하] 표시용 번호
   final List<int> displayOrder = [2, 4, 3, 1];
-
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get usersStream =>
-      fs.collection('games').doc('users').snapshots();
 
   @override
   void initState() {
     super.initState();
-    _initPlayerFour();
+
+    /// ✅ 기본 플레이어는 항상 1번
+    joinOrder.add(3); // index 3 = 4번 슬롯
   }
 
-  /// 처음 입장 시 4번 자리를 플레이어로 자동 세팅
-  Future<void> _initPlayerFour() async {
-    final doc = await fs.collection('games').doc('users').get();
-    if (!doc.exists) return;
-
-    final data = doc.data();
-    if (data == null) return;
-
-    final user4 = data['user4'];
-    if (user4 != null && user4['type'] == "N") {
-      await fs.collection('games').doc('users').update({
-        'user4.type': "P",
-      });
-    }
-  }
-
-  Future<void> _updateUserType(int index, String type) async {
-    await fs.collection('games').doc('users').update({
-      'user${index + 1}.type': type,
+  void _addUser(int index, String type) {
+    setState(() {
+      userTypes[index] = type;
+      joinOrder.add(index);
     });
   }
 
-  Future<void> _clearUser(int index) async {
-    await _updateUserType(index, "N");
+  void _removeUser(int index) {
+    setState(() {
+      userTypes[index] = "N";
+      joinOrder.remove(index);
+    });
+  }
+
+  int _getDisplayNumber(int index) {
+    final order = joinOrder.indexOf(index);
+    return order == -1 ? 0 : order + 1; // ✅ 항상 1부터 시작
   }
 
   @override
@@ -55,6 +50,11 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     final size = MediaQuery.of(context).size;
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
+
+    final int activeCount =
+        userTypes.where((type) => type != "N").length;
+
+    final bool canStart = activeCount >= 2;
 
     return Scaffold(
       body: Stack(
@@ -76,50 +76,31 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: usersStream,
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  }
+              child: Padding(
+                padding: const EdgeInsets.only(top: 48),
+                child: Stack(
+                  children: [
+                    isLandscape
+                        ? _buildLandscapeGrid()
+                        : _buildPortraitGrid(),
 
-                  final users = snapshot.data!.data()!;
-
-                  final int activeCount = List.generate(4, (i) {
-                    return users['user${i + 1}']['type'];
-                  }).where((type) => type != "N").length;
-
-                  final bool canStart = activeCount >= 2;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 48),
-                    child: Stack(
-                      children: [
-                        isLandscape
-                            ? _buildLandscapeGrid(users)
-                            : _buildPortraitGrid(users),
-
-                        Center(
-                          child: _buildStartButton(canStart),
-                        ),
-                      ],
+                    Center(
+                      child: _buildStartButton(canStart),
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
             ),
           ),
 
-          // ================= 나가기 버튼 (유지) =================
+          // ================= 나가기 버튼 =================
           Positioned(
             top: 12,
-            right: 12,
+            left: 12,
             child: SafeArea(
               child: GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: _buildCircleIcon(Icons.close),
+                child: _buildCircleIcon(Icons.arrow_back),
               ),
             ),
           ),
@@ -129,7 +110,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   }
 
   /* ================== 세로 ================== */
-  Widget _buildPortraitGrid(Map<String, dynamic> users) {
+  Widget _buildPortraitGrid() {
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -140,14 +121,13 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
       ),
       itemCount: 4,
       itemBuilder: (context, index) {
-        final user = users['user${index + 1}'];
-        return _buildPlayerSlot(index, user['type']);
+        return _buildPlayerSlot(index);
       },
     );
   }
 
   /* ================== 가로 ================== */
-  Widget _buildLandscapeGrid(Map<String, dynamic> users) {
+  Widget _buildLandscapeGrid() {
     return LayoutBuilder(
       builder: (context, constraints) {
         const int crossCount = 2;
@@ -168,8 +148,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
           ),
           itemCount: 4,
           itemBuilder: (context, index) {
-            final user = users['user${index + 1}'];
-            return _buildPlayerSlot(index, user['type']);
+            return _buildPlayerSlot(index);
           },
         );
       },
@@ -177,9 +156,10 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   }
 
   /* ================== 슬롯 ================== */
-  Widget _buildPlayerSlot(int index, String type) {
+  Widget _buildPlayerSlot(int index) {
+    final String type = userTypes[index];
     final bool isEmpty = type == "N";
-    final int displayNumber = displayOrder[index];
+    final int number = _getDisplayNumber(index);
 
     return Stack(
       children: [
@@ -198,12 +178,12 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 GestureDetector(
-                  onTap: () => _updateUserType(index, "B"),
+                  onTap: () => _addUser(index, "B"),
                   child: _buildAddButton(Icons.android),
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => _updateUserType(index, "P"),
+                  onTap: () => _addUser(index, "P"),
                   child: _buildAddButton(Icons.person_add),
                 ),
               ],
@@ -219,8 +199,8 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
                 const SizedBox(height: 6),
                 Text(
                   type == "B"
-                      ? "봇$displayNumber"
-                      : "플레이어$displayNumber",
+                      ? "봇$number"
+                      : "플레이어$number",
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -232,13 +212,12 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
           ),
         ),
 
-        // ⭐ 슬롯 내부 X 버튼 위치만 아래로 이동
         if (!isEmpty && !(index == 3 && type == "P"))
           Positioned(
-            top: 14, // ← 기존 8 → 14
+            top: 14,
             right: 8,
             child: GestureDetector(
-              onTap: () => _clearUser(index),
+              onTap: () => _removeUser(index),
               child: _buildCircleIcon(Icons.close),
             ),
           ),

@@ -1,11 +1,24 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:teamproject/main/mainUI.dart'; // ⭐ MainScreen import
+import '../game/gameMain.dart';
+import 'mainUI.dart';
 
-void main() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: GameResultPage(),
-  ));
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const GameResultTestApp());
+}
+
+class GameResultTestApp extends StatelessWidget {
+  const GameResultTestApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: GameResultPage(),
+    );
+  }
 }
 
 class GameResultPage extends StatelessWidget {
@@ -15,18 +28,14 @@ class GameResultPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    // 테스트용 예시 데이터
-    const bool isVictory = true;
-    const int playerScore = 1250;
-    const int playTime = 345; // 초 단위
+    const borderColor = Color(0xFF6D4C41);
+    const paperColor = Color(0xFFFFF3E0);
 
     return Scaffold(
       body: Stack(
         children: [
-          // 배경 이미지
+          /// 배경
           Container(
-            width: size.width,
-            height: size.height,
             decoration: const BoxDecoration(
               image: DecorationImage(
                 image: AssetImage('assets/background.png'),
@@ -35,69 +44,108 @@ class GameResultPage extends StatelessWidget {
             ),
           ),
 
-          Container(color: Colors.black.withOpacity(0.25)),
-
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+            child: Center(
               child: Container(
-                constraints: BoxConstraints(
-                  minHeight: size.height -
-                      MediaQuery.of(context).padding.top -
-                      MediaQuery.of(context).padding.bottom,
+                // 1. 전체 높이를 내용에 맞게 조절하기 위해 상하 패딩 최적화
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: paperColor.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: borderColor, width: 2.5),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 40),
+                // 2. MainAxisSize.min을 사용하여 불필요한 수직 확장 방지
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      // ================= 왼쪽 =================
+                      Expanded(
+                        flex: 7,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min, // 3. 내용물만큼만 차지
+                          children: [
+                            /// 🏆 승리 문구
+                            Container(
+                              width: size.width * 0.36,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFE0B2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: borderColor, width: 1.8),
+                              ),
+                              child: const Text(
+                                "플레이어 1 우승: 🏆 문화재 독점 달성 🏆",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF4E342E),
+                                ),
+                              ),
+                            ),
 
-                    _buildResultHeader(isVictory),
+                            const SizedBox(height: 10), // 여백 소폭 축소
 
-                    const SizedBox(height: 30),
+                            const Text(
+                              "최종 순위",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF3E2723),
+                              ),
+                            ),
 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 25),
-                      child:
-                      _buildScoreBoard(playerScore, playTime, isVictory),
-                    ),
+                            const SizedBox(height: 6), // 여백 소폭 축소
 
-                    const SizedBox(height: 30),
+                            // 4. 고정 높이를 제거하거나 대폭 줄여 표 하단 여백 제거
+                            SizedBox(
+                              width: double.infinity,
+                              child: _buildRankTable(),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(25, 0, 25, 40),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _buildActionButton(
-                              text: "다시 하기",
-                              isPrimary: false,
+                      const SizedBox(width: 16),
+
+                      // ================= 오른쪽 =================
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildActionButton(
+                              text: "다시 시작",
                               onTap: () {
-                                print("Retry 클릭");
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const GameMain(),
+                                  ),
+                                );
                               },
                             ),
-                          ),
-                          const SizedBox(width: 15),
-
-                          // ⭐ 메인으로 버튼 (수정된 부분)
-                          Expanded(
-                            child: _buildActionButton(
-                              text: "메인으로",
-                              isPrimary: true,
+                            const SizedBox(height: 12), // 버튼 사이 간격 소폭 축소
+                            _buildActionButton(
+                              text: "종료",
                               onTap: () {
                                 Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => const MainScreen(),
                                   ),
-                                      (route) => false,
+                                      (_) => false,
                                 );
                               },
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -107,185 +155,105 @@ class GameResultPage extends StatelessWidget {
     );
   }
 
-  /* ================== 결과 헤더 ================== */
+  /// ================= 순위 테이블 =================
+  Widget _buildRankTable() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFF6D4C41)),
+      ),
+      child: Table(
+        border: TableBorder.symmetric(
+          inside: const BorderSide(color: Colors.black26),
+        ),
+        columnWidths: const {
+          0: FixedColumnWidth(50), // 너비 소폭 축소
+          1: FlexColumnWidth(),
+          2: FlexColumnWidth(),
+        },
+        children: [
+          _buildRankRow(rank: "순위", name: "이름", money: "잔액", isHeader: true),
+          _buildRankRow(rank: "1위", name: "플레이어1", money: "₩3,200"),
+          _buildRankRow(rank: "2위", name: "봇2", money: "₩2,100"),
+          _buildRankRow(rank: "3위", name: "플레이어3", money: "₩900"),
+          _buildRankRow(rank: "4위", name: "봇4", money: "₩0"),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildResultHeader(bool isVictory) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+  TableRow _buildRankRow({
+    required String rank,
+    required String name,
+    required String money,
+    bool isHeader = false,
+  }) {
+    return TableRow(
+      decoration: BoxDecoration(
+        color: isHeader ? const Color(0xFFFFEFD5) : null,
+      ),
       children: [
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: (isVictory
-                    ? const Color(0xFFE6AD5C)
-                    : Colors.black)
-                    .withOpacity(0.3),
-                blurRadius: 20,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
-          child: Icon(
-            isVictory
-                ? Icons.emoji_events_rounded
-                : Icons.mood_bad_rounded,
-            size: 100,
-            color: isVictory
-                ? const Color(0xFFE6AD5C)
-                : const Color(0xFFBCAAA4),
-          ),
-        ),
-        const SizedBox(height: 15),
-        Text(
-          isVictory ? "VICTORY" : "GAME OVER",
-          style: TextStyle(
-            fontSize: 38,
-            fontWeight: FontWeight.w900,
-            color:
-            isVictory ? const Color(0xFFE6AD5C) : Colors.white,
-            letterSpacing: 3.0,
-            shadows: const [
-              Shadow(
-                  offset: Offset(0, 4),
-                  blurRadius: 8,
-                  color: Colors.black54),
-            ],
-          ),
-        ),
+        _RankCell(text: rank, isHeader: isHeader),
+        _RankCell(text: name, isHeader: isHeader),
+        _RankCell(text: money, isHeader: isHeader),
       ],
     );
   }
 
-  /* ================== 스코어 보드 ================== */
-
-  Widget _buildScoreBoard(int score, int time, bool isVictory) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 30),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF5E6).withOpacity(0.95),
-        borderRadius: BorderRadius.circular(35),
-        border: Border.all(
-          color: isVictory
-              ? const Color(0xFFE6AD5C)
-              : const Color(0xFFD7C0A1),
-          width: 4,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 15,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            "FINAL SCORE",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF8D6E63),
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            score.toString(),
-            style: const TextStyle(
-              fontSize: 64,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF5D4037),
-            ),
-          ),
-          const SizedBox(height: 15),
-          _buildDetailRow(
-              Icons.timer_outlined,
-              "Play Time",
-              "${time ~/ 60}m ${time % 60}s"),
-          _buildDetailRow(
-              Icons.auto_awesome_outlined, "Experience", "+450 XP"),
-          _buildDetailRow(Icons.military_tech_outlined, "Final Rank",
-              isVictory ? "S Class" : "B Class"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(
-      IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: const Color(0xFFE6AD5C)),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 15,
-              color: Color(0xFF8D6E63),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF5D4037),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /* ================== 버튼 ================== */
-
+  /// ================= 버튼 =================
   Widget _buildActionButton({
     required String text,
-    required bool isPrimary,
     required VoidCallback onTap,
   }) {
-    return Container(
-      height: 58,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: isPrimary
-            ? const LinearGradient(
-          colors: [Color(0xFFFFD54F), Color(0xFFE6AD5C)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        )
-            : null,
-        color: isPrimary ? null : Colors.white.withOpacity(0.9),
-        border: Border.all(
-          color: isPrimary
-              ? const Color(0xFFC6A700)
-              : const Color(0xFFD7C0A1),
-          width: 2.5,
+    return SizedBox(
+      width: 130, // 너비 소폭 축소
+      height: 44, // 높이 소폭 축소
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFD7CCC8),
+          foregroundColor: const Color(0xFF3E2723),
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(
+              color: Color(0xFF6D4C41),
+              width: 1.8,
+            ),
+          ),
+        ),
+        onPressed: onTap,
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(30),
-          onTap: onTap,
-          child: Center(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF5D4037),
-              ),
-            ),
+    );
+  }
+}
+
+class _RankCell extends StatelessWidget {
+  final String text;
+  final bool isHeader;
+
+  const _RankCell({
+    required this.text,
+    required this.isHeader,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4), // 셀 내부 여백 축소
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: isHeader ? 13 : 12,
+            fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+            color: const Color(0xFF4E342E),
           ),
         ),
       ),
