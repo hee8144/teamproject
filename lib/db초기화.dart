@@ -45,23 +45,24 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
 
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
-  // [기능 1] 32칸 전체 초기화
+  // [기능 1] 28칸 전체 초기화 (수정됨)
   Future<void> _initializeBoardLayout() async {
     Map<String, dynamic> fullBoardData = {};
     int landCount = 0;
 
-    for (int i = 0; i < 32; i++) {
+    // 💡 7칸 시스템에 맞춰 28번까지 반복 (0~27)
+    for (int i = 0; i < 28; i++) {
       String key = "b$i";
       String type = "land";
       String? name;
 
-      // 1. 칸 종류 지정
+      // 💡 1. 7칸 기준 특수 블록 지정
       if (i == 0) { type = "start"; name = "출발지"; }
-      else if (i == 8) { type = "island"; name = "무인도"; }
-      else if (i == 16) { type = "festival"; name = "지역축제"; }
-      else if (i == 24) { type = "travel"; name = "국내여행"; }
-      else if (i == 30) { type = "tax"; name = "국세청"; }
-      else if ([4, 12, 20, 28].contains(i)) { type = "chance"; name = "찬스"; }
+      else if (i == 7) { type = "island"; name = "무인도"; } // 8 -> 7
+      else if (i == 14) { type = "festival"; name = "지역축제"; } // 16 -> 14
+      else if (i == 21) { type = "travel"; name = "국내여행"; } // 24 -> 21
+      else if (i == 26) { type = "tax"; name = "국세청"; } // 30 -> 26
+      else if ([3, 10, 17, 24].contains(i)) { type = "chance"; name = "찬스"; } // 찬스 위치 변경
 
       Map<String, dynamic> blockData = {
         "index": i,
@@ -90,7 +91,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
       await _fs.collection("games").doc("board").set(fullBoardData);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("초기화 완료! 총 땅 개수: $landCount개")),
+          SnackBar(content: Text("초기화 완료! (총 28칸, 땅 $landCount개)")),
         );
       }
     } catch (e) {
@@ -100,7 +101,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     }
   }
 
-  // [기능 2] 필드 추가
+  // [기능 2] 필드 추가 (기존 유지)
   Future<void> _addFestivalFields() async {
     try {
       DocumentReference boardRef = _fs.collection("games").doc("board");
@@ -148,7 +149,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     }
   }
 
-  // [기능 4] 퀴즈 데이터 초기화
+  // [기능 4] 퀴즈 데이터 초기화 (기존 유지)
   Future<void> _initializeQuizData() async {
     Map<String, dynamic> quizData = {};
     for (int i = 1; i <= 24; i++) {
@@ -170,31 +171,27 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     }
   }
 
-  // ----------------------------------------------------------------------
-  // [기능 5] 유저 데이터 초기화 (New)
-  // user1 ~ user4를 초기 상태로 만듭니다.
-  // ----------------------------------------------------------------------
+  // [기능 5] 유저 데이터 초기화 (기존 유지)
   Future<void> _initializeUserData() async {
     Map<String, dynamic> usersData = {};
 
-    // 4명의 플레이어 생성 (user1 ~ user4)
     for (int i = 1; i <= 4; i++) {
       usersData['user$i'] = {
         'card': "N",
-        'level': 1,            // 레벨 1
-        'money': 7000000,      // 현금 700만
-        'totalMoney': 7000000, // 총자산 700만
-        'position': 0,         // 위치 0 (출발지)
-        'rank': 1,             // 랭킹 1
-        'turn': 0,             // 턴 0
-        'type': "N",           // 타입 N (요청사항)
+        'level': 1,
+        'money': 7000000,
+        'totalMoney': 7000000,
+        'position': 0,
+        'rank': 1,
+        'turn': 0,
+        'type': "N",
+        'double' : 0,
+        'islandCount' : 0
       };
     }
 
     try {
-      // 덮어쓰기(Set)로 초기화
       await _fs.collection("games").doc("users").set(usersData);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("👤 유저(user1~4) 정보 리셋 완료!")));
@@ -210,7 +207,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("게임 보드 DB 관리자")),
+      appBar: AppBar(title: const Text("7칸(28) 보드 DB 관리자")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -218,8 +215,8 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
             // 섹션 1: 보드 초기화
             _buildSectionContainer(
               color: Colors.blue,
-              title: "🚀 보드 초기화 (b0~b31)",
-              desc: "게임판 32칸을 기본 세팅으로 생성합니다.",
+              title: "🚀 보드 초기화 (b0~b27)",
+              desc: "28칸 7x4 레이아웃으로 보드를 초기화합니다.",
               btnText: "보드 생성하기",
               onPressed: _initializeBoardLayout,
             ),
@@ -245,7 +242,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
             ),
             const SizedBox(height: 20),
 
-            // 섹션 4: 유저 초기화 (새로 추가됨)
+            // 섹션 4: 유저 초기화
             _buildSectionContainer(
               color: Colors.red,
               title: "👤 유저 초기화 (user1~4)",
@@ -258,7 +255,6 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
             const Text("🛠️ 개별 블록 수정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 10),
 
-            // 입력 폼들
             TextField(controller: _keyController, decoration: const InputDecoration(labelText: "DB 키값 (예: b1)", border: OutlineInputBorder())),
             const SizedBox(height: 10),
             TextField(controller: _indexController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "인덱스", border: OutlineInputBorder())),
