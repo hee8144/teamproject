@@ -26,6 +26,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   String eventNow = "";
   int _eventPlayer = 0;
 
+  // 💡 턴 관리 변수
+  int currentTurn = 1;
+  int totalTurn = 30;
+  int doubleCount = 0;
+
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
   int? _highlightOwner;
@@ -60,11 +65,47 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  // 💡 주사위 굴리기 콜백
+  void _onDiceRoll(int val1, int val2) {
+    bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+
+    if (isTraveling) {
+      setState(() {
+        players["user$currentTurn"]["isTraveling"] = false;
+      });
+      fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
+      _triggerHighlight(currentTurn, "trip");
+      return;
+    }
+
+    int total = val1 + val2;
+    bool isDouble = (val1 == val2);
+    movePlayer(total, currentTurn, isDouble);
+  }
+
+  // 💡 턴 시작 시 상태 체크
+  void _checkAndStartTurn() {
+    String type = players["user$currentTurn"]?["type"] ?? "N";
+    if (type == "N") {
+      _nextTurn(); // N이면 바로 다음 턴으로 넘김
+      return;
+    }
+
+    bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+    if (isTraveling) {
+      setState(() {
+        players["user$currentTurn"]["isTraveling"] = false;
+      });
+      fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
+      _triggerHighlight(currentTurn, "trip");
+    }
+  }
+
   void _triggerHighlight(int player, String event) {
     _eventPlayer = player;
     if(event == "trip"){
       setState(() {
-        _highlightOwner = -1;
+        _highlightOwner = -1; // -1: 전체 맵 빛남
         eventNow = event;
       });
     } else {
@@ -102,7 +143,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     } else if(event == "festival"){
       // 축제 로직
     } else if (event == "trip"){
-      movePlayer(index + 7, _eventPlayer);
+      _movePlayerTo(index, _eventPlayer);
     }
   }
 
@@ -126,10 +167,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     await _readLocal();
     await _readPlayer();
     await rankChange();
+
     if(mounted) {
       setState(() { _isLoading = false; });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showStartDialog(localName);
+        _checkAndStartTurn();
       });
     }
   }
@@ -139,11 +182,16 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     await fs.collection("games").doc("users").set(players);
   }
 
-  void movePlayer(int num, int player) async {
+  void _movePlayerTo(int targetIndex, int player) async {
+    int currentPos = players["user$player"]["position"];
+    int steps = targetIndex - currentPos;
+    if (steps < 0) steps += 28;
+    movePlayer(steps, player, false);
+  }
+
+  void movePlayer(int num, int player, bool isDouble) async {
     int currentPos = players["user$player"]["position"];
     int nextPos = currentPos + num;
-
-    // 7칸 기준 (총 28칸: 0~27)
     int changePosition = nextPos > 27 ? nextPos % 28 : nextPos;
 
     if(nextPos > 27){
@@ -154,7 +202,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           "user$player.money": players["user$player"]["money"] + 1000000,
           "user$player.totalMoney": players["user$player"]["totalMoney"] + 1000000
         });
-      } else{
+      } else {
         await fs.collection("games").doc("users").update({
           "user$player.money": players["user$player"]["money"] + 1000000,
           "user$player.totalMoney": players["user$player"]["totalMoney"] + 1000000
@@ -169,7 +217,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     await fs.collection("games").doc("users").update({"user$player.position": changePosition});
 
     String tileKey = "b$changePosition";
+    bool forceNextTurn = false;
 
+    // --- 도착지 로직 ---
     if(boardList[tileKey] != null && boardList[tileKey]["type"] == "land"){
       final result = await showDialog(
           context: context,
@@ -186,22 +236,99 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         });
       }
     }
-    else if(changePosition == 26){ // 국세청 (기존 30 -> 26)
+    else if(changePosition == 26){ // 국세청
       await showDialog(context: context, builder: (context)=>
           TaxDialog(user: player)
       );
     }
-    else if(changePosition == 14){ // 축제 (기존 16 -> 14)
-      _triggerHighlight(player, "festival");
+    else if(changePosition == 14){ // 축제
+      bool hasMyLand = false;
+      boardList.forEach((key, val) {
+        int owner = int.tryParse(val['owner'].toString()) ?? 0;
+        if(val['type'] == 'land' && owner == player) {
+          hasMyLand = true;
+        }
+      });
+
+      if(hasMyLand) {
+        _triggerHighlight(player, "festival");
+      } else {
+        forceNextTurn = true;
+      }
     }
     else if(changePosition == 0){ // 출발
-      _triggerHighlight(player, "start");
+      bool hasUpgradableLand = false;
+      boardList.forEach((key, val) {
+        int owner = int.tryParse(val['owner'].toString()) ?? 0;
+        int level = val['level'] ?? 0;
+        if(val['type'] == 'land' && owner == player && level < 4) {
+          hasUpgradableLand = true;
+        }
+      });
+
+      if(hasUpgradableLand) {
+        _triggerHighlight(player, "start");
+      } else {
+        forceNextTurn = true;
+      }
     }
-    else if(changePosition == 21){ // 여행 (기존 24 -> 21)
-      _triggerHighlight(player, "trip");
+    else if(changePosition == 21){ // 여행
+      setState(() {
+        players["user$player"]["isTraveling"] = true;
+      });
+      await fs.collection("games").doc("users").update({"user$player.isTraveling": true});
+      forceNextTurn = true;
+    }
+    else if(changePosition == 7){ // 무인도
+      forceNextTurn = true;
+      fs.collection("games").doc("users").update({
+        "user$player.islandCount" : 3
+      });
     }
 
     _setPlayer();
+
+    // 💡 턴 넘기기
+    if (forceNextTurn || !isDouble) {
+      _nextTurn();
+    } else {
+      doubleCount++;
+      if (doubleCount >= 3) {
+        setState(() {
+          players["user$player"]["position"] = 7;
+        });
+        await fs.collection("games").doc("users").update({
+          "user$player.position": 7,
+          "user$player.islandCount": 3
+        });
+        _nextTurn();
+      }
+    }
+  }
+
+  void _nextTurn() {
+    setState(() {
+      doubleCount = 0;
+      int nextPlayer = currentTurn;
+      int safetyLoop = 0;
+
+      // N 타입 건너뛰기
+      do {
+        if (nextPlayer == 4) {
+          nextPlayer = 1;
+          totalTurn--;
+          if (totalTurn == 0) {
+            // 게임 종료 로직
+          }
+        } else {
+          nextPlayer++;
+        }
+        safetyLoop++;
+      } while ((players["user$nextPlayer"]?["type"] ?? "N") == "N" && safetyLoop < 10);
+
+      currentTurn = nextPlayer;
+      _checkAndStartTurn();
+    });
   }
 
   Future<void> rankChange() async{
@@ -234,7 +361,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   Future<void> _insertLocal() async{
     if(heritageList.isEmpty) return;
-    for(int i = 1; i<=19; i++) {
+    for(int i = 1; i<=24; i++) {
       if(i-1 < heritageList.length) {
         await fs.collection("games").doc("quiz").update({
           "q$i.name" : heritageList[i-1]["이름"],
@@ -251,7 +378,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       Map<String, dynamic> updates = {};
       int heritageIndex = 0;
 
-      // 7칸 체제 총 28칸 (1~27 업데이트)
       for (int i = 1; i <= 27; i++) {
         String key = "b$i";
         if (boardData[key] != null && boardData[key]['type'] == 'land') {
@@ -296,7 +422,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Future<List<Map<String, String>>> _loadHeritage() async {
-    final String url = "https://www.khs.go.kr/cha/SearchKindOpenapiList.do?ccbaCtcd=$localcode&pageIndex=1&pageUnit=19";
+    final String url = "https://www.khs.go.kr/cha/SearchKindOpenapiList.do?ccbaCtcd=$localcode&pageIndex=1&pageUnit=24";
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       final document = xml.XmlDocument.parse(response.body);
@@ -332,24 +458,23 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     );
   }
 
-  // 💡 [수정됨] 7칸 기준 좌표 계산 (총 8등분)
   Map<String, double> _getTilePosition(int index, double boardSize, double tileSize) {
     double top = 0;
     double left = 0;
 
-    if (index >= 0 && index <= 7) { // 하단
+    if (index >= 0 && index <= 7) {
       top = boardSize - tileSize;
       left = boardSize - tileSize - (index * tileSize);
     }
-    else if (index >= 8 && index <= 14) { // 좌측
+    else if (index >= 8 && index <= 14) {
       left = 0;
       top = boardSize - tileSize - ((index - 7) * tileSize);
     }
-    else if (index >= 15 && index <= 21) { // 상단
+    else if (index >= 15 && index <= 21) {
       top = 0;
       left = (index - 14) * tileSize;
     }
-    else if (index >= 22 && index <= 27) { // 우측
+    else if (index >= 22 && index <= 27) {
       left = boardSize - tileSize;
       top = (index - 21) * tileSize;
     }
@@ -358,6 +483,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   Widget _buildAnimatedPlayer(int playerIndex, double boardSize, double tileSize) {
     String userKey = "user${playerIndex + 1}";
+
+    // 💡 [수정] N 타입이면 표시 안 함
+    String type = players[userKey]?["type"] ?? "N";
+    if (type == "N") return const SizedBox();
+
     int position = players[userKey]?["position"] ?? 0;
 
     Map<String, double> pos = _getTilePosition(position, boardSize, tileSize);
@@ -395,12 +525,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         ),
       );
     }
-
     final double screenHeight = MediaQuery.of(context).size.height;
-    // 💡 [요청 사항 반영] 화면 높이의 0.95 비율 사용
     final double boardSize = screenHeight * 0.8;
-
-    // 💡 7칸 기준이므로 한 변을 8등분 (7칸 + 1코너)
     final double tileSize = boardSize / 8;
 
     return Scaffold(
@@ -409,15 +535,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 1. [배경] 화면 전체 꽉 채움
             Container(
               width: double.infinity, height: double.infinity,
               decoration: const BoxDecoration(
                 image: DecorationImage(image: AssetImage('assets/board-background.PNG'), fit: BoxFit.cover),
               ),
             ),
-
-            // 2. [보드판 영역]
             SizedBox(
               width: boardSize,
               height: boardSize,
@@ -433,27 +556,22 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: DiceApp(
-                          onRoll: (int result, int turn) {
-                            movePlayer(result, turn);
-                          },
+                          turn: currentTurn,
+                          totalTurn: totalTurn,
+                          onRoll: (int v1, int v2) => _onDiceRoll(v1, v2),
                         ),
                       ),
                     ),
 
-                  // 💡 28칸 생성
                   ...List.generate(28, (index) {
-                    return _buildGameTile(index, tileSize);
+                    return _buildGameTile(index, tileSize, boardSize);
                   }),
-
-                  // 플레이어 말
                   ...List.generate(4, (index) {
                     return _buildAnimatedPlayer(index, boardSize, tileSize);
                   }),
                 ],
               ),
             ),
-
-            // 3. [플레이어 패널] IgnorePointer로 터치 간섭 해결
             _buildPlayerInfoPanel(alignment: Alignment.bottomRight, playerData: players['user1'], color: Colors.red, name : "user1"),
             _buildPlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'], color : Colors.blue, name : "user2"),
             _buildPlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'], color: Colors.green, name : "user3"),
@@ -465,6 +583,20 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Widget _buildPlayerInfoPanel({required Alignment alignment, required Map<String, dynamic> playerData, required Color color, required String name}) {
+    // 💡 [수정] 타입 체크 및 이름 변경 로직
+    String type = playerData['type'] ?? "N";
+
+    // 1. N이면 숨김
+    if (type == "N") return const SizedBox();
+
+    // 2. B이면 이름을 'bot'으로 변경
+    String displayName = name;
+    int botCount = 1;
+    if (type == "B") {
+      displayName = "bot$botCount";
+      botCount++;
+    }
+
     bool isTop = alignment.y < 0;
     bool isLeft = alignment.x < 0;
     Color bgColor = color;
@@ -475,58 +607,54 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     return Positioned(
       top: isTop ? 0 : null, bottom: isTop ? null : 0,
       left: isLeft ? 0 : null, right: isLeft ? null : 0,
-      // 💡 패널이 터치를 먹지 않도록 IgnorePointer 추가
-      child: IgnorePointer(
-        child: SafeArea(
-          minimum: const EdgeInsets.all(10),
-          child: SizedBox(
-            width: 160, height: 80,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 140, height: 70,
-                  margin: EdgeInsets.only(top: isTop ? 0 : 10, bottom: isTop ? 10 : 0, left: isLeft ? 0 : 20, right: isLeft ? 20 : 0),
-                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
+      child: SafeArea(
+        minimum: const EdgeInsets.all(10),
+        child: SizedBox(
+          width: 160, height: 80,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 140, height: 70,
+                margin: EdgeInsets.only(top: isTop ? 0 : 10, bottom: isTop ? 10 : 0, left: isLeft ? 0 : 20, right: isLeft ? 20 : 0),
+                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: bgColor, borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(2,2))],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    Text("소지금 : $money", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                    Text("총 자산 : $totalMoney", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: isTop ? 40 : 0, left: isLeft ? 110 : 0,
+                child: Container(
+                  width: 40, height: 40, alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: bgColor, borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 2),
-                    boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(2,2))],
+                    color: Colors.white, shape: BoxShape.circle,
+                    border: Border.all(color: Colors.grey, width: 2),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
-                      const SizedBox(height: 2),
-                      Text("소지금 : $money", style: const TextStyle(color: Colors.white, fontSize: 10)),
-                      Text("총 자산 : $totalMoney", style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    ],
-                  ),
+                  child: Text("$rank등", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
                 ),
-                Positioned(
-                  top: isTop ? 40 : 0, left: isLeft ? 110 : 0,
-                  child: Container(
-                    width: 40, height: 40, alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white, shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey, width: 2),
-                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
-                    ),
-                    child: Text("$rank등", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildGameTile(int index, double size) {
+  Widget _buildGameTile(int index, double size, double boardSize) {
     double? top, bottom, left, right;
 
-    // 💡 7칸 기준 좌표 배치
     if (index >= 0 && index <= 7) { bottom = 0; right = index * size; }
     else if (index >= 8 && index <= 14) { left = 0; bottom = (index - 7) * size; }
     else if (index >= 15 && index <= 21) { top = 0; left = (index - 14) * size; }
@@ -534,16 +662,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     Color barColor = Colors.grey; IconData? icon; String label = ""; bool isSpecial = false;
 
-    // 💡 7칸 기준 특수 위치 (0, 7, 14, 21, 26)
     if (index == 0) { label = "출발"; icon = Icons.flag_circle; barColor = Colors.white; isSpecial = true; }
     else if (index == 7) { label = "무인도"; icon = Icons.lock_clock; isSpecial = true; }
     else if (index == 14) { label = "축제"; icon = Icons.celebration; isSpecial = true; }
     else if (index == 21) { label = "여행"; icon = Icons.flight_takeoff; isSpecial = true; }
     else if (index == 26) { label = "국세청"; icon = Icons.account_balance; isSpecial = true; }
-    // 💡 찬스 위치 (3, 10, 17, 24)
     else if ([3, 10, 17, 24].contains(index)) { label = "찬스"; icon = Icons.question_mark_rounded; barColor = Colors.orange; isSpecial = true; }
 
-    // 💡 라인 색상
     else if (index < 3) barColor = const Color(0xFFCFFFE5);
     else if (index < 7) barColor = const Color(0xFF66BB6A);
     else if (index < 10) barColor = const Color(0xFF42A5F5);
@@ -578,7 +703,16 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     var tileData = boardList["b$index"] ?? {};
     bool isFestival = boardList["b$index"] != null ? boardList["b$index"]["isFestival"] ?? false : false;
     double multiply = (tileData["multiply"] as num? ?? 0).toDouble();
-    int tollPrice = (price * multiply).round();
+    int buildLevel = tileData["level"] ?? 0;
+
+    int levelvalue = 1;
+    switch (buildLevel) {
+      case 1: levelvalue = 2; break;
+      case 2: levelvalue = 6; break;
+      case 3: levelvalue = 14; break;
+      case 4: levelvalue = 40; break;
+    }
+    int tollPrice = (price * multiply * levelvalue).round();
 
     if (isFestival && multiply == 1) multiply *= 2;
 
@@ -588,7 +722,16 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     final List<Color> ownerColors = [Colors.transparent, Colors.red, Colors.blue, Colors.green, Colors.yellow];
     Color badgeColor = (owner >= 1 && owner <= 4) ? ownerColors[owner] : Colors.transparent;
 
-    bool shouldGlow = (_highlightOwner == -1) || (_highlightOwner != null && _highlightOwner == owner);
+    bool shouldGlow = false;
+    if (_highlightOwner == -1) {
+      shouldGlow = true;
+    } else if (_highlightOwner != null && _highlightOwner == owner) {
+      if (eventNow == "start") {
+        if (level < 4) shouldGlow = true;
+      } else {
+        shouldGlow = true;
+      }
+    }
 
     return GestureDetector(
       onTap: () {
@@ -644,7 +787,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     if (price > 0)
-                                      Text("$tollPrice", style: TextStyle(fontSize: 8, color: Colors.grey[600])),
+                                      Text("${(tollPrice/10000).floor()}만", style: TextStyle(fontSize: 7, color: Colors.grey[600])),
                                   ],
                                 ),
                               ],
