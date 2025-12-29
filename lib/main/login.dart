@@ -1,39 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ 추가
-import 'package:firebase_core/firebase_core.dart';
-import 'mainUI.dart';
+import 'package:flutter/services.dart'; // ✅ 가로모드 고정용
+import 'package:go_router/go_router.dart';
+import 'mainUI.dart'; // MainScreen
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // ✅ 필수
-
-  // ✅ Firebase 초기화 (가장 중요)
-  await Firebase.initializeApp();
-  // FlutterFire CLI 사용 중이면 ↓
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
-
-  // ✅ 가로모드만 허용
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class Login extends StatelessWidget {
+  const Login({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'NanumMyeongjo',
-      ),
-      home: const LoginScreen(),
-    );
+    // MaterialApp 제거, GoRouter가 최상위에서 관리
+    return const LoginScreen();
   }
 }
 
@@ -61,7 +37,6 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
           ),
-
           // 2. 콘텐츠 레이어
           SafeArea(
             child: Center(
@@ -171,14 +146,7 @@ class LoginScreen extends StatelessWidget {
             startColor: const Color(0xFFFF7043),
             endColor: const Color(0xFFE64A19),
             borderColor: const Color(0xFFBF360C),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MainScreen(),
-                ),
-              );
-            },
+            onTap: () => context.go('/main'), // ✅ GoRouter 이동
           ),
         ],
       ),

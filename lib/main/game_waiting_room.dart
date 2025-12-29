@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../game/gameMain.dart';
 
 /// ==================== 플레이어 모델 ====================
@@ -26,7 +27,6 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   @override
   void initState() {
     super.initState();
-    // 기본 플레이어 추가
     joinOrder.add(3); // index 3 = 4번 슬롯
   }
 
@@ -55,8 +55,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
-    final int activeCount =
-        userTypes.where((type) => type != "N").length;
+    final int activeCount = userTypes.where((type) => type != "N").length;
     final bool canStart = activeCount >= 2;
 
     return Scaffold(
@@ -87,7 +86,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
                         ? _buildLandscapeGrid()
                         : _buildPortraitGrid(),
                     Center(
-                      child: _buildStartButton(canStart),
+                      child: _buildStartButton(canStart, context),
                     ),
                   ],
                 ),
@@ -101,7 +100,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
             left: 12,
             child: SafeArea(
               child: GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: () => context.go('/main'), // ✅ GoRouter 뒤로가기
                 child: _buildCircleIcon(Icons.arrow_back),
               ),
             ),
@@ -135,10 +134,8 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
         const int crossCount = 2;
         const double spacing = 12;
 
-        final double slotWidth =
-            (constraints.maxWidth - spacing) / crossCount;
-        final double slotHeight =
-            (constraints.maxHeight - spacing) / crossCount;
+        final double slotWidth = (constraints.maxWidth - spacing) / crossCount;
+        final double slotHeight = (constraints.maxHeight - spacing) / crossCount;
 
         return GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
@@ -200,9 +197,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  type == "B"
-                      ? "봇$number"
-                      : "플레이어$number",
+                  type == "B" ? "봇$number" : "플레이어$number",
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -227,11 +222,10 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   }
 
   /* ================== 게임 시작 버튼 ================== */
-  Widget _buildStartButton(bool canStart) {
+  Widget _buildStartButton(bool canStart, BuildContext context) {
     return ElevatedButton(
       onPressed: canStart
           ? () {
-        // 선택된 슬롯 정보를 기반으로 Player 객체 생성
         final players = <Player>[];
         for (int i = 0; i < userTypes.length; i++) {
           if (userTypes[i] != "N") {
@@ -244,13 +238,8 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
           }
         }
 
-        // 게임 메인으로 이동
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GameMain(),
-          ),
-        );
+        // ✅ GoRouter로 게임 메인 이동
+        context.go('/gameMain');
       }
           : null,
       child: const Text("게임 시작!"),
