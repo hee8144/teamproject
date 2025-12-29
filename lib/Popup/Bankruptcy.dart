@@ -4,11 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class BankruptDialog extends StatefulWidget {
   final int lackMoney;
   final String reason; // "tax", "toll"
+  final int user;
 
   const BankruptDialog({
     super.key,
     required this.lackMoney,
     required this.reason,
+    required this.user,
   });
 
   @override
@@ -58,7 +60,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
     if (boardSnap.exists) {
       boardData = boardSnap.data()!;
       boardData.forEach((key, value) {
-        if (value is Map && value["owner"] == "1") {
+        if (value is Map && value["owner"] == widget.user) {
           temp.add({
             "boardKey": key,           // b13
             "index": value["index"],

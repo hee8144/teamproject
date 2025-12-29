@@ -56,6 +56,8 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     await _loadUser();
 
     if (!hasAnySelectable()) {
+      setState(() => loading = false);
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pop(context);
       });
@@ -224,17 +226,25 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
               ),
             ),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: totalCost == 0 ? null : () async {
-                final targetLevel = getTargetLevel();
-                await _payment();
-                Navigator.pop(context,{
-                  "user":widget.user,
-                  "index":widget.buildingId,
-                  "level":targetLevel
-                });
-              },
-              child: Text("구매 (${formatMoney(totalCost)})"),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: totalCost == 0 ? null : () async {
+                    final targetLevel = getTargetLevel();
+                    await _payment();
+                    Navigator.pop(context,{
+                      "user":widget.user,
+                      "index":widget.buildingId,
+                      "level":targetLevel
+                    });
+                  },
+                  child: Text("구매 (${formatMoney(totalCost)})"),
+                ),
+                ElevatedButton(onPressed: (){
+                  Navigator.pop(context);
+                }, child: Text("취소"))
+              ],
             ),
             // const SizedBox(height: 16),
           ],
