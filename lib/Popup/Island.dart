@@ -10,9 +10,24 @@ class IslandDialog extends StatefulWidget {
 }
 
 class _IslandDialogState extends State<IslandDialog> {
+  final FirebaseFirestore fs = FirebaseFirestore.instance;
+  int turn =-0;
+  Future<void> getTurn() async{
+    final snap = await fs.collection("games").doc("users").get();
+    if(snap.exists){
+      turn=snap.data()!["user${widget.user}"]["islandCount"];
+    }
+    print(turn);
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    getTurn();
+  }
   @override
   Widget build(BuildContext context) {
-    final FirebaseFirestore fs = FirebaseFirestore.instance;
     final size = MediaQuery.of(context).size;
 
     Future<void> payment() async{
@@ -20,6 +35,7 @@ class _IslandDialogState extends State<IslandDialog> {
         "user${widget.user}.money" :FieldValue.increment(-1000000)
       });
     }
+
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -72,19 +88,19 @@ class _IslandDialogState extends State<IslandDialog> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Text(
                       "무인도에 도착했습니다.\n"
-                          "일정 턴 동안 이동할 수 없습니다.",
+                          "${3-turn} 턴 동안 이동할 수 없습니다.",
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         height: 1.4,
                       ),
                     ),
-                    SizedBox(height: 16),
-                    Row(
+                    const SizedBox(height: 16),
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Expanded(

@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 import 'gameMain.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 
 // 기존 CreateApp 클래스를 아래 코드로 교체하세요.
@@ -19,6 +20,9 @@ class DiceApp extends StatefulWidget {
 class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
   final double _size = 40.0; // 주사위 크기
   int turn = 1;
+  int totalturn = 30;
+  int doubleCount = 0;
+  FirebaseFirestore fs = FirebaseFirestore.instance;
 
   double _x1 = 0.0, _y1 = 0.0;
   double _x2 = 0.0, _y2 = 0.0;
@@ -67,24 +71,67 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
   void _calculateResult() {
     int val1 = _getFaceValue(_x1, _y1);
     int val2 = _getFaceValue(_x2, _y2);
+
     setState(() {
       _totalResult = val1 + val2;
       _isDouble = (val1 == val2);
-      _isRolling = false;
+      _isRolling = false; // 굴리기 종료 상태
 
+      // 1. 이동 먼저 처리
       widget.onRoll(_totalResult, turn);
 
-      if(!_isDouble && turn != 4){
-        turn++;
-      } else if(!_isDouble && turn == 4){
-        turn = 1;
+      if (_isDouble) {
+        doubleCount++;
+
+        // [수정] 더블 3회 이상 발생 시 (무인도)
+        if (doubleCount >= 3) {
+          // 1. DB 위치 업데이트 (무인도: 8번 칸)
+          fs.collection("games").doc("users").update({
+            "user$turn.position": 8
+          });
+
+          // 2. 5초 딜레이 후 초기화 및 턴 넘기기
+          Future.delayed(const Duration(seconds: 5), () {
+            if (mounted) { // 위젯이 여전히 화면에 있는지 확인
+              setState(() {
+                doubleCount = 0; // 5초 뒤 0으로 초기화
+
+                // 무인도에 갔으므로 턴 종료 처리
+                if (turn == 4) {
+                  turn = 1;
+                  totalturn--;
+                  if (totalturn == 0) {
+                    // 게임종료 로직
+                  }
+                } else {
+                  turn++;
+                }
+              });
+            }
+          });
+
+          // ⚠️ 중요: 5초 뒤에 턴을 넘겨야 하므로, 여기서 함수를 강제 종료하여
+          // 아래쪽 턴 넘기기 로직이 바로 실행되지 않도록 함.
+          return;
+        }
+
+        // 더블이지만 3회 미만일 경우: 턴 유지 (코드 없음 = 턴 유지됨)
+
       } else {
-        turn = turn;
+        // 더블이 아님: 연속 더블 초기화 및 턴 넘기기
+        doubleCount = 0;
+
+        if (turn == 4) {
+          turn = 1;
+          totalturn--;
+          if (totalturn == 0) {
+            // 게임종료 로직
+          }
+        } else {
+          turn++;
+        }
       }
-
-
     });
-
   }
 
   void runAllDice() {
@@ -143,8 +190,12 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
             ),
             // 점수 표시 영역
             Text(
-              "user$turn님의 턴",
-                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
+              "남은턴 : $totalturn",
+              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2)
+            ),
+            Text(
+              doubleCount != 3 ? "user$turn님의 턴" : "3연속 더블! 무인도 도착", 
+              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
             ),
             Text(
                 _isRolling ? "Rolling..." : "TOTAL: $_totalResult",
