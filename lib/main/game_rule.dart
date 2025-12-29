@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // ✅ 추가
 import 'package:carousel_slider/carousel_slider.dart';
 
 class GameRulePage extends StatefulWidget {
@@ -182,8 +183,7 @@ class _GameRulePageState extends State<GameRulePage> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color:
-                isActive ? Colors.white : const Color(0xFF8D6E63),
+                color: isActive ? Colors.white : const Color(0xFF8D6E63),
               ),
             ),
           ),
@@ -202,7 +202,7 @@ class _GameRulePageState extends State<GameRulePage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
-            onTap: () => Navigator.pop(context),
+            onTap: () => context.go('/main'), // ✅ GoRouter 뒤로가기
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
