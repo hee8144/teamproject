@@ -1,28 +1,28 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
-import 'gameMain.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-
-// 기존 CreateApp 클래스를 아래 코드로 교체하세요.
-
-// 이 코드를 기존 CreateApp 대신 사용하세요.
 
 class DiceApp extends StatefulWidget {
+  // 💡 [수정] 합계 대신 주사위 2개의 값을 각각 전달
   final Function(int, int) onRoll;
+  // 💡 [추가] 턴 정보를 부모(GameMain)에서 받아옴
+  final int turn;
+  final int totalTurn;
 
-  const DiceApp({super.key, required this.onRoll});
+  const DiceApp({
+    super.key,
+    required this.onRoll,
+    required this.turn,
+    required this.totalTurn
+  });
+
   @override
   DiceAppState createState() => DiceAppState();
 }
 
 class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
-  final double _size = 40.0; // 주사위 크기
-  int turn = 1;
-  int totalturn = 30;
-  int doubleCount = 0;
-  FirebaseFirestore fs = FirebaseFirestore.instance;
+  final double _size = 40.0;
+  // 💡 내부 턴 변수 삭제 (GameMain에서 관리)
 
   double _x1 = 0.0, _y1 = 0.0;
   double _x2 = 0.0, _y2 = 0.0;
@@ -75,62 +75,10 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
     setState(() {
       _totalResult = val1 + val2;
       _isDouble = (val1 == val2);
-      _isRolling = false; // 굴리기 종료 상태
+      _isRolling = false;
 
-      // 1. 이동 먼저 처리
-      widget.onRoll(_totalResult, turn);
-
-      if (_isDouble) {
-        doubleCount++;
-
-        // [수정] 더블 3회 이상 발생 시 (무인도)
-        if (doubleCount >= 3) {
-          // 1. DB 위치 업데이트 (무인도: 8번 칸)
-          fs.collection("games").doc("users").update({
-            "user$turn.position": 8
-          });
-
-          // 2. 5초 딜레이 후 초기화 및 턴 넘기기
-          Future.delayed(const Duration(seconds: 5), () {
-            if (mounted) { // 위젯이 여전히 화면에 있는지 확인
-              setState(() {
-                doubleCount = 0; // 5초 뒤 0으로 초기화
-
-                // 무인도에 갔으므로 턴 종료 처리
-                if (turn == 4) {
-                  turn = 1;
-                  totalturn--;
-                  if (totalturn == 0) {
-                    // 게임종료 로직
-                  }
-                } else {
-                  turn++;
-                }
-              });
-            }
-          });
-
-          // ⚠️ 중요: 5초 뒤에 턴을 넘겨야 하므로, 여기서 함수를 강제 종료하여
-          // 아래쪽 턴 넘기기 로직이 바로 실행되지 않도록 함.
-          return;
-        }
-
-        // 더블이지만 3회 미만일 경우: 턴 유지 (코드 없음 = 턴 유지됨)
-
-      } else {
-        // 더블이 아님: 연속 더블 초기화 및 턴 넘기기
-        doubleCount = 0;
-
-        if (turn == 4) {
-          turn = 1;
-          totalturn--;
-          if (totalturn == 0) {
-            // 게임종료 로직
-          }
-        } else {
-          turn++;
-        }
-      }
+      // 💡 [핵심] 계산된 주사위 값을 GameMain으로 전달만 함 (턴 계산 X)
+      widget.onRoll(val1, val2);
     });
   }
 
@@ -159,16 +107,18 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     List<Color> colors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
+    // widget.turn을 사용하여 부모에서 받은 턴 정보 표시
+    int currentTurnIndex = (widget.turn - 1).clamp(0, 3);
+
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: Container(
-        // [수정] 모달창 느낌을 위한 배경 디자인 추가
-        width: 260, // 모달의 고정 너비 (FittedBox가 알아서 축소함)
+        width: 260,
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.75), // 반투명 검은색 배경
-          borderRadius: BorderRadius.circular(20), // 둥근 모서리
-          border: Border.all(color: Colors.white24, width: 1.5), // 연한 테두리
+          color: Colors.black.withOpacity(0.75),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24, width: 1.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.5),
@@ -178,24 +128,22 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
           ],
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min, // 내용물 크기만큼만 차지
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // "더블!!" 텍스트 영역
             SizedBox(
               height: 20,
               child: _isDouble && !_isRolling
                   ? const Text("✨ DOUBLE!! ✨", style: TextStyle(color: Colors.yellowAccent, fontSize: 16, fontWeight: FontWeight.bold))
                   : null,
             ),
-            // 점수 표시 영역
             Text(
-              "남은턴 : $totalturn",
-              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2)
+                "남은턴 : ${widget.totalTurn}",
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2)
             ),
             Text(
-              doubleCount != 3 ? "user$turn님의 턴" : "3연속 더블! 무인도 도착", 
-              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
+                "user${widget.turn}님의 턴",
+                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
             ),
             Text(
                 _isRolling ? "Rolling..." : "TOTAL: $_totalResult",
@@ -215,7 +163,7 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
               onPressed: runAllDice,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                backgroundColor: colors[turn - 1], // 버튼 색상을 눈에 띄게 변경
+                backgroundColor: colors[currentTurnIndex],
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 elevation: 5,
@@ -267,7 +215,6 @@ class Cube extends StatelessWidget {
   }
 
   Widget _side(double rx, double ry, double rz, int val) {
-    // [수정] 그림자 계산 로직과 foregroundDecoration을 완전히 삭제했습니다.
     return Transform(
       alignment: Alignment.center,
       transform: Matrix4.identity()..rotateX(rx)..rotateY(ry)..rotateZ(rz)..translate(0.0, 0.0, size / 2),
@@ -276,7 +223,6 @@ class Cube extends StatelessWidget {
           width: size, height: size,
           decoration: BoxDecoration(
             color: Colors.white,
-            // 테두리를 얇게 유지
             border: Border.all(width: 1.0, color: Colors.grey[300]!),
             borderRadius: BorderRadius.circular(size * 0.15),
           ),
@@ -292,7 +238,7 @@ class DiceDotsPainter extends CustomPainter {
   DiceDotsPainter(this.value);
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black; // 점 색상 (완전 검정)
+    final paint = Paint()..color = Colors.black;
     final r = size.width * 0.1;
     final w = size.width, h = size.height;
     void draw(double x, double y) => canvas.drawCircle(Offset(x, y), r, paint);
