@@ -27,6 +27,7 @@ class GameResultPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final padding = MediaQuery.of(context).padding;
 
     const borderColor = Color(0xFF6D4C41);
     const paperColor = Color(0xFFFFF3E0);
@@ -44,33 +45,40 @@ class GameResultPage extends StatelessWidget {
             ),
           ),
 
-          SafeArea(
+          /// SafeArea 대신 Container 사용
+          Container(
+            padding: EdgeInsets.only(
+              top: padding.top + 16,
+              bottom: padding.bottom + 16,
+              left: padding.left + 16,
+              right: padding.right + 16,
+            ),
+            width: size.width,
+            height: size.height,
             child: Center(
               child: Container(
-                // 1. 전체 높이를 내용에 맞게 조절하기 위해 상하 패딩 최적화
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
                 decoration: BoxDecoration(
                   color: paperColor.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: borderColor, width: 2.5),
                 ),
-                // 2. MainAxisSize.min을 사용하여 불필요한 수직 확장 방지
-                child: IntrinsicHeight(
-                  child: Row(
-                    children: [
-                      // ================= 왼쪽 =================
-                      Expanded(
-                        flex: 7,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center, // Row 전체 중앙 배치
+                  children: [
+                    // ================= 왼쪽 =================
+                    Flexible(
+                      flex: 7,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 32), // 왼쪽 컬럼 오른쪽 여백
                         child: Column(
-                          mainAxisSize: MainAxisSize.min, // 3. 내용물만큼만 차지
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            /// 🏆 승리 문구
                             Container(
-                              width: size.width * 0.36,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 14,
-                              ),
+                              width: size.width * 0.5,
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFE0B2),
                                 borderRadius: BorderRadius.circular(12),
@@ -86,9 +94,7 @@ class GameResultPage extends StatelessWidget {
                                 ),
                               ),
                             ),
-
-                            const SizedBox(height: 10), // 여백 소폭 축소
-
+                            const SizedBox(height: 16),
                             const Text(
                               "최종 순위",
                               style: TextStyle(
@@ -97,10 +103,7 @@ class GameResultPage extends StatelessWidget {
                                 color: Color(0xFF3E2723),
                               ),
                             ),
-
-                            const SizedBox(height: 6), // 여백 소폭 축소
-
-                            // 4. 고정 높이를 제거하거나 대폭 줄여 표 하단 여백 제거
+                            const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               child: _buildRankTable(),
@@ -108,44 +111,48 @@ class GameResultPage extends StatelessWidget {
                           ],
                         ),
                       ),
+                    ),
 
-                      const SizedBox(width: 16),
-
-                      // ================= 오른쪽 =================
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildActionButton(
-                              text: "다시 시작",
-                              onTap: () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const GameMain(),
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 12), // 버튼 사이 간격 소폭 축소
-                            _buildActionButton(
-                              text: "종료",
-                              onTap: () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const MainScreen(),
-                                  ),
-                                      (_) => false,
-                                );
-                              },
-                            ),
-                          ],
+                    // ================= 오른쪽 =================
+                    Flexible(
+                      flex: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 32), // 버튼 컬럼 왼쪽 여백
+                        child: SizedBox(
+                          height: double.infinity,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildActionButton(
+                                text: "다시 시작",
+                                onTap: () {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const GameMain(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 16), // 버튼 간격 확대
+                              _buildActionButton(
+                                text: "종료",
+                                onTap: () {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MainScreen(),
+                                    ),
+                                        (_) => false,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -155,7 +162,6 @@ class GameResultPage extends StatelessWidget {
     );
   }
 
-  /// ================= 순위 테이블 =================
   Widget _buildRankTable() {
     return Container(
       decoration: BoxDecoration(
@@ -166,7 +172,7 @@ class GameResultPage extends StatelessWidget {
           inside: const BorderSide(color: Colors.black26),
         ),
         columnWidths: const {
-          0: FixedColumnWidth(50), // 너비 소폭 축소
+          0: FixedColumnWidth(50),
           1: FlexColumnWidth(),
           2: FlexColumnWidth(),
         },
@@ -199,14 +205,13 @@ class GameResultPage extends StatelessWidget {
     );
   }
 
-  /// ================= 버튼 =================
   Widget _buildActionButton({
     required String text,
     required VoidCallback onTap,
   }) {
     return SizedBox(
-      width: 130, // 너비 소폭 축소
-      height: 44, // 높이 소폭 축소
+      width: 140,
+      height: 50,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFD7CCC8),
@@ -224,7 +229,7 @@ class GameResultPage extends StatelessWidget {
         child: Text(
           text,
           style: const TextStyle(
-            fontSize: 14,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -246,12 +251,12 @@ class _RankCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4), // 셀 내부 여백 축소
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Center(
         child: Text(
           text,
           style: TextStyle(
-            fontSize: isHeader ? 13 : 12,
+            fontSize: isHeader ? 14 : 12,
             fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
             color: const Color(0xFF4E342E),
           ),

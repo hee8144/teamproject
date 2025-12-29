@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import '../game/gameMain.dart';
 
+/// ==================== 플레이어 모델 ====================
+class Player {
+  final bool isBot;
+  final String name;
+  Player({required this.isBot, required this.name});
+}
+
+/// ==================== 게임 대기방 ====================
 class GameWaitingRoom extends StatefulWidget {
   const GameWaitingRoom({super.key});
 
@@ -10,19 +18,15 @@ class GameWaitingRoom extends StatefulWidget {
 
 class _GameWaitingRoomState extends State<GameWaitingRoom> {
   /// 슬롯 상태: N = 비어있음, P = 플레이어, B = 봇
-  final List<String> userTypes = ["N", "N", "N", "P"]; // 4번 슬롯 기본 플레이어
+  final List<String> userTypes = ["N", "N", "N", "P"]; // 기본 플레이어는 마지막 슬롯
 
   /// 참가 순서 (index 저장)
   final List<int> joinOrder = [];
 
-  /// [좌상, 우상, 좌하, 우하] 표시용 번호
-  final List<int> displayOrder = [2, 4, 3, 1];
-
   @override
   void initState() {
     super.initState();
-
-    /// ✅ 기본 플레이어는 항상 1번
+    // 기본 플레이어 추가
     joinOrder.add(3); // index 3 = 4번 슬롯
   }
 
@@ -42,7 +46,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
 
   int _getDisplayNumber(int index) {
     final order = joinOrder.indexOf(index);
-    return order == -1 ? 0 : order + 1; // ✅ 항상 1부터 시작
+    return order == -1 ? 0 : order + 1;
   }
 
   @override
@@ -53,7 +57,6 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
 
     final int activeCount =
         userTypes.where((type) => type != "N").length;
-
     final bool canStart = activeCount >= 2;
 
     return Scaffold(
@@ -83,7 +86,6 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
                     isLandscape
                         ? _buildLandscapeGrid()
                         : _buildPortraitGrid(),
-
                     Center(
                       child: _buildStartButton(canStart),
                     ),
@@ -211,7 +213,6 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
             ),
           ),
         ),
-
         if (!isEmpty && !(index == 3 && type == "P"))
           Positioned(
             top: 14,
@@ -225,13 +226,30 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     );
   }
 
+  /* ================== 게임 시작 버튼 ================== */
   Widget _buildStartButton(bool canStart) {
     return ElevatedButton(
       onPressed: canStart
           ? () {
+        // 선택된 슬롯 정보를 기반으로 Player 객체 생성
+        final players = <Player>[];
+        for (int i = 0; i < userTypes.length; i++) {
+          if (userTypes[i] != "N") {
+            players.add(Player(
+              isBot: userTypes[i] == "B",
+              name: userTypes[i] == "B"
+                  ? "봇${_getDisplayNumber(i)}"
+                  : "플레이어${_getDisplayNumber(i)}",
+            ));
+          }
+        }
+
+        // 게임 메인으로 이동
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const GameMain()),
+          MaterialPageRoute(
+            builder: (_) => GameMain(),
+          ),
         );
       }
           : null,
