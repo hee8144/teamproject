@@ -9,6 +9,7 @@ import '../Popup/TaxDialog.dart';
 import '../Popup/Bankruptcy.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Island.dart';
+import '../quiz/main_dummy.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -139,7 +140,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 3. 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(total, currentTurn, isDouble);
+    movePlayer(1, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
@@ -632,6 +633,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       });
       await _readPlayer();
     }
+    // 찬스카드 밟을때
+    else if(changePosition == 3 || changePosition == 10
+      || changePosition == 17 || changePosition == 24){
+      await QuizDummyApp();
+    }
+
 
     _setPlayer();
 
@@ -715,6 +722,24 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   void _nextTurn() {
+    // 1. 생존자 수 확인 (파산하지 않은 플레이어)
+    int survivors = 0;
+    int lastSurvivorIndex = 0;
+
+    for (int i = 1; i <= 4; i++) {
+      String type = players["user$i"]?["type"] ?? "N";
+      if (type != "N" && type != "D") {
+        survivors++;
+        lastSurvivorIndex = i;
+      }
+    }
+
+    // 💡 [조건 1] 생존자가 1명 이하이면 게임 종료 (독점 승리)
+    if (survivors <= 1) {
+      _gameOver("bankruptcy", winnerIndex: lastSurvivorIndex);
+      return; // 더 이상 턴을 진행하지 않음
+    }
+
     setState(() {
       doubleCount = 0;
       int nextPlayer = currentTurn;
@@ -724,8 +749,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if (nextPlayer == 4) {
           nextPlayer = 1;
           totalTurn--;
-          if(totalTurn == 0) {
-            // 게임 종료
+
+          // 💡 [조건 2] 턴 종료 (총 턴 수가 0이 됨)
+          if (totalTurn == 0) {
+            _gameOver("turn_limit");
+            return; // 함수 종료
           }
         } else {
           nextPlayer++;
@@ -733,6 +761,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         safetyLoop++;
 
         String nextType = players["user$nextPlayer"]?["type"] ?? "N";
+        // 파산(D)하거나 없는(N) 유저는 건너뜀
         if (nextType != "N" && nextType != "D") {
           break;
         }
@@ -741,6 +770,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       currentTurn = nextPlayer;
       _checkAndStartTurn();
     });
+  }
+
+  // 💡 [추가] 게임 종료 처리 함수 (자리만 만듦)
+  void _gameOver(String reason, {int? winnerIndex}) {
+    // reason: "turn_limit" (턴 종료), "bankruptcy" (파산 독점)
+    print("게임 종료! 사유: $reason, 승자: $winnerIndex");
+
+    // TODO: 여기에 게임 종료 팝업 띄우기, 결과창 이동, DB 업데이트 등 로직 작성
+    // 예: showDialog(...)
   }
 
   // ... (rankChange, _readPlayer, _readLocal, _insertLocal 등 하단 함수들 기존 동일) ...
@@ -1026,6 +1064,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     Color barColor = Colors.grey; IconData? icon; String label = ""; bool isSpecial = false;
 
+    // 특수 칸 구분 로직
     if (index == 0) { label = "출발"; icon = Icons.flag_circle; barColor = Colors.white; isSpecial = true; }
     else if (index == 7) { label = "무인도"; icon = Icons.lock_clock; isSpecial = true; }
     else if (index == 14) { label = "축제"; icon = Icons.celebration; isSpecial = true; }
@@ -1077,10 +1116,18 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       top: top, bottom: bottom, left: left, right: right,
       child: GestureDetector(
         onTap: () {
+          // 1. 이벤트 하이라이트 상태일 때 (땅 선택)
           if (shouldGlow) {
             _stopHighlight(index, eventNow);
-          } else{
-          //   상세정보 넣을자리 제미나이야 이부분 지우지마
+          }
+          // 2. 평상시 클릭 (상세보기)
+          else {
+            // 💡 [수정] 특수 칸이 아니고 일반 땅(land)일 때만 실행
+            if (!isSpecial && boardList["b$index"] != null && boardList["b$index"]["type"] == "land") {
+              // TODO: 여기에 상세정보 보여주는 함수 호출
+              // showDetailInfo(index);
+              print("땅 상세정보 클릭: $index, $tileName");
+            }
           }
         },
         child: Container(
