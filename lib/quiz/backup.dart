@@ -16,8 +16,8 @@ class ChanceCardQuizAfterV2 extends StatefulWidget {
   });
 
   // [테스트용 설정]
-  static bool isTestMode = true; 
-  
+  static bool isTestMode = true;
+
   // [테스트용 가짜 유저 데이터]
   static Map<String, dynamic> testUserMock = {
     'card': 'N', // 'N', 'escape', 'sheild'
@@ -33,13 +33,13 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     with TickerProviderStateMixin {
   late final AnimationController _rotateController;
   late final Animation<double> _rotation;
-  
+
   late ConfettiController _leftConfettiController;
   late ConfettiController _rightConfettiController;
 
   late final Future<ChanceCard> _cardFuture;
-  
-  bool _isGood = true; 
+
+  bool _isGood = true;
   bool _hasPlayedEffect = false;
 
   @override
@@ -78,14 +78,14 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     _rightConfettiController.dispose();
     super.dispose();
   }
-  
-  // [핵심 로직] 카드 액션 처리
+
+  // [핵심 로직] 카드 액션 처리 (테스트 모드 지원)
   Future<void> _handleCardAction(ChanceCard card) async {
     try {
       String currentCard = 'N';
       String docId = 'unknown';
 
-      // 1. 데이터 가져오기
+      // 1. 데이터 가져오기 (테스트 모드 분기)
       if (ChanceCardQuizAfterV2.isTestMode) {
         debugPrint("🛠️ [TestMode] 유저 데이터 조회 중...");
         currentCard = ChanceCardQuizAfterV2.testUserMock['card'] ?? 'N';
@@ -112,21 +112,14 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
       // 2. 뽑은 카드가 보관용 카드인지 판별
       String? newCardCode;
       if (card.action == 'c_escape') newCardCode = 'escape';
-      if (card.action == 'c_shield') newCardCode = 'sheild'; 
+      if (card.action == 'c_shield') newCardCode = 'sheild';
 
       // 3. 로직 수행
       if (newCardCode != null) {
         if (currentCard == 'sheild' || currentCard == 'escape') {
-          // 이미 카드가 있음 -> [수정됨] 비교 팝업 호출 (새 카드 정보도 전달)
+          // 이미 카드가 있음 -> 교체 팝업
           if (mounted) {
-            _showCompareDialog(
-              docId, 
-              currentCard, 
-              newCardCode, 
-              card.title, 
-              card.imageKey ?? card.action, // 새 카드 이미지 키
-              card.description
-            );
+            _showReplaceDialog(docId, currentCard, newCardCode, card.title, card.description);
           }
         } else {
           // 카드 없음 -> 바로 획득
@@ -143,7 +136,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     }
   }
 
-  // [내부 함수] DB 업데이트
+  // [내부 함수] DB 업데이트 (테스트 모드 지원)
   Future<void> _updateUserCard(String docId, String newCardCode) async {
     if (ChanceCardQuizAfterV2.isTestMode) {
       debugPrint("🛠️ [TestMode] DB 업데이트: card -> $newCardCode");
@@ -156,198 +149,46 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     }
   }
 
-  // [UI] 카드 이미지 경로 헬퍼
-  String _getImagePath(String codeOrKey) {
-    // 1. 이미 assets/ 경로가 포함된 경우 (없겠지만 방어 코드)
-    if (codeOrKey.startsWith('assets/')) return codeOrKey;
+  // 교체 팝업
+  void _showReplaceDialog(
+      String docId, String oldCardCode, String newCardCode, String newCardTitle, String description) {
 
-    // 2. 코드(escape, sheild)를 이미지 키(c_escape, c_shield)로 변환
-    String imageKey = codeOrKey;
-    if (codeOrKey == 'escape') imageKey = 'c_escape';
-    if (codeOrKey == 'sheild') imageKey = 'c_shield'; // 오타 주의
-
-    // 3. 최종 경로 반환
-    return 'assets/cards/$imageKey.png';
-  }
-
-  // [UI] 카드 비교 및 교체 다이얼로그
-  void _showCompareDialog(
-      String docId, 
-      String oldCardCode, 
-      String newCardCode, 
-      String newCardTitle, 
-      String newCardImageKey,
-      String description) {
-    
     final String oldCardName = (oldCardCode == 'escape') ? '무인도 탈출' : 'VIP 명찰';
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 600, // 넉넉한 너비
-          height: 400,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFDF5E6),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF5D4037), width: 4),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "⚠️ 보관함이 가득 찼습니다!",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFD84315)),
-              ),
-              const SizedBox(height: 8),
-              const Text("하나만 선택하여 보관할 수 있습니다.", style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 20),
-              
-              Expanded(
-                child: Row(
-                  children: [
-                    // [좌측] 기존 카드
-                    Expanded(
-                      child: _buildCompareCardItem(
-                        title: oldCardName,
-                        imagePath: _getImagePath(oldCardCode),
-                        label: "보유 중",
-                        labelColor: Colors.blueGrey,
-                        isNew: false,
-                      ),
-                    ),
-                    
-                    // [중앙] VS 아이콘
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.swap_horiz, size: 40, color: Color(0xFF5D4037)),
-                          Text("VS", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5D4037))),
-                        ],
-                      ),
-                    ),
-                    
-                    // [우측] 새 카드
-                    Expanded(
-                      child: _buildCompareCardItem(
-                        title: newCardTitle,
-                        imagePath: _getImagePath(newCardImageKey),
-                        label: "새로 획득",
-                        labelColor: Colors.amber[800]!,
-                        isNew: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // [하단 버튼]
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[600],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                    onPressed: () {
-                      // 기존 유지 (버리기)
-                      debugPrint("🛠️ [TestMode] 카드 버림 (기존 유지)");
-                      Navigator.pop(dialogContext);
-                      Navigator.pop(context, description);
-                    },
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text("새 카드 버리기"),
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5D4037),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                    onPressed: () async {
-                      // 교체하기
-                      await _updateUserCard(docId, newCardCode);
-                      if (!mounted) return;
-                      Navigator.pop(dialogContext);
-                      Navigator.pop(context, description);
-                    },
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text("새 카드로 교체"),
-                  ),
-                ],
-              ),
-            ],
-          ),
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("카드 보관함 확인", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          "현재 보유 중인 카드: '$oldCardName'\n새로 뽑은 카드: '$newCardTitle'\n\n새 카드로 교체하시겠습니까?",
+          style: const TextStyle(height: 1.5),
         ),
-      ),
-    );
-  }
+        actions: [
+          TextButton(
+            onPressed: () {
+              // 버리기
+              debugPrint("🛠️ [TestMode] 카드 버림 (기존 유지)");
+              Navigator.pop(dialogContext);
+              Navigator.pop(context, description);
+            },
+            child: const Text("버리기", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5D4037),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              // 교체하기
+              await _updateUserCard(docId, newCardCode);
 
-  // [UI] 비교용 카드 아이템 위젯
-  Widget _buildCompareCardItem({
-    required String title,
-    required String imagePath,
-    required String label,
-    required Color labelColor,
-    required bool isNew,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isNew ? const Color(0xFF5D4037) : Colors.grey.shade400,
-          width: isNew ? 2.5 : 1,
-        ),
-        boxShadow: [
-          if (isNew) BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 8, spreadRadius: 2),
-        ],
-      ),
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: labelColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(child: Icon(Icons.broken_image, color: Colors.grey));
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: isNew ? const Color(0xFF4E342E) : Colors.grey[700],
-            ),
+              if (!mounted) return;
+              Navigator.pop(dialogContext);
+              Navigator.pop(context, description);
+            },
+            child: const Text("교체하기"),
           ),
         ],
       ),
@@ -368,7 +209,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
             height: size.height,
             color: Colors.black.withOpacity(0.6),
           ),
-          // 2. 안개 효과
+          // 2. 해로운 효과 배경 (안개)
           if (_hasPlayedEffect && !_isGood)
             Positioned.fill(
               child: Animate()
@@ -394,7 +235,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: size.height * 0.75,
-                  maxHeight: size.height * 0.95,
+                  maxHeight: size.height * 0.90,
                 ),
                 child: AspectRatio(
                   aspectRatio: 2 / 3.2,
@@ -415,7 +256,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
               ),
             ),
           ),
-          // 4. 폭죽
+          // 4. 이로운 효과 폭죽
           if (_hasPlayedEffect && _isGood) ...[
             Align(
               alignment: Alignment.centerLeft,
@@ -449,6 +290,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     );
   }
 
+  // [UI 디자인] backup.dart 스타일 적용 + 오버플로우 해결
   Widget _buildCard() {
     return FutureBuilder<ChanceCard>(
       future: _cardFuture,
@@ -499,9 +341,10 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
           ),
           child: Column(
             children: [
+              // 1. 헤더 (타이틀) - 패딩 축소
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 6),
+                padding: const EdgeInsets.symmetric(vertical: 6), // 8 -> 6
                 decoration: const BoxDecoration(
                   color: Color(0xFF5D4037),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
@@ -518,8 +361,9 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                 ),
               ),
 
+              // 2. 이미지 액자 - 패딩 대폭 축소
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 4), // (12,10,12,6) -> 축소
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -529,7 +373,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: AspectRatio(
-                      aspectRatio: 4 / 3, 
+                      aspectRatio: 4 / 3,
                       child: Image.asset(
                         card.imageKey != null && card.imageKey!.isNotEmpty
                             ? 'assets/cards/${card.imageKey}.png'
@@ -550,9 +394,10 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                 ),
               ),
 
+              // 3. 내용 및 버튼
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Column(
                     children: [
                       if (widget.quizEffect && !isCorrectionFailed)
@@ -561,16 +406,17 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                       if (isCorrectionFailed)
                         _infoChip("운이 따르지 않았습니다...", const Color(0xFFD84315)),
 
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 6), // 10 -> 6
 
+                      // 설명 텍스트
                       Expanded(
-                        child: Center(
+                        child: Center( // 텍스트를 중앙 정렬
                           child: SingleChildScrollView(
                             child: Text(
                               card.description,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                fontSize: 13,
+                                fontSize: 13, // 14 -> 13 (폰트 축소)
                                 height: 1.4,
                                 color: Color(0xFF4E342E),
                                 fontWeight: FontWeight.w600,
@@ -580,7 +426,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                         ),
                       ),
 
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 6), // 8 -> 6
 
                       SizedBox(
                         width: double.infinity,
@@ -593,7 +439,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                               borderRadius: BorderRadius.circular(8),
                             ),
                             elevation: 4,
-                            padding: EdgeInsets.zero,
+                            padding: EdgeInsets.zero, // 버튼 내부 패딩 제거
                           ),
                           onPressed: () {
                             _leftConfettiController.stop();
@@ -609,7 +455,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                           ),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 4), // 5 -> 4
                     ],
                   ),
                 ),
@@ -623,7 +469,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
 
   Widget _infoChip(String text, Color textColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2), // 패딩 축소
       decoration: BoxDecoration(
         color: textColor.withOpacity(0.1),
         border: Border.all(color: textColor.withOpacity(0.4)),
@@ -632,7 +478,7 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 11, // 12 -> 11
           fontWeight: FontWeight.bold,
           color: textColor,
         ),
