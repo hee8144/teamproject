@@ -31,7 +31,7 @@ class _IslandDialogState extends State<IslandDialog> {
     final size = MediaQuery.of(context).size;
 
     Future<void> payment() async{
-      await fs.collection("games").doc("users").set({
+      await fs.collection("games").doc("users").update({
         "user${widget.user}.money" :FieldValue.increment(-1000000)
       });
     }

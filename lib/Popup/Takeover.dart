@@ -125,17 +125,11 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
                   onPressed: canBuy
                       ? () async {
                     await _payment();
-                    Navigator.pop(context,{});
-                    WidgetsBinding.instance.addPostFrameCallback((_){
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (_) => ConstructionDialog(
-                          buildingId: widget.buildingId,
-                          user: widget.user,
-                        ),
-                      );
-                    });
+
+                    // 💡 [수정] 복잡한 로직 다 지우고, 그냥 true(성공)만 반환하며 닫기
+                    if (context.mounted) {
+                      Navigator.pop(context, true);
+                    }
                   }
                       : null,
                   child: Text("인수 (${formatMoney(takeoverCost)})"),
