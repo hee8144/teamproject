@@ -33,11 +33,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   int totalTurn = 30;
   int doubleCount = 0;
 
+  // 💡 [추가] 방금 굴린 주사위가 더블이었는지 저장 (이벤트 후 턴 처리용)
+  bool _lastIsDouble = false;
+
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
   int? _highlightOwner;
 
-  // 💡 [수정1] String 뒤에 ?를 붙여서 null 허용 (오류 2 해결)
+  // 💡 [추가] 돈 변화 이펙트
   Map<String, String?> _moneyEffects = {};
 
   List<Map<String, dynamic>> localList = [
@@ -70,7 +73,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // 💡 [수정] 이제 null 대입이 가능해짐
+  // 💡 돈 변화 이펙트 표시 함수
   void _triggerMoneyEffect(String userKey, int amount) {
     setState(() {
       _moneyEffects[userKey] = amount > 0 ? "+$amount" : "$amount";
@@ -85,23 +88,22 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     });
   }
 
-  // async 추가
+  // 💡 주사위 굴리기 (무인도 탈출 시도 로직 포함)
   Future<void> _onDiceRoll(int val1, int val2) async {
     bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
-    // 💡 무인도 카운트 조회
     int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
 
-    // 1. 여행 로직 (기존 유지)
+    // 1. 여행 중일 때
     if (isTraveling) {
       setState(() {
         players["user$currentTurn"]["isTraveling"] = false;
       });
-      fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
+      await fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
       _triggerHighlight(currentTurn, "trip");
       return;
     }
 
-    // 💡 2. [수정] 무인도 탈출 시도 로직 (다이얼로그는 이미 턴 시작 때 떴음)
+    // 2. 무인도 탈출 시도 (주사위)
     if (islandCount > 0) {
       bool isDouble = (val1 == val2);
 
@@ -113,8 +115,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         setState(() {
           players["user$currentTurn"]["islandCount"] = 0;
         });
-
-        // 탈출했으니 이동 진행 (아래 movePlayer 호출됨)
+        // 탈출했으니 아래 movePlayer 실행됨
       } else {
         // 탈출 실패 -> 카운트 감소, 턴 종료
         int newCount = islandCount - 1;
@@ -125,34 +126,50 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           players["user$currentTurn"]["islandCount"] = newCount;
         });
 
-        // 이동하지 않고 바로 다음 턴으로
+        // 이동하지 않고 턴 넘기기
         _nextTurn();
         return;
       }
     }
 
-    // 3. 일반 이동 로직
+    // 3. 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(total, currentTurn, isDouble); // 테스트용 5 대신 total 사용 권장
+    movePlayer(14, currentTurn, isDouble);
   }
 
-  // async 키워드 추가
+  // 💡 턴 시작 체크 (봇 자동화 포함)
   Future<void> _checkAndStartTurn() async {
     String type = players["user$currentTurn"]?["type"] ?? "N";
 
-    // 없는 유저나 파산 유저 건너뛰기
+    // 1. 없는 유저나 파산(D) 유저 건너뛰기
     if (type == "N" || type == "D") {
       _nextTurn();
       return;
     }
 
-    // 💡 [수정] 무인도 체크를 여기서 먼저 수행
+    // 💡 2. [추가] 봇(B)일 경우 자동 주사위 굴리기
+    if (type == "B") {
+      // 1.5초 딜레이 (봇이 생각하는 척 / 턴 전환 연출)
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+
+        // 랜덤 주사위값 생성 (1~6)
+        int dice1 = Random().nextInt(6) + 1;
+        int dice2 = Random().nextInt(6) + 1;
+
+        // 주사위 굴리기 함수 직접 호출
+        _onDiceRoll(dice1, dice2);
+      });
+      return; // 봇은 아래의 사람용 UI 로직(다이얼로그 등)을 실행하지 않고 종료
+    }
+
+    // --- 👇 여기서부터는 사람(Human) 플레이어 로직 ---
+
+    // 3. 사람일 때만 무인도 다이얼로그 표시
     int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
 
     if (islandCount > 0) {
-      // 주사위 굴리기 전에 먼저 탈출 기회(다이얼로그) 제공
-      // IslandDialog에서 비용 지불 성공 시 true 반환한다고 가정
       final bool? paidToEscape = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -160,20 +177,17 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       );
 
       if (paidToEscape == true) {
-        // 돈 내고 탈출 성공! -> 카운트 0으로 초기화
+        // 돈 내고 탈출 성공
         await fs.collection("games").doc("users").update({
           "user$currentTurn.islandCount": 0
         });
         setState(() {
           players["user$currentTurn"]["islandCount"] = 0;
         });
-        // 이후에는 플레이어가 주사위 버튼을 눌러서 이동하면 됨 (일반 턴과 동일)
-      } else {
-        // 돈 안 냄 (주사위 더블 도전) -> 아무것도 안 하고 대기 (플레이어가 주사위 버튼 누름)
       }
     }
 
-    // 여행 중이면 맵 하이라이트 (기존 로직)
+    // 4. 여행 중이면 맵 하이라이트
     bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
     if (isTraveling) {
       setState(() {
@@ -188,7 +202,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     _eventPlayer = player;
     if(event == "trip"){
       setState(() {
-        _highlightOwner = -1; // -1: 전체 맵 빛남
+        _highlightOwner = -1; // 전체 맵
         eventNow = event;
       });
     } else {
@@ -223,7 +237,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         });
         _setPlayer();
       }
-      _nextTurn();
+      // 💡 이벤트 후 턴 종료 로직 (더블 체크)
+      _handleTurnEnd();
+
     } else if(event == "festival"){
       if(itsFestival != 0){
         await fs.collection("games").doc("board").update({"b$itsFestival.isFestival" : false});
@@ -233,9 +249,32 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         itsFestival = index;
       });
       await _readLocal();
-      _nextTurn();
+      // 💡 이벤트 후 턴 종료 로직 (더블 체크)
+      _handleTurnEnd();
+
     } else if (event == "trip"){
       _movePlayerTo(index, _eventPlayer);
+    }
+  }
+
+  // 💡 이벤트 후 더블 여부에 따라 턴 넘기기 or 유지
+  void _handleTurnEnd() async {
+    if (_lastIsDouble) {
+      doubleCount++;
+      if (doubleCount >= 3) {
+        setState(() {
+          players["user$_eventPlayer"]["position"] = 7;
+          players["user$_eventPlayer"]["islandCount"] = 3;
+        });
+        await fs.collection("games").doc("users").update({
+          "user$_eventPlayer.position": 7,
+          "user$_eventPlayer.islandCount": 3
+        });
+        _nextTurn();
+      }
+      // 더블이면 턴 안 넘김 (한 번 더)
+    } else {
+      _nextTurn();
     }
   }
 
@@ -281,11 +320,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     movePlayer(steps, player, false);
   }
 
-  // 💡 [수정됨] movePlayer 함수
+  // 💡 핵심 이동 로직
   void movePlayer(int steps, int player, bool isDouble) async {
-    int currentPos = players["user$player"]["position"];
+    // 더블 여부 저장 (이벤트 후 처리를 위해)
+    _lastIsDouble = isDouble;
 
-    // num 대신 steps 사용
+    int currentPos = players["user$player"]["position"];
     int nextPos = currentPos + steps;
     int changePosition = nextPos > 27 ? nextPos % 28 : nextPos;
 
@@ -354,15 +394,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
         int finalToll = (basePrice * multiply * levelMulti).round();
 
-        // --- 돈 주고 받기 ---
         int myMoney = players["user$player"]["money"];
         int myTotal = players["user$player"]["totalMoney"];
         int ownerMoney = players["user$owner"]["money"];
         int ownerTotal = players["user$owner"]["totalMoney"];
 
-        // 💡 [수정] 파산 및 생존 로직 적용
+        // 💡 [수정] 파산 및 생존 로직
         if(myMoney - finalToll < 0){
-          // 결과를 기다림
           final result = await showDialog(
               context: context,
               barrierDismissible: false,
@@ -371,26 +409,21 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               }
           );
 
-          // 1. 파산 확정 시 (결과가 Map 형태이거나 BANKRUPT)
           if (result != null && result is Map && result["result"] == "BANKRUPT") {
-            await _readPlayer(); // 파산 상태(D) 업데이트
-            await _readLocal();  // 땅 초기화 상태 업데이트
-            _nextTurn();         // 턴 넘기고 종료
-            return;              // 함수 강제 종료 (돈 차감/인수 로직 실행 X)
+            await _readPlayer(); // 파산 상태(D) 업데이트 확인
+            await _readLocal();  // 땅 초기화 확인
+            _nextTurn();         // 즉시 턴 넘김
+            return;              // 강제 종료
           }
-          // 2. 생존 시 (자산 정리로 빚 청산)
           else if (result == "SURVIVED") {
-            await _readPlayer(); // 자산 판매로 늘어난 돈 불러오기
-
-            // 갱신된 돈으로 변수 재설정 (그래야 아래 DB 업데이트가 정상 작동)
+            await _readPlayer(); // 자산 판매 후 돈 갱신
+            // 갱신된 돈으로 변수 재할당
             myMoney = players["user$player"]["money"];
             myTotal = players["user$player"]["totalMoney"];
-
-            // 이제 돈이 충분하므로 아래 로직 계속 진행...
           }
         }
 
-        // --- 정상적인 통행료 지불 로직 (생존했거나 돈이 충분할 때) ---
+        // --- 정상적인 통행료 지불 ---
         await fs.collection("games").doc("users").update({
           "user$player.money": myMoney - finalToll,
           "user$player.totalMoney": myTotal - finalToll,
@@ -408,7 +441,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         _triggerMoneyEffect("user$player", -finalToll);
         _triggerMoneyEffect("user$owner", finalToll);
 
-        // 인수가 가능할 때
+        // 인수 가능 체크
         if (boardList[tileKey]["level"] != 4) {
           final bool? takeoverSuccess = await showDialog(
             context: context,
@@ -419,7 +452,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           );
 
           if (takeoverSuccess == true) {
-            await _readLocal();
+            await _readLocal(); // 주인 변경 반영
 
             if (!mounted) return;
 
@@ -442,8 +475,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           }
         }
       }
-      // 3.빈 땅일 때
-      else{
+      // 3. 빈 땅일 때
+      else {
         final result = await showDialog(
             context: context,
             barrierDismissible: false,
@@ -465,7 +498,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           TaxDialog(user: player)
       );
     }
-    // ... (이하 여행, 축제 등 기존 코드 동일)
     else if(changePosition == 14){ // 축제
       bool hasMyLand = false;
       boardList.forEach((key, val) {
@@ -477,10 +509,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
       if(hasMyLand) {
         _triggerHighlight(player, "festival");
-        return; // 축제 선택 대기
-      } else {
-        forceNextTurn = true;
+        return; // 축제 개최 (여기서 리턴하므로 턴 종료 처리는 _stopHighlight가 함)
       }
+      // 내 땅 없으면 그냥 지나감 (턴 종료는 아래에서 처리)
     }
     else if(changePosition == 0){ // 출발
       bool hasUpgradableLand = false;
@@ -494,34 +525,38 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
       if(hasUpgradableLand) {
         _triggerHighlight(player, "start");
-        return; // 건설 대기
-      } else {
-        forceNextTurn = true;
+        return; // 건설 (여기서 리턴하므로 턴 종료 처리는 _stopHighlight가 함)
       }
+      // 건설할 땅 없으면 그냥 지나감
     }
     else if(changePosition == 21){ // 여행
       setState(() {
         players["user$player"]["isTraveling"] = true;
       });
       await fs.collection("games").doc("users").update({"user$player.isTraveling": true});
-      forceNextTurn = true;
+      forceNextTurn = true; // 여행은 무조건 턴 종료
     }
     else if(changePosition == 7){ // 무인도
-      forceNextTurn = true;
+      forceNextTurn = true; // 무인도 도착은 턴 종료
       await fs.collection("games").doc("users").update({
         "user$player.islandCount" : 3
       });
       await _readPlayer();
-
+    }
+    else if(changePosition == 3 || changePosition == 10
+        || changePosition == 17 || changePosition == 24){
+      // 찬스 카드 (추후 구현)
     }
 
     _setPlayer();
 
+    // 턴 넘기기 로직
     if (forceNextTurn || !isDouble) {
       _nextTurn();
     } else {
       doubleCount++;
       if (doubleCount >= 3) {
+        // 더블 3번 무인도행
         setState(() {
           players["user$player"]["position"] = 7;
         });
@@ -531,6 +566,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         });
         _nextTurn();
       }
+      // 더블이면 턴 안 넘기고 플레이어 유지
     }
   }
 
@@ -540,29 +576,32 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       int nextPlayer = currentTurn;
       int safetyLoop = 0;
 
+      // 💡 [수정] 파산(D) 유저 건너뛰기
       do {
         if (nextPlayer == 4) {
           nextPlayer = 1;
           totalTurn--;
+          if(totalTurn == 0) {
+            // 게임 종료 로직
+          }
         } else {
           nextPlayer++;
         }
         safetyLoop++;
 
         String nextType = players["user$nextPlayer"]?["type"] ?? "N";
-        // N(없음)이거나 D(파산)이면 건너뜀
         if (nextType != "N" && nextType != "D") {
-          break;
+          break; // 생존 플레이어 발견 시 루프 탈출
         }
 
       } while (safetyLoop < 10);
 
       currentTurn = nextPlayer;
-      _checkAndStartTurn(); // 여기서 무인도 체크가 실행됨
+      _checkAndStartTurn();
     });
   }
 
-  // ... (이하 기존 함수들 rankChange, _readPlayer, _readLocal, _insertLocal, _loadHeritageDetail, getXmlText, _loadHeritage, _showStartDialog, _getTilePosition 동일) ...
+  // ... (rankChange, _readPlayer, _readLocal, _insertLocal, _loadHeritageDetail 등 기존 함수 그대로 유지) ...
   Future<void> rankChange() async{
     int rank = 1;
     for(int i=1; i<=4; i++){
@@ -719,6 +758,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     String displayName = (type == "B") ? "bot" : name;
 
+    // 💡 파산 표시
     if (type == "D") {
       displayName += " (파산)";
     }
@@ -1048,6 +1088,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   Widget _buildAnimatedPlayer(int playerIndex, double boardSize, double tileSize) {
     String userKey = "user${playerIndex + 1}";
     String type = players[userKey]?["type"] ?? "N";
+    // 💡 파산했거나 없는 플레이어는 표시 안 함
     if (type == "N" || type == "D") return const SizedBox();
 
     int position = players[userKey]?["position"] ?? 0;
