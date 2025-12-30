@@ -9,7 +9,11 @@ import '../Popup/TaxDialog.dart';
 import '../Popup/Bankruptcy.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Island.dart';
-import '../quiz/main_dummy.dart';
+import '../quiz/quiz_repository.dart';
+import '../quiz/quiz_question.dart';
+import '../quiz/quiz_dialog.dart';
+import '../quiz/quiz_result_popup.dart';
+import '../quiz/chance_card_quiz_after_v2.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -140,7 +144,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 3. 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(1, currentTurn, isDouble);
+    movePlayer(7, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
@@ -633,10 +637,61 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       });
       await _readPlayer();
     }
-    // 찬스카드 밟을때
-    else if(changePosition == 3 || changePosition == 10
-      || changePosition == 17 || changePosition == 24){
-      await QuizDummyApp();
+    else if ([3, 10, 17, 24].contains(changePosition)) { // 찬스 카드
+      QuizQuestion? question = await QuizRepository.getRandomQuiz();
+      bool isCorrect = false;
+      int? selectedIndex;
+
+      if (question != null && mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => QuizDialog(
+            question: question,
+            onQuizFinished: (index, correct) {
+              selectedIndex = index;
+              isCorrect = correct;
+            },
+          ),
+        );
+
+        if (mounted) {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => QuizResultPopup(
+              isCorrect: isCorrect,
+              question: question,
+              selectedIndex: selectedIndex ?? -1,
+            ),
+          );
+        }
+      }
+
+      if (mounted) {
+        // 💡 [수정] action 값 받기 (String?)
+        final String? actionResult = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => ChanceCardQuizAfterV2(
+            quizEffect: isCorrect,
+          ),
+        );
+
+        // 💡 [추가] 액션에 따른 로직 실행
+        if (actionResult != null) {
+          print("찬스카드 액션 실행: $actionResult");
+          if (actionResult == "move_start") {
+            _movePlayerTo(0, player);
+            return; // 이동 후 종료
+          } else if (actionResult == "go_island") {
+            _movePlayerTo(7, player);
+            return; // 이동 후 종료
+          }
+          // 다른 액션도 여기서 처리 가능 (예: 돈 획득 등)
+        }
+      }
+      await _readPlayer();
     }
 
 
