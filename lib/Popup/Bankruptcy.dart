@@ -42,16 +42,34 @@ class _BankruptDialogState extends State<BankruptDialog> {
     }
   }
 
-  String get reasonEmoji {
-    switch (widget.reason) {
-      case "tax":
-        return "🏛";
-      case "toll":
-        return "🚧";
-      default:
-        return "⚠️";
-    }
+  Future<void> bankruptcy() async {
+    final boardRef = fs.collection("games").doc("board");
+    final usersRef = fs.collection("games").doc("users");
+
+    final boardSnap = await boardRef.get();
+    if (!boardSnap.exists) return;
+
+    final batch = fs.batch();
+    final boardData = boardSnap.data()!;
+
+    batch.update(usersRef, {
+      "user${widget.user}.type": "D",
+    });
+
+    boardData.forEach((key, value) {
+      if (value is Map && value["owner"] == widget.user) {
+        batch.update(boardRef, {
+          "$key.owner": "N",
+          "$key.level": 0,
+          "$key.multiply": 1,
+          "$key.isFestival": false,
+        });
+      }
+    });
+
+    await batch.commit();
   }
+
 
   Future<void> boardGet() async {
     final boardSnap = await fs.collection("games").doc("board").get();
@@ -116,9 +134,8 @@ class _BankruptDialogState extends State<BankruptDialog> {
         ),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: isAssetMode
-              ? _assetSellView()
-              : _bankruptChoiceView(),
+          child:
+              _bankruptChoiceView(),
         ),
       ),
     );
@@ -143,7 +160,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
         const SizedBox(height: 12),
 
         Text(
-          "$reasonEmoji $reasonTitle\n부족 금액: ${widget.lackMoney} 원",
+          "$reasonTitle\n부족 금액: ${widget.lackMoney} 원",
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 18),
         ),
@@ -153,9 +170,10 @@ class _BankruptDialogState extends State<BankruptDialog> {
         Row(
           children: [
             _choiceButton(
-              label: "💀 즉시 파산",
+              label: "즉시 파산",
               color: Colors.red,
-              onTap: () {
+              onTap: () async {
+                await bankruptcy();
                 Navigator.pop(context, {
                   "result": "BANKRUPT",
                   "reason": widget.reason,
@@ -164,7 +182,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
             ),
             const SizedBox(width: 16),
             _choiceButton(
-              label: "🏠 자산 정리",
+              label: "자산 정리",
               color: Colors.blueGrey,
               onTap: () async {
                 await boardGet();
@@ -206,116 +224,4 @@ class _BankruptDialogState extends State<BankruptDialog> {
     );
   }
 
-  Widget _assetSellView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "🏠 자산 정리",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-
-        const SizedBox(height: 6),
-
-        Text(
-          "회수 금액: $collectedMoney 원",
-          style: const TextStyle(fontSize: 18),
-        ),
-
-        const SizedBox(height: 12),
-
-        Expanded(
-          child: assets.isEmpty
-              ? const Center(child: Text("매각 가능한 자산이 없습니다"))
-              : GridView.builder(
-            itemCount: assets.length,
-            gridDelegate:
-            const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 2.6,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemBuilder: (context, index) {
-              final asset = assets[index];
-              final isSelected =
-              selectedIndexes.contains(index);
-
-              return InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  setState(() {
-                    if (isSelected) {
-                      selectedIndexes.remove(index);
-                      collectedMoney -= asset["tollPrice"] as int;
-                    } else {
-                      selectedIndexes.add(index);
-                      collectedMoney += asset["tollPrice"] as int;
-                    }
-                  });
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Colors.green.shade100
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected
-                          ? Colors.green
-                          : Colors.grey.shade300,
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        asset["name"],
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected
-                              ? Colors.green.shade800
-                              : Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        "${asset["tollPrice"]} 원",
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.green.shade700
-                              : Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        Align(
-          alignment: Alignment.centerRight,
-          child: ElevatedButton(
-            onPressed: selectedIndexes.isEmpty
-                ? null
-                : () async {
-              await updateBoardAfterSell();
-              Navigator.pop(context, {
-                "result": "ASSET_DONE",
-                "money": collectedMoney,
-              });
-            },
-            child: const Text("정리 완료"),
-          ),
-        ),
-      ],
-    );
-  }
 }
