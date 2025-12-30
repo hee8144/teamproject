@@ -8,6 +8,7 @@ import '../Popup/construction.dart';
 import '../Popup/TaxDialog.dart';
 import '../Popup/Bankruptcy.dart';
 import '../Popup/Takeover.dart';
+import '../Popup/Island.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -84,9 +85,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     });
   }
 
-  void _onDiceRoll(int val1, int val2) {
+  // async 추가
+  Future<void> _onDiceRoll(int val1, int val2) async {
     bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+    // 💡 무인도 카운트 조회
+    int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
 
+    // 1. 여행 로직 (기존 유지)
     if (isTraveling) {
       setState(() {
         players["user$currentTurn"]["isTraveling"] = false;
@@ -96,16 +101,86 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       return;
     }
 
+    // 💡 2. [수정] 무인도 탈출 시도 로직 (다이얼로그는 이미 턴 시작 때 떴음)
+    if (islandCount > 0) {
+      bool isDouble = (val1 == val2);
+
+      if (isDouble) {
+        // 더블! 탈출 성공 -> 이동
+        await fs.collection("games").doc("users").update({
+          "user$currentTurn.islandCount": 0
+        });
+        setState(() {
+          players["user$currentTurn"]["islandCount"] = 0;
+        });
+
+        // 탈출했으니 이동 진행 (아래 movePlayer 호출됨)
+      } else {
+        // 탈출 실패 -> 카운트 감소, 턴 종료
+        int newCount = islandCount - 1;
+        await fs.collection("games").doc("users").update({
+          "user$currentTurn.islandCount": newCount
+        });
+        setState(() {
+          players["user$currentTurn"]["islandCount"] = newCount;
+        });
+
+        // 이동하지 않고 바로 다음 턴으로
+        _nextTurn();
+        return;
+      }
+    }
+
+    // 3. 일반 이동 로직
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(22, currentTurn, isDouble);
+    movePlayer(total, currentTurn, isDouble); // 테스트용 5 대신 total 사용 권장
   }
 
-  void _checkAndStartTurn() {
+  // async 키워드 추가
+  Future<void> _checkAndStartTurn() async {
     String type = players["user$currentTurn"]?["type"] ?? "N";
-    if (type == "N") {
+
+    // 없는 유저나 파산 유저 건너뛰기
+    if (type == "N" || type == "D") {
       _nextTurn();
       return;
+    }
+
+    // 💡 [수정] 무인도 체크를 여기서 먼저 수행
+    int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
+
+    if (islandCount > 0) {
+      // 주사위 굴리기 전에 먼저 탈출 기회(다이얼로그) 제공
+      // IslandDialog에서 비용 지불 성공 시 true 반환한다고 가정
+      final bool? paidToEscape = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => IslandDialog(user: currentTurn)
+      );
+
+      if (paidToEscape == true) {
+        // 돈 내고 탈출 성공! -> 카운트 0으로 초기화
+        await fs.collection("games").doc("users").update({
+          "user$currentTurn.islandCount": 0
+        });
+        setState(() {
+          players["user$currentTurn"]["islandCount"] = 0;
+        });
+        // 이후에는 플레이어가 주사위 버튼을 눌러서 이동하면 됨 (일반 턴과 동일)
+      } else {
+        // 돈 안 냄 (주사위 더블 도전) -> 아무것도 안 하고 대기 (플레이어가 주사위 버튼 누름)
+      }
+    }
+
+    // 여행 중이면 맵 하이라이트 (기존 로직)
+    bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+    if (isTraveling) {
+      setState(() {
+        players["user$currentTurn"]["isTraveling"] = false;
+      });
+      await fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
+      _triggerHighlight(currentTurn, "trip");
     }
   }
 
@@ -206,7 +281,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     movePlayer(steps, player, false);
   }
 
-  // 💡 [수정2] 매개변수 이름을 num -> steps로 변경 (오류 1 해결)
+  // 💡 [수정됨] movePlayer 함수
   void movePlayer(int steps, int player, bool isDouble) async {
     int currentPos = players["user$player"]["position"];
 
@@ -265,8 +340,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       // 2. 상대방 땅일 때 (통행료 지불)
       else if(owner != 0 && owner != player) {
         int basePrice = boardList[tileKey]["tollPrice"] ?? 0;
-
-        // 💡 이제 매개변수 num과 겹치지 않으므로 정상 작동함
         double multiply = (boardList[tileKey]["multiply"] as num? ?? 0).toDouble();
 
         if(itsFestival == changePosition && multiply == 1) multiply *= 2;
@@ -281,22 +354,43 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
         int finalToll = (basePrice * multiply * levelMulti).round();
 
-
         // --- 돈 주고 받기 ---
         int myMoney = players["user$player"]["money"];
         int myTotal = players["user$player"]["totalMoney"];
         int ownerMoney = players["user$owner"]["money"];
         int ownerTotal = players["user$owner"]["totalMoney"];
 
-        // 파산 위기 이벤트
-        if(myMoney-finalToll < 0){
-          showDialog(context: context, builder: (context) {
-             return BankruptDialog(lackMoney: finalToll-myMoney, reason: "toll", user: player);
-          });
-          await _readPlayer();
+        // 💡 [수정] 파산 및 생존 로직 적용
+        if(myMoney - finalToll < 0){
+          // 결과를 기다림
+          final result = await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                return BankruptDialog(lackMoney: finalToll - myMoney, reason: "toll", user: player);
+              }
+          );
+
+          // 1. 파산 확정 시 (결과가 Map 형태이거나 BANKRUPT)
+          if (result != null && result is Map && result["result"] == "BANKRUPT") {
+            await _readPlayer(); // 파산 상태(D) 업데이트
+            await _readLocal();  // 땅 초기화 상태 업데이트
+            _nextTurn();         // 턴 넘기고 종료
+            return;              // 함수 강제 종료 (돈 차감/인수 로직 실행 X)
+          }
+          // 2. 생존 시 (자산 정리로 빚 청산)
+          else if (result == "SURVIVED") {
+            await _readPlayer(); // 자산 판매로 늘어난 돈 불러오기
+
+            // 갱신된 돈으로 변수 재설정 (그래야 아래 DB 업데이트가 정상 작동)
+            myMoney = players["user$player"]["money"];
+            myTotal = players["user$player"]["totalMoney"];
+
+            // 이제 돈이 충분하므로 아래 로직 계속 진행...
+          }
         }
 
-        // DB 및 로컬 업데이트
+        // --- 정상적인 통행료 지불 로직 (생존했거나 돈이 충분할 때) ---
         await fs.collection("games").doc("users").update({
           "user$player.money": myMoney - finalToll,
           "user$player.totalMoney": myTotal - finalToll,
@@ -316,8 +410,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
         // 인수가 가능할 때
         if (boardList[tileKey]["level"] != 4) {
-
-          // 1. 인수 창을 띄우고 결과를 기다림
           final bool? takeoverSuccess = await showDialog(
             context: context,
             barrierDismissible: false,
@@ -326,20 +418,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             },
           );
 
-          // 2. 인수를 성공했다면? (true가 반환됨)
           if (takeoverSuccess == true) {
-
-            // 💡 [중요] DB가 변경되었으니 로컬 데이터를 즉시 최신화하여 "내 땅"으로 인식시킴
             await _readLocal();
-
-            // 혹은 로컬 강제 업데이트 (더 빠름)
-            // setState(() {
-            //   boardList[tileKey]["owner"] = player;
-            // });
 
             if (!mounted) return;
 
-            // 3. 이제 주인이 나로 바뀐 상태에서 건설 창을 띄움
             final constructionResult = await showDialog(
               context: context,
               barrierDismissible: false,
@@ -348,14 +431,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               },
             );
 
-            // 4. 추가 건설까지 마쳤다면 화면 다시 갱신
             if (constructionResult != null) {
               setState(() {
                 if (boardList[tileKey] == null) boardList[tileKey] = {};
                 boardList[tileKey]["level"] = constructionResult["level"];
                 boardList[tileKey]["owner"] = constructionResult["user"];
               });
-              await _readLocal(); // DB와 싱크 맞추기
+              await _readLocal();
             }
           }
         }
@@ -383,6 +465,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           TaxDialog(user: player)
       );
     }
+    // ... (이하 여행, 축제 등 기존 코드 동일)
     else if(changePosition == 14){ // 축제
       bool hasMyLand = false;
       boardList.forEach((key, val) {
@@ -416,8 +499,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         forceNextTurn = true;
       }
     }
-    // 여행 칸 도착
-    else if(changePosition == 21){
+    else if(changePosition == 21){ // 여행
       setState(() {
         players["user$player"]["isTraveling"] = true;
       });
@@ -426,14 +508,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     }
     else if(changePosition == 7){ // 무인도
       forceNextTurn = true;
-      fs.collection("games").doc("users").update({
+      await fs.collection("games").doc("users").update({
         "user$player.islandCount" : 3
       });
+      await _readPlayer();
+
     }
 
     _setPlayer();
 
-    // 턴 넘기기
     if (forceNextTurn || !isDouble) {
       _nextTurn();
     } else {
@@ -465,10 +548,17 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           nextPlayer++;
         }
         safetyLoop++;
-      } while ((players["user$nextPlayer"]?["type"] ?? "N") == "N" && safetyLoop < 10);
+
+        String nextType = players["user$nextPlayer"]?["type"] ?? "N";
+        // N(없음)이거나 D(파산)이면 건너뜀
+        if (nextType != "N" && nextType != "D") {
+          break;
+        }
+
+      } while (safetyLoop < 10);
 
       currentTurn = nextPlayer;
-      _checkAndStartTurn();
+      _checkAndStartTurn(); // 여기서 무인도 체크가 실행됨
     });
   }
 
@@ -628,6 +718,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     if (type == "N") return const SizedBox();
 
     String displayName = (type == "B") ? "bot" : name;
+
+    if (type == "D") {
+      displayName += " (파산)";
+    }
 
     bool isTop = alignment.y < 0;
     bool isLeft = alignment.x < 0;
@@ -954,7 +1048,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   Widget _buildAnimatedPlayer(int playerIndex, double boardSize, double tileSize) {
     String userKey = "user${playerIndex + 1}";
     String type = players[userKey]?["type"] ?? "N";
-    if (type == "N") return const SizedBox();
+    if (type == "N" || type == "D") return const SizedBox();
 
     int position = players[userKey]?["position"] ?? 0;
 
