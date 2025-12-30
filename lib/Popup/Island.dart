@@ -11,7 +11,7 @@ class IslandDialog extends StatefulWidget {
 
 class _IslandDialogState extends State<IslandDialog> {
   final FirebaseFirestore fs = FirebaseFirestore.instance;
-  int turn =0;
+  int turn=0;
   Future<void> getTurn() async{
     final snap = await fs.collection("games").doc("users").get();
     if(snap.exists){
@@ -35,7 +35,7 @@ class _IslandDialogState extends State<IslandDialog> {
     Future<void> payment() async{
       await fs.collection("games").doc("users").update({
         "user${widget.user}.money" :FieldValue.increment(-1000000),
-        "user${widget.user}.islandCount":0
+        "user${widget.user}.islandCount" : 0
       });
     }
 
@@ -94,7 +94,7 @@ class _IslandDialogState extends State<IslandDialog> {
                   children: [
                     Text(
                       "무인도에 도착했습니다.\n"
-                          "${turn} 턴 동안 이동할 수 없습니다.",
+                          "$turn 턴 동안 이동할 수 없습니다.",
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,
@@ -120,7 +120,7 @@ class _IslandDialogState extends State<IslandDialog> {
                         Expanded(
                           child: Text(
                             "• 더블이 나오면 즉시 탈출\n"
-                                "• ${turn}턴 경과 시 자동 탈출",
+                                "• $turn턴 경과 시 자동 탈출",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 16,
@@ -140,12 +140,15 @@ class _IslandDialogState extends State<IslandDialog> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
               child: Row(
                 children: [
-                  /// 구조 비용
+                  /// 💡 [수정] 구조 비용 (100만원 지불)
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
                         await payment();
-                        Navigator.pop(context);
+                        if(mounted) {
+                          // 💡 여기서 true를 반환해야 GameMain이 "돈 냈다"고 인식함
+                          Navigator.pop(context, true);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF8D6E63),
@@ -166,14 +169,12 @@ class _IslandDialogState extends State<IslandDialog> {
 
                   const SizedBox(width: 12),
 
-                  /// 주사위 굴리기
+                  /// 💡 [수정] 주사위 굴리기 (그냥 닫기)
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () async {
-                        await fs.collection("games").doc("users").update({
-                          "user${widget.user}.islandCount":turn-1
-                        });
-                        Navigator.pop(context);
+                      onPressed: () {
+                        // 💡 false 반환 (돈 안 내고 더블 도전하겠다는 뜻)
+                        Navigator.pop(context, false);
                       },
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
