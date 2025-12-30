@@ -16,6 +16,7 @@ import 'Island.dart';
 import 'Travel.dart';
 import 'Origin.dart';
 import 'Detail.dart';
+import 'BoardDetail.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -187,8 +188,18 @@ class TaxPage extends StatelessWidget {
                       user: 1,
                     ));
                   }, child: Text("파산")),
-                  ElevatedButton(onPressed: (){
-                    showDialog(context: context, builder: (context)=>DetailPopup(boardNum: 2,));
+                  ElevatedButton(onPressed: ()async{
+                    final result = await showDialog(
+                      context: context,
+                      builder: (context) => DetailPopup(
+                        boardNum: 2,
+                        onNext: () {
+                        },
+                      ),
+                    );
+                    if(result != null){
+                      showDialog(context: context, builder: (context)=>BoardDetail(boardNum: 1,data:result));
+                    }
                   }, child: Text("디테일"))
                 ],
               )

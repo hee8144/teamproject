@@ -22,7 +22,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
   int tollPrice = 0;
   int builtLevel = 0;
   int userMoney = 0;
-
+  int levelMulti = 0;
   late int takeoverCost;
   bool loading = true;
 
@@ -36,8 +36,12 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
   Future<void> _loadData() async {
     await _loadBoard();
     await _loadUser();
-
-    takeoverCost = tollPrice * builtLevel * 2;
+    switch (builtLevel) {
+      case 1: levelMulti = 2; break;
+      case 2: levelMulti = 6; break;
+      case 3: levelMulti = 14; break;
+    }
+    takeoverCost = tollPrice * levelMulti;
 
     setState(() => loading = false);
   }
