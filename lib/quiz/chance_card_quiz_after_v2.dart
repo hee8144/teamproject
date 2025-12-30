@@ -87,10 +87,8 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
 
       // 1. 데이터 가져오기 (테스트 모드 분기)
       if (ChanceCardQuizAfterV2.isTestMode) {
-        debugPrint("🛠️ [TestMode] 유저 데이터 조회 중...");
         currentCard = ChanceCardQuizAfterV2.testUserMock['card'] ?? 'N';
         docId = 'test_user_doc_id';
-        debugPrint("🛠️ [TestMode] 현재 보유 카드: $currentCard");
       } else {
         final snapshot = await FirebaseFirestore.instance
             .collection('users')
@@ -99,7 +97,8 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
             .get();
 
         if (snapshot.docs.isEmpty) {
-          if (mounted) Navigator.pop(context, card.description);
+          // 💡 [수정] description 대신 action 반환
+          if (mounted) Navigator.pop(context, card.action);
           return;
         }
 
@@ -112,27 +111,31 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
       // 2. 뽑은 카드가 보관용 카드인지 판별
       String? newCardCode;
       if (card.action == 'c_escape') newCardCode = 'escape';
-      if (card.action == 'c_shield') newCardCode = 'sheild'; 
+      if (card.action == 'c_shield') newCardCode = 'sheild';
 
       // 3. 로직 수행
       if (newCardCode != null) {
         if (currentCard == 'sheild' || currentCard == 'escape') {
           // 이미 카드가 있음 -> 교체 팝업
           if (mounted) {
-            _showReplaceDialog(docId, currentCard, newCardCode, card.title);
+            // 교체 팝업에도 card.action을 넘겨줘서 최종적으로 반환하게 해야 함
+            _showReplaceDialog(docId, currentCard, newCardCode, card.title, card.action);
           }
         } else {
           // 카드 없음 -> 바로 획득
           await _updateUserCard(docId, newCardCode);
-          if (mounted) Navigator.pop(context, card.description);
+          // 💡 [수정] description 대신 action 반환
+          if (mounted) Navigator.pop(context, card.action);
         }
       } else {
         // 즉시 효과 카드 등
-        if (mounted) Navigator.pop(context, card.description);
+        // 💡 [수정] description 대신 action 반환
+        if (mounted) Navigator.pop(context, card.action);
       }
     } catch (e) {
       debugPrint("Error handling card action: $e");
-      if (mounted) Navigator.pop(context, card.description);
+      // 에러 시에도 일단 닫으며 action 반환 (null 대신)
+      if (mounted) Navigator.pop(context, card.action);
     }
   }
 
@@ -149,10 +152,10 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     }
   }
 
-  // 교체 팝업
+  // 교체 팝업 (action 인자 추가)
   void _showReplaceDialog(
-      String docId, String oldCardCode, String newCardCode, String newCardTitle) {
-    
+      String docId, String oldCardCode, String newCardCode, String newCardTitle, String action) {
+
     final String oldCardName = (oldCardCode == 'escape') ? '무인도 탈출' : 'VIP 명찰';
 
     showDialog(
@@ -169,9 +172,9 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
           TextButton(
             onPressed: () {
               // 버리기
-              debugPrint("🛠️ [TestMode] 카드 버림 (기존 유지)");
               Navigator.pop(dialogContext);
-              Navigator.pop(context);
+              // 💡 버렸더라도 카드는 뽑았으므로 action 반환 (GameMain에서 로그 등으로 확인 가능)
+              Navigator.pop(context, action);
             },
             child: const Text("버리기", style: TextStyle(color: Colors.grey)),
           ),
@@ -183,10 +186,11 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
             onPressed: () async {
               // 교체하기
               await _updateUserCard(docId, newCardCode);
-              
+
               if (!mounted) return;
               Navigator.pop(dialogContext);
-              Navigator.pop(context);
+              // 💡 교체 후 action 반환
+              Navigator.pop(context, action);
             },
             child: const Text("교체하기"),
           ),

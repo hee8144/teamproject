@@ -8,7 +8,6 @@ import 'main/mainUI.dart';
 import 'main/game_rule.dart';
 import 'main/game_waiting_room.dart';
 import 'main/game_result.dart';
-import 'game/gameMain.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
