@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'chance_card.dart';
 import 'chance_card_repository.dart';
 import 'package:confetti/confetti.dart';
-import 'package:flutter_animate/flutter_animate.dart'; // 안개 효과 애니메이션용
-import 'dart:ui'; // Blur 효과용 (ImageFilter)
+import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:ui';
 import 'dart:math';
 
 class ChanceCardQuizAfter extends StatefulWidget {
@@ -107,8 +107,8 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: size.height * 0.5,
-                  maxHeight: size.height * 0.85,
+                  maxWidth: size.height * 0.8,
+                  maxHeight: size.height * 0.9,
                 ),
                 child: AspectRatio(
                   aspectRatio: 2 / 3.2,
@@ -132,7 +132,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
 
           // 4. [이로운 효과] 양쪽 폭죽
           if (_hasPlayedEffect && _isGood) ...[
-            // 왼쪽에서 오른쪽 위로 발사
             Align(
               alignment: Alignment.centerLeft,
               child: ConfettiWidget(
@@ -143,10 +142,9 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                 maxBlastForce: 20,
                 minBlastForce: 10,
                 gravity: 0.2,
-                colors: const [Color(0xffbb0000), Color(0xffffffff)], // 요청하신 빨강/흰색
+                colors: const [Color(0xffbb0000), Color(0xffffffff)],
               ),
             ),
-            // 오른쪽에서 왼쪽 위로 발사
             Align(
               alignment: Alignment.centerRight,
               child: ConfettiWidget(
@@ -220,7 +218,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
             children: [
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: const BoxDecoration(
                   color: Color(0xFF5D4037),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
@@ -238,7 +236,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
               ),
 
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -250,7 +248,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                     child: AspectRatio(
                       aspectRatio: 4 / 3,
                       child: Image.asset(
-                        'assets/island_storm.png',
+                        'assets/d_island.png',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Center(
@@ -269,7 +267,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
 
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Column(
                     children: [
                       if (widget.quizEffect && !isCorrectionFailed)
@@ -278,7 +276,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                       if (isCorrectionFailed)
                         _infoChip("운이 따르지 않았습니다...", const Color(0xFFD84315)),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
 
                       Expanded(
                         child: SingleChildScrollView(
@@ -286,7 +284,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                             card.description,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 15,
+                              fontSize: 14,
                               height: 1.5,
                               color: Color(0xFF4E342E),
                               fontWeight: FontWeight.w600,
@@ -295,11 +293,11 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                         ),
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       SizedBox(
                         width: double.infinity,
-                        height: 44,
+                        height: 38,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF5D4037),
@@ -323,7 +321,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                     ],
                   ),
                 ),
@@ -337,7 +335,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
 
   Widget _infoChip(String text, Color textColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: textColor.withOpacity(0.1),
         border: Border.all(color: textColor.withOpacity(0.5)),
@@ -346,7 +344,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.bold,
           color: textColor,
         ),
