@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
-import 'dice.dart'; // dice.dart 파일이 같은 폴더에 있어야 합니다.
-import '../Popup/construction.dart'; // 경로 유지
-import '../Popup/TaxDialog.dart'; // 경로 유지
+import 'dice.dart';
+import '../Popup/construction.dart';
+import '../Popup/TaxDialog.dart';
+import '../Popup/Bankruptcy.dart';
+import '../Popup/Takeover.dart';
+import '../Popup/Island.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -15,7 +18,6 @@ class GameMain extends StatefulWidget {
 }
 
 class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
-
   FirebaseFirestore fs = FirebaseFirestore.instance;
   String localName = "";
   int localcode = 0;
@@ -25,9 +27,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   String eventNow = "";
   int _eventPlayer = 0;
-  int itsFestival = 0; // 페스티벌 로직 유지
+  int itsFestival = 0;
 
-  // 💡 턴 관리 변수
   int currentTurn = 1;
   int totalTurn = 30;
   int doubleCount = 0;
@@ -35,6 +36,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
   int? _highlightOwner;
+
+  // 💡 [수정1] String 뒤에 ?를 붙여서 null 허용 (오류 2 해결)
+  Map<String, String?> _moneyEffects = {};
 
   List<Map<String, dynamic>> localList = [
     {'인천': {'ccbaCtcd': 23}},{'세종': {'ccbaCtcd': 45}},{'울산': {'ccbaCtcd': 26}},
@@ -66,10 +70,28 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // 💡 주사위 굴리기 콜백
-  void _onDiceRoll(int val1, int val2) {
-    bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+  // 💡 [수정] 이제 null 대입이 가능해짐
+  void _triggerMoneyEffect(String userKey, int amount) {
+    setState(() {
+      _moneyEffects[userKey] = amount > 0 ? "+$amount" : "$amount";
+    });
 
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _moneyEffects[userKey] = null;
+        });
+      }
+    });
+  }
+
+  // async 추가
+  Future<void> _onDiceRoll(int val1, int val2) async {
+    bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+    // 💡 무인도 카운트 조회
+    int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
+
+    // 1. 여행 로직 (기존 유지)
     if (isTraveling) {
       setState(() {
         players["user$currentTurn"]["isTraveling"] = false;
@@ -79,25 +101,85 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       return;
     }
 
+    // 💡 2. [수정] 무인도 탈출 시도 로직 (다이얼로그는 이미 턴 시작 때 떴음)
+    if (islandCount > 0) {
+      bool isDouble = (val1 == val2);
+
+      if (isDouble) {
+        // 더블! 탈출 성공 -> 이동
+        await fs.collection("games").doc("users").update({
+          "user$currentTurn.islandCount": 0
+        });
+        setState(() {
+          players["user$currentTurn"]["islandCount"] = 0;
+        });
+
+        // 탈출했으니 이동 진행 (아래 movePlayer 호출됨)
+      } else {
+        // 탈출 실패 -> 카운트 감소, 턴 종료
+        int newCount = islandCount - 1;
+        await fs.collection("games").doc("users").update({
+          "user$currentTurn.islandCount": newCount
+        });
+        setState(() {
+          players["user$currentTurn"]["islandCount"] = newCount;
+        });
+
+        // 이동하지 않고 바로 다음 턴으로
+        _nextTurn();
+        return;
+      }
+    }
+
+    // 3. 일반 이동 로직
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(4, currentTurn, isDouble);
+    movePlayer(total, currentTurn, isDouble); // 테스트용 5 대신 total 사용 권장
   }
 
-  // 💡 턴 시작 시 상태 체크
-  void _checkAndStartTurn() {
+  // async 키워드 추가
+  Future<void> _checkAndStartTurn() async {
     String type = players["user$currentTurn"]?["type"] ?? "N";
-    if (type == "N") {
+
+    // 없는 유저나 파산 유저 건너뛰기
+    if (type == "N" || type == "D") {
       _nextTurn();
       return;
     }
 
+    // 💡 [수정] 무인도 체크를 여기서 먼저 수행
+    int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
+
+    if (islandCount > 0) {
+      // 주사위 굴리기 전에 먼저 탈출 기회(다이얼로그) 제공
+      // IslandDialog에서 비용 지불 성공 시 true 반환한다고 가정
+      final bool? paidToEscape = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => IslandDialog(user: currentTurn)
+      );
+
+      if (paidToEscape == true) {
+        // 돈 내고 탈출 성공! -> 카운트 0으로 초기화
+        await fs.collection("games").doc("users").update({
+          "user$currentTurn.islandCount": 0
+        });
+        setState(() {
+          players["user$currentTurn"]["islandCount"] = 0;
+        });
+        // 이후에는 플레이어가 주사위 버튼을 눌러서 이동하면 됨 (일반 턴과 동일)
+      } else {
+        // 돈 안 냄 (주사위 더블 도전) -> 아무것도 안 하고 대기 (플레이어가 주사위 버튼 누름)
+      }
+    }
+
+    // 여행 중이면 맵 하이라이트 (기존 로직)
     bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
     if (isTraveling) {
       setState(() {
         players["user$currentTurn"]["isTraveling"] = false;
       });
-      fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
+      await fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
       _triggerHighlight(currentTurn, "trip");
     }
   }
@@ -141,8 +223,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         });
         _setPlayer();
       }
+      _nextTurn();
     } else if(event == "festival"){
-      // 💡 페스티벌 로직 유지
       if(itsFestival != 0){
         await fs.collection("games").doc("board").update({"b$itsFestival.isFestival" : false});
       }
@@ -151,12 +233,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         itsFestival = index;
       });
       await _readLocal();
+      _nextTurn();
     } else if (event == "trip"){
       _movePlayerTo(index, _eventPlayer);
     }
   }
 
-  Future<void> _setLocal() async{
+  Future<void> _setLocal() async {
     int random = Random().nextInt(localList.length);
     if(mounted) {
       setState(() {
@@ -198,11 +281,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     movePlayer(steps, player, false);
   }
 
-  void movePlayer(int num, int player, bool isDouble) async {
+  // 💡 [수정됨] movePlayer 함수
+  void movePlayer(int steps, int player, bool isDouble) async {
     int currentPos = players["user$player"]["position"];
-    int nextPos = currentPos + num;
+
+    // num 대신 steps 사용
+    int nextPos = currentPos + steps;
     int changePosition = nextPos > 27 ? nextPos % 28 : nextPos;
 
+    // 월급 지급
     if(nextPos > 27){
       int level = players["user$player"]["level"];
       if(level < 4){
@@ -230,19 +317,147 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     // --- 도착지 로직 ---
     if(boardList[tileKey] != null && boardList[tileKey]["type"] == "land"){
-      final result = await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context){
-            return ConstructionDialog(user: player, buildingId: changePosition);
+      int owner = int.tryParse(boardList[tileKey]["owner"].toString()) ?? 0;
+      int buildLevel = boardList[tileKey]["level"] ?? 0;
+
+      // 1. 내 땅일 때
+      if(owner == player) {
+        final result = await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) {
+              return ConstructionDialog(user: player, buildingId: changePosition);
+            }
+        );
+        if (result != null && result is Map) {
+          setState(() {
+            if (boardList[tileKey] == null) boardList[tileKey] = {};
+            boardList[tileKey]["level"] = result["level"];
+            boardList[tileKey]["owner"] = result["user"];
+          });
+        }
+      }
+      // 2. 상대방 땅일 때 (통행료 지불)
+      else if(owner != 0 && owner != player) {
+        int basePrice = boardList[tileKey]["tollPrice"] ?? 0;
+        double multiply = (boardList[tileKey]["multiply"] as num? ?? 0).toDouble();
+
+        if(itsFestival == changePosition && multiply == 1) multiply *= 2;
+
+        int levelMulti = 1;
+        switch (buildLevel) {
+          case 1: levelMulti = 2; break;
+          case 2: levelMulti = 6; break;
+          case 3: levelMulti = 14; break;
+          case 4: levelMulti = 40; break;
+        }
+
+        int finalToll = (basePrice * multiply * levelMulti).round();
+
+        // --- 돈 주고 받기 ---
+        int myMoney = players["user$player"]["money"];
+        int myTotal = players["user$player"]["totalMoney"];
+        int ownerMoney = players["user$owner"]["money"];
+        int ownerTotal = players["user$owner"]["totalMoney"];
+
+        // 💡 [수정] 파산 및 생존 로직 적용
+        if(myMoney - finalToll < 0){
+          // 결과를 기다림
+          final result = await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                return BankruptDialog(lackMoney: finalToll - myMoney, reason: "toll", user: player);
+              }
+          );
+
+          // 1. 파산 확정 시 (결과가 Map 형태이거나 BANKRUPT)
+          if (result != null && result is Map && result["result"] == "BANKRUPT") {
+            await _readPlayer(); // 파산 상태(D) 업데이트
+            await _readLocal();  // 땅 초기화 상태 업데이트
+            _nextTurn();         // 턴 넘기고 종료
+            return;              // 함수 강제 종료 (돈 차감/인수 로직 실행 X)
           }
-      );
-      if (result != null && result is Map) {
-        setState(() {
-          if (boardList[tileKey] == null) boardList[tileKey] = {};
-          boardList[tileKey]["level"] = result["level"];
-          boardList[tileKey]["owner"] = result["user"];
+          // 2. 생존 시 (자산 정리로 빚 청산)
+          else if (result == "SURVIVED") {
+            await _readPlayer(); // 자산 판매로 늘어난 돈 불러오기
+
+            // 갱신된 돈으로 변수 재설정 (그래야 아래 DB 업데이트가 정상 작동)
+            myMoney = players["user$player"]["money"];
+            myTotal = players["user$player"]["totalMoney"];
+
+            // 이제 돈이 충분하므로 아래 로직 계속 진행...
+          }
+        }
+
+        // --- 정상적인 통행료 지불 로직 (생존했거나 돈이 충분할 때) ---
+        await fs.collection("games").doc("users").update({
+          "user$player.money": myMoney - finalToll,
+          "user$player.totalMoney": myTotal - finalToll,
+          "user$owner.money": ownerMoney + finalToll,
+          "user$owner.totalMoney": ownerTotal + finalToll
         });
+
+        setState(() {
+          players["user$player"]["money"] = myMoney - finalToll;
+          players["user$player"]["totalMoney"] = myTotal - finalToll;
+          players["user$owner"]["money"] = ownerMoney + finalToll;
+          players["user$owner"]["totalMoney"] = ownerTotal + finalToll;
+        });
+
+        _triggerMoneyEffect("user$player", -finalToll);
+        _triggerMoneyEffect("user$owner", finalToll);
+
+        // 인수가 가능할 때
+        if (boardList[tileKey]["level"] != 4) {
+          final bool? takeoverSuccess = await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) {
+              return TakeoverDialog(buildingId: changePosition, user: player);
+            },
+          );
+
+          if (takeoverSuccess == true) {
+            await _readLocal();
+
+            if (!mounted) return;
+
+            final constructionResult = await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                return ConstructionDialog(user: player, buildingId: changePosition);
+              },
+            );
+
+            if (constructionResult != null) {
+              setState(() {
+                if (boardList[tileKey] == null) boardList[tileKey] = {};
+                boardList[tileKey]["level"] = constructionResult["level"];
+                boardList[tileKey]["owner"] = constructionResult["user"];
+              });
+              await _readLocal();
+            }
+          }
+        }
+      }
+      // 3.빈 땅일 때
+      else{
+        final result = await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) {
+              return ConstructionDialog(user: player, buildingId: changePosition);
+            }
+        );
+        if (result != null && result is Map) {
+          setState(() {
+            if (boardList[tileKey] == null) boardList[tileKey] = {};
+            boardList[tileKey]["level"] = result["level"];
+            boardList[tileKey]["owner"] = result["user"];
+          });
+        }
       }
     }
     else if(changePosition == 26){ // 국세청
@@ -250,6 +465,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           TaxDialog(user: player)
       );
     }
+    // ... (이하 여행, 축제 등 기존 코드 동일)
     else if(changePosition == 14){ // 축제
       bool hasMyLand = false;
       boardList.forEach((key, val) {
@@ -261,6 +477,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
       if(hasMyLand) {
         _triggerHighlight(player, "festival");
+        return; // 축제 선택 대기
       } else {
         forceNextTurn = true;
       }
@@ -277,6 +494,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
       if(hasUpgradableLand) {
         _triggerHighlight(player, "start");
+        return; // 건설 대기
       } else {
         forceNextTurn = true;
       }
@@ -290,14 +508,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     }
     else if(changePosition == 7){ // 무인도
       forceNextTurn = true;
-      fs.collection("games").doc("users").update({
+      await fs.collection("games").doc("users").update({
         "user$player.islandCount" : 3
       });
+      await _readPlayer();
+
     }
 
     _setPlayer();
 
-    // 💡 턴 넘기기
     if (forceNextTurn || !isDouble) {
       _nextTurn();
     } else {
@@ -321,25 +540,29 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       int nextPlayer = currentTurn;
       int safetyLoop = 0;
 
-      // N 타입 건너뛰기
       do {
         if (nextPlayer == 4) {
           nextPlayer = 1;
           totalTurn--;
-          if (totalTurn == 0) {
-            // 게임 종료 로직
-          }
         } else {
           nextPlayer++;
         }
         safetyLoop++;
-      } while ((players["user$nextPlayer"]?["type"] ?? "N") == "N" && safetyLoop < 10);
+
+        String nextType = players["user$nextPlayer"]?["type"] ?? "N";
+        // N(없음)이거나 D(파산)이면 건너뜀
+        if (nextType != "N" && nextType != "D") {
+          break;
+        }
+
+      } while (safetyLoop < 10);
 
       currentTurn = nextPlayer;
-      _checkAndStartTurn();
+      _checkAndStartTurn(); // 여기서 무인도 체크가 실행됨
     });
   }
 
+  // ... (이하 기존 함수들 rankChange, _readPlayer, _readLocal, _insertLocal, _loadHeritageDetail, getXmlText, _loadHeritage, _showStartDialog, _getTilePosition 동일) ...
   Future<void> rankChange() async{
     int rank = 1;
     for(int i=1; i<=4; i++){
@@ -490,12 +713,342 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     return {'top': top, 'left': left};
   }
 
+  Widget _buildPlayerInfoPanel({required Alignment alignment, required Map<String, dynamic> playerData, required Color color, required String name}) {
+    String type = playerData['type'] ?? "N";
+    if (type == "N") return const SizedBox();
+
+    String displayName = (type == "B") ? "bot" : name;
+
+    if (type == "D") {
+      displayName += " (파산)";
+    }
+
+    bool isTop = alignment.y < 0;
+    bool isLeft = alignment.x < 0;
+    Color bgColor = color;
+    String money = "${playerData['money']}";
+    String totalMoney = "${playerData['totalMoney']}";
+    int rank = playerData['rank'];
+
+    String? effectText = _moneyEffects[name];
+
+    return Positioned(
+      top: isTop ? 0 : null, bottom: isTop ? null : 0,
+      left: isLeft ? 0 : null, right: isLeft ? null : 0,
+      child: SafeArea(
+        minimum: const EdgeInsets.all(10),
+        child: SizedBox(
+          width: 160, height: 80,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 140, height: 70,
+                margin: EdgeInsets.only(top: isTop ? 0 : 10, bottom: isTop ? 10 : 0, left: isLeft ? 0 : 20, right: isLeft ? 20 : 0),
+                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: bgColor, borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(2,2))],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
+                    const SizedBox(height: 2),
+                    Text("소지금 : $money", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                    Text("총 자산 : $totalMoney", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: isTop ? 40 : 0, left: isLeft ? 110 : 0,
+                child: Container(
+                  width: 40, height: 40, alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white, shape: BoxShape.circle,
+                    border: Border.all(color: Colors.grey, width: 2),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                  ),
+                  child: Text("$rank등", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                ),
+              ),
+              if (effectText != null)
+                Positioned(
+                  top: isTop ? -20 : -30,
+                  left: isLeft ? 20 : 0,
+                  right: isLeft ? 0 : 20,
+                  child: Center(
+                    child: Text(
+                      effectText,
+                      style: TextStyle(
+                        color: effectText.startsWith("-") ? Colors.redAccent : Colors.greenAccent,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        shadows: const [
+                          Shadow(offset: Offset(-1, -1), color: Colors.black),
+                          Shadow(offset: Offset(1, -1), color: Colors.black),
+                          Shadow(offset: Offset(1, 1), color: Colors.black),
+                          Shadow(offset: Offset(-1, 1), color: Colors.black),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _showEventDialog() {
+    String eventText = "";
+    if(eventNow == "trip") eventText = "여행갈 땅을 선택해주세요!";
+    else if(eventNow == "festival") eventText = "축제가 열릴 땅을 선택해주세요!";
+    else if(eventNow == "start") eventText = "건설할 땅을 선택해주세요!";
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFDF5E6),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFC0A060), width: 4),
+          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+            const SizedBox(height: 10),
+            Text(
+              eventText,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameTile(int index, double size, double boardSize) {
+    double? top, bottom, left, right;
+
+    if (index >= 0 && index <= 7) { bottom = 0; right = index * size; }
+    else if (index >= 8 && index <= 14) { left = 0; bottom = (index - 7) * size; }
+    else if (index >= 15 && index <= 21) { top = 0; left = (index - 14) * size; }
+    else if (index >= 22 && index <= 27) { right = 0; top = (index - 21) * size; }
+
+    Color barColor = Colors.grey; IconData? icon; String label = ""; bool isSpecial = false;
+
+    if (index == 0) { label = "출발"; icon = Icons.flag_circle; barColor = Colors.white; isSpecial = true; }
+    else if (index == 7) { label = "무인도"; icon = Icons.lock_clock; isSpecial = true; }
+    else if (index == 14) { label = "축제"; icon = Icons.celebration; isSpecial = true; }
+    else if (index == 21) { label = "여행"; icon = Icons.flight_takeoff; isSpecial = true; }
+    else if (index == 26) { label = "국세청"; icon = Icons.account_balance; isSpecial = true; }
+    else if ([3, 10, 17, 24].contains(index)) { label = "찬스"; icon = Icons.question_mark_rounded; barColor = Colors.orange; isSpecial = true; }
+
+    else if (index < 3) barColor = const Color(0xFFCFFFE5);
+    else if (index < 7) barColor = const Color(0xFF66BB6A);
+    else if (index < 10) barColor = const Color(0xFF42A5F5);
+    else if (index < 14) barColor = const Color(0xFFAB47BC);
+    else if (index < 17) barColor = const Color(0xFFFFEB00);
+    else if (index < 21) barColor = const Color(0xFF808080);
+    else if (index < 24) barColor = const Color(0xFFFF69B4);
+    else barColor = const Color(0xFFEF5350);
+
+    String tileName = (boardList["b$index"] != null) ? boardList["b$index"]["name"] ?? "" : "";
+    int tollPrice = (boardList["b$index"] != null && boardList["b$index"]["tollPrice"] != null) ? boardList["b$index"]["tollPrice"] : 0;
+
+    Widget content;
+    if(isSpecial) {
+      content = _buildSpecialContent(label, icon!, index == 0, index);
+    } else {
+      content = _buildLandContent(barColor, tileName, tollPrice, index);
+    }
+
+    bool shouldGlow = false;
+    int owner = 0;
+    int level = 0;
+
+    if(boardList["b$index"] != null) {
+      owner = int.tryParse(boardList["b$index"]["owner"].toString()) ?? 0;
+      level = boardList["b$index"]["level"] ?? 0;
+    }
+
+    if (_highlightOwner == -1) {
+      if(index != 21) {
+        shouldGlow = true;
+      }
+    } else if (_highlightOwner != null && _highlightOwner == owner) {
+      if (eventNow == "start") {
+        if (level < 4) shouldGlow = true;
+      } else {
+        shouldGlow = true;
+      }
+    }
+
+    return Positioned(
+      top: top, bottom: bottom, left: left, right: right,
+      child: GestureDetector(
+        onTap: () {
+          if (shouldGlow) {
+            _stopHighlight(index, eventNow);
+          }
+        },
+        child: Container(
+          width: size, height: size, padding: const EdgeInsets.all(1.5),
+          child: AnimatedBuilder(
+            animation: _glowController,
+            builder: (context, child) {
+              double glowValue = _glowAnimation.value;
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white, borderRadius: BorderRadius.circular(6.0),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 3, offset: const Offset(1, 2))],
+                      border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                    ),
+                    child: content,
+                  ),
+                  if (shouldGlow)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6.0),
+                          border: Border.all(color: Colors.amberAccent.withOpacity(0.8), width: 2.0 + (glowValue * 2.0)),
+                          boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.6 * glowValue), blurRadius: 5 + (glowValue * 10), spreadRadius: 2)],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLandContent(Color color, String name, int price, int index) {
+    var tileData = boardList["b$index"] ?? {};
+    bool isFestival = itsFestival == index;
+    double multiply = (tileData["multiply"] as num? ?? 0).toDouble();
+    int buildLevel = tileData["level"] ?? 0;
+
+    int levelvalue = 1;
+    switch (buildLevel) {
+      case 1: levelvalue = 2; break;
+      case 2: levelvalue = 6; break;
+      case 3: levelvalue = 14; break;
+      case 4: levelvalue = 40; break;
+    }
+    if (isFestival && multiply == 1) multiply *= 2;
+
+    int tollPrice = (price * multiply * levelvalue).round();
+
+    int level = tileData["level"] ?? 0;
+    int owner = int.tryParse(tileData["owner"].toString()) ?? 0;
+
+    final List<Color> ownerColors = [Colors.transparent, Colors.red, Colors.blue, Colors.green, Colors.yellow];
+    Color badgeColor = (owner >= 1 && owner <= 4) ? ownerColors[owner] : Colors.transparent;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6.0),
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 3.0),
+                  decoration: BoxDecoration(color: color),
+                  child: (multiply != 1)
+                      ? Text("X${multiply == multiply.toInt() ? multiply.toInt() : multiply}",
+                      style: TextStyle(color: Colors.black.withOpacity(0.7), fontSize: 6, fontWeight: FontWeight.bold))
+                      : null,
+                ),
+              ),
+              Expanded(
+                flex: 5,
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Opacity(
+                        opacity: isFestival ? 0.15 : 0,
+                        child: const Icon(Icons.celebration, size: 30, color: Colors.purple),
+                      ),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (price > 0)
+                            Text("$tollPrice", style: TextStyle(fontSize: 7, color: Colors.grey[600])),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (level > 0)
+            Positioned(
+              top: 0, right: 0,
+              child: ClipPath(
+                clipper: _TopRightTriangleClipper(),
+                child: Container(
+                  width: 28, height: 28, color: badgeColor,
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(top: 3, right: 5),
+                  child: level != 4 ? Text("$level", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (owner == 4) ? Colors.black : Colors.white))
+                      : Icon(Icons.star, size: 11, color: (owner == 4) ? Colors.black : Colors.white),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecialContent(String label, IconData icon, bool isStart, int index) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isStart ? Colors.white : Colors.grey[100],
+        borderRadius: BorderRadius.circular(6.0),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20, color: Colors.black87),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAnimatedPlayer(int playerIndex, double boardSize, double tileSize) {
     String userKey = "user${playerIndex + 1}";
-
-    // N 타입이면 표시 안 함
     String type = players[userKey]?["type"] ?? "N";
-    if (type == "N") return const SizedBox();
+    if (type == "N" || type == "D") return const SizedBox();
 
     int position = players[userKey]?["position"] ?? 0;
 
@@ -563,7 +1116,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      // 💡 [수정됨] 주사위 화면 또는 안내 멘트 위젯 표시
                       child: _highlightOwner == null
                           ? DiceApp(
                         turn: currentTurn,
@@ -589,304 +1141,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             _buildPlayerInfoPanel(alignment: Alignment.topRight, playerData: players['user4'], color : Colors.yellow, name : "user4"),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPlayerInfoPanel({required Alignment alignment, required Map<String, dynamic> playerData, required Color color, required String name}) {
-    String type = playerData['type'] ?? "N";
-
-    if (type == "N") return const SizedBox();
-
-    // 💡 봇 이름 변경 로직 유지
-    String displayName = name;
-    if (type == "B") {
-      displayName = "bot";
-    }
-
-    bool isTop = alignment.y < 0;
-    bool isLeft = alignment.x < 0;
-    Color bgColor = color;
-    String money = "${playerData['money']}";
-    String totalMoney = "${playerData['totalMoney']}";
-    int rank = playerData['rank'];
-
-    return Positioned(
-      top: isTop ? 0 : null, bottom: isTop ? null : 0,
-      left: isLeft ? 0 : null, right: isLeft ? null : 0,
-      child: SafeArea(
-        minimum: const EdgeInsets.all(10),
-        child: SizedBox(
-          width: 160, height: 80,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 140, height: 70,
-                margin: EdgeInsets.only(top: isTop ? 0 : 10, bottom: isTop ? 10 : 0, left: isLeft ? 0 : 20, right: isLeft ? 20 : 0),
-                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: bgColor, borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(2,2))],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
-                    const SizedBox(height: 2),
-                    Text("소지금 : $money", style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    Text("총 자산 : $totalMoney", style: const TextStyle(color: Colors.white, fontSize: 10)),
-                  ],
-                ),
-              ),
-              Positioned(
-                top: isTop ? 40 : 0, left: isLeft ? 110 : 0,
-                child: Container(
-                  width: 40, height: 40, alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white, shape: BoxShape.circle,
-                    border: Border.all(color: Colors.grey, width: 2),
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
-                  ),
-                  child: Text("$rank등", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 💡 [추가] 안내 멘트 위젯
-  Widget _showEventDialog() {
-    String eventText = "";
-    if(eventNow == "trip") eventText = "여행갈 땅을 선택해주세요!";
-    else if(eventNow == "festival") eventText = "축제가 열릴 땅을 선택해주세요!";
-    else if(eventNow == "start") eventText = "건설할 땅을 선택해주세요!";
-
-    // 여행 등 이벤트 발생 시 중앙에 표시될 위젯
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFDF5E6),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFC0A060), width: 4),
-          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.info_outline, size: 40, color: Colors.brown),
-            const SizedBox(height: 10),
-            Text(
-              eventText,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGameTile(int index, double size, double boardSize) {
-    double? top, bottom, left, right;
-
-    if (index >= 0 && index <= 7) { bottom = 0; right = index * size; }
-    else if (index >= 8 && index <= 14) { left = 0; bottom = (index - 7) * size; }
-    else if (index >= 15 && index <= 21) { top = 0; left = (index - 14) * size; }
-    else if (index >= 22 && index <= 27) { right = 0; top = (index - 21) * size; }
-
-    Color barColor = Colors.grey; IconData? icon; String label = ""; bool isSpecial = false;
-
-    if (index == 0) { label = "출발"; icon = Icons.flag_circle; barColor = Colors.white; isSpecial = true; }
-    else if (index == 7) { label = "무인도"; icon = Icons.lock_clock; isSpecial = true; }
-    else if (index == 14) { label = "축제"; icon = Icons.celebration; isSpecial = true; }
-    else if (index == 21) { label = "여행"; icon = Icons.flight_takeoff; isSpecial = true; }
-    else if (index == 26) { label = "국세청"; icon = Icons.account_balance; isSpecial = true; }
-    else if ([3, 10, 17, 24].contains(index)) { label = "찬스"; icon = Icons.question_mark_rounded; barColor = Colors.orange; isSpecial = true; }
-
-    else if (index < 3) barColor = const Color(0xFFCFFFE5);
-    else if (index < 7) barColor = const Color(0xFF66BB6A);
-    else if (index < 10) barColor = const Color(0xFF42A5F5);
-    else if (index < 14) barColor = const Color(0xFFAB47BC);
-    else if (index < 17) barColor = const Color(0xFFFFEB00);
-    else if (index < 21) barColor = const Color(0xFF808080);
-    else if (index < 24) barColor = const Color(0xFFFF69B4);
-    else barColor = const Color(0xFFEF5350);
-
-    String tileName = (boardList["b$index"] != null) ? boardList["b$index"]["name"] ?? "" : "";
-    int tollPrice = (boardList["b$index"] != null && boardList["b$index"]["tollPrice"] != null) ? boardList["b$index"]["tollPrice"] : 0;
-
-    return Positioned(
-      top: top, bottom: bottom, left: left, right: right,
-      child: Container(
-        width: size, height: size, padding: const EdgeInsets.all(1.5),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(6.0),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 3, offset: const Offset(1, 2))],
-            border: Border.all(color: Colors.grey.shade400, width: 0.5),
-          ),
-          child: isSpecial
-              ? _buildSpecialContent(label, icon!, index == 0, index)
-              : _buildLandContent(barColor, tileName, tollPrice, index),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLandContent(Color color, String name, int price, int index) {
-    var tileData = boardList["b$index"] ?? {};
-    bool isFestival = itsFestival == index; // 💡 페스티벌 로직 유지
-    double multiply = (tileData["multiply"] as num? ?? 0).toDouble();
-    int buildLevel = tileData["level"] ?? 0;
-
-    int levelvalue = 1;
-    switch (buildLevel) {
-      case 1: levelvalue = 2; break;
-      case 2: levelvalue = 6; break;
-      case 3: levelvalue = 14; break;
-      case 4: levelvalue = 40; break;
-    }
-    if (isFestival && multiply == 1) multiply *= 2;
-
-    int tollPrice = (price * multiply * levelvalue).round();
-
-    int level = tileData["level"] ?? 0;
-    int owner = int.tryParse(tileData["owner"].toString()) ?? 0;
-
-    final List<Color> ownerColors = [Colors.transparent, Colors.red, Colors.blue, Colors.green, Colors.yellow];
-    Color badgeColor = (owner >= 1 && owner <= 4) ? ownerColors[owner] : Colors.transparent;
-
-    bool shouldGlow = false;
-    if (_highlightOwner == -1) {
-      shouldGlow = true;
-    } else if (_highlightOwner != null && _highlightOwner == owner) {
-      if (eventNow == "start") {
-        if (level < 4) shouldGlow = true;
-      } else {
-        shouldGlow = true;
-      }
-    }
-
-    return GestureDetector(
-      onTap: () {
-        if (shouldGlow) {
-          _stopHighlight(index, eventNow);
-        } else {
-          // 지역 상세정보 보여주기
-        }
-      },
-      child: AnimatedBuilder(
-        animation: _glowController,
-        builder: (context, child) {
-          double glowValue = _glowAnimation.value;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6.0),
-                child: Stack(
-                  children: [
-                    Column(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: Container(
-                            alignment: Alignment.centerLeft,
-                            padding: const EdgeInsets.only(left: 3.0),
-                            decoration: BoxDecoration(color: color),
-                            child: (multiply != 1)
-                                ? Text("X${multiply == multiply.toInt() ? multiply.toInt() : multiply}",
-                                style: TextStyle(color: Colors.black.withOpacity(0.7), fontSize: 6, fontWeight: FontWeight.bold))
-                                : null,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 5,
-                          child: Container(
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Opacity(
-                                  opacity: isFestival ? 0.15 : 0,
-                                  child: const Icon(Icons.celebration, size: 30, color: Colors.purple),
-                                ),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    if (price > 0)
-                                      Text("${(tollPrice/10000).floor()}만", style: TextStyle(fontSize: 7, color: Colors.grey[600])),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (level > 0)
-                      Positioned(
-                        top: 0, right: 0,
-                        child: ClipPath(
-                          clipper: _TopRightTriangleClipper(),
-                          child: Container(
-                            width: 28, height: 28, color: badgeColor,
-                            alignment: Alignment.topRight,
-                            padding: const EdgeInsets.only(top: 3, right: 5),
-                            child: level != 4 ? Text("$level", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (owner == 4) ? Colors.black : Colors.white))
-                                : Icon(Icons.star, size: 11, color: (owner == 4) ? Colors.black : Colors.white),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (shouldGlow)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6.0),
-                      border: Border.all(color: Colors.amberAccent.withOpacity(0.8), width: 2.0 + (glowValue * 2.0)),
-                      boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.6 * glowValue), blurRadius: 5 + (glowValue * 10), spreadRadius: 2)],
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSpecialContent(String label, IconData icon, bool isStart, int index) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isStart ? Colors.white : Colors.grey[100],
-        borderRadius: BorderRadius.circular(6.0),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 20, color: Colors.black87),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-        ],
       ),
     );
   }
