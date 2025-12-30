@@ -18,7 +18,8 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
       _firestore.collection('games').doc('users');
 
   // 슬롯을 변경할 때 DB에 바로 반영하지 않고 임시로 저장할 리스트
-  List<String> tempTypes = ['N', 'N', 'N', 'N']; // 초기 상태는 모두 N (빈 슬롯)
+  List<String> tempTypes = ['N', 'N', 'N', 'P']; // 첫 번째 슬롯에 'P' (플레이어 1) 설정
+  List<int> playerOrder = []; // 플레이어가 추가된 순서를 저장하는 리스트
 
   /* ================== Firestore helpers ================== */
 
@@ -32,26 +33,9 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     });
   }
 
-  int _getDisplayNumber(Map<String, dynamic> data, int index) {
-    // 슬롯 상태가 'N'이 아닌 경우만 필터링
-    final entries = List.generate(4, (i) {
-      return {
-        'id': i,
-        'type': data['user${i + 1}']['type'],
-      };
-    }).where((e) => e['type'] != 'N').toList();
-
-    // 'type'이 'N'이 아닌 슬롯만 순서대로 번호 부여
-    final orderIndex = entries.indexWhere((e) => e['id'] == index);
-
-    // 번호는 1부터 시작
-    return orderIndex == -1 ? 0 : orderIndex + 1;
-  }
-
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
       body: Stack(
@@ -77,11 +61,15 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
                     child: _buildLandscapeGrid(),
                   ),
                 ),
-
-                // 🔹 게임 시작 버튼 (정중앙)
-                _buildStartButton(),
               ],
             ),
+          ),
+
+          // ================= 게임 시작 버튼 =================
+          Positioned(
+            bottom: size.height / 2 - 50, // 화면 하단에 고정
+            left: size.width / 2 - 30, // 가로 중앙에 배치 (버튼 크기 200px 기준)
+            child: _buildStartButton(), // 게임 시작 버튼을 Stack 위에 고정
           ),
 
           // ================= 나가기 버튼 =================
@@ -119,7 +107,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   Widget _buildPlayerSlot(int index) {
     final String type = tempTypes[index];
     final bool isEmpty = type == 'N';
-    final int number = index + 1; // 번호는 1부터 시작
+    final int playerNumber = isEmpty ? playerOrder.length + 1 : playerOrder.indexOf(index) + 1;
 
     return Stack(
       children: [
@@ -162,7 +150,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  type == 'B' ? '봇$number' : '플레이어$number',
+                  type == 'B' ? '봇${playerNumber + 1}' : '플레이어${playerNumber + 1}', // 플레이어 번호 1부터 시작
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -173,7 +161,8 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
             ),
           ),
         ),
-        if (!isEmpty) // 슬롯이 비어 있지 않을 때만 X 버튼을 표시
+        // 4번 슬롯 (index == 3)에 대해서 X 버튼을 표시하지 않음
+        if (!isEmpty && index != 3) // X 버튼은 4번 슬롯을 제외한 슬롯에서만 표시
           Positioned(
             top: 14,
             right: 8,
@@ -192,6 +181,11 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   void _updateTempUser(int index, String type) {
     setState(() {
       tempTypes[index] = type; // 임시 상태 업데이트
+      if (type != 'N') {
+        playerOrder.add(index); // 플레이어나 봇이 추가되면 순서대로 저장
+      } else {
+        playerOrder.remove(index); // 빈 상태로 설정되면 해당 인덱스를 playerOrder에서 제거
+      }
     });
   }
 
