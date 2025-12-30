@@ -2,27 +2,29 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 
+final GlobalKey<DiceAppState> diceAppKey = GlobalKey<DiceAppState>();
+
 class DiceApp extends StatefulWidget {
-  // 💡 [수정] 합계 대신 주사위 2개의 값을 각각 전달
   final Function(int, int) onRoll;
-  // 💡 [추가] 턴 정보를 부모(GameMain)에서 받아옴
   final int turn;
   final int totalTurn;
+  final bool isBot; // 💡 [추가] 봇 여부 확인 변수
 
   const DiceApp({
-    super.key,
+    Key? key,
     required this.onRoll,
     required this.turn,
-    required this.totalTurn
-  });
+    required this.totalTurn,
+    required this.isBot, // 💡 [추가] 생성자
+  }) : super(key: key);
 
   @override
   DiceAppState createState() => DiceAppState();
 }
 
 class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
+  // ... (변수 및 initState, 함수들은 기존과 동일) ...
   final double _size = 40.0;
-  // 💡 내부 턴 변수 삭제 (GameMain에서 관리)
 
   double _x1 = 0.0, _y1 = 0.0;
   double _x2 = 0.0, _y2 = 0.0;
@@ -52,12 +54,68 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
     });
   }
 
+  void rollDiceForBot(int target1, int target2) {
+    if (_isRolling) return;
+    setState(() {
+      _isDouble = false;
+      _isRolling = true;
+    });
+    _animationX1 = _createTargetAnim(_controller1, _x1, target1, true);
+    _animationY1 = _createTargetAnim(_controller1, _y1, target1, false);
+    _animationX2 = _createTargetAnim(_controller2, _x2, target2, true);
+    _animationY2 = _createTargetAnim(_controller2, _y2, target2, false);
+    _controller1.forward(from: 0.0);
+    _controller2.forward(from: 0.0);
+  }
+
+  Map<String, double> _getTargetAngle(int value) {
+    switch (value) {
+      case 1: return {'x': 0, 'y': 0};
+      case 2: return {'x': -pi / 2, 'y': 0};
+      case 3: return {'x': 0, 'y': -pi / 2};
+      case 4: return {'x': 0, 'y': pi / 2};
+      case 5: return {'x': pi / 2, 'y': 0};
+      case 6: return {'x': 0, 'y': pi};
+      default: return {'x': 0, 'y': 0};
+    }
+  }
+
+  Animation<double> _createTargetAnim(AnimationController c, double current, int targetVal, bool isX) {
+    var angles = _getTargetAngle(targetVal);
+    double targetBase = isX ? angles['x']! : angles['y']!;
+    double rotations = (current / (2 * pi)).floorToDouble();
+    double nextBase = rotations * (2 * pi) + targetBase;
+    if (nextBase < current) nextBase += (2 * pi);
+    double end = nextBase + (2 * pi * 2);
+    return Tween<double>(begin: current, end: end).animate(
+      CurvedAnimation(parent: c, curve: Curves.easeOutBack),
+    );
+  }
+
+  void runAllDice() {
+    if (_controller1.isAnimating || _controller2.isAnimating) return;
+    setState(() {
+      _isDouble = false;
+      _isRolling = true;
+    });
+    _animationX1 = _createRandomAnim(_controller1, _x1);
+    _animationY1 = _createRandomAnim(_controller1, _y1);
+    _animationX2 = _createRandomAnim(_controller2, _x2);
+    _animationY2 = _createRandomAnim(_controller2, _y2);
+    _controller1.forward(from: 0.0);
+    _controller2.forward(from: 0.0);
+  }
+
+  Animation<double> _createRandomAnim(AnimationController c, double cur) {
+    double end = ((cur / (pi / 2)).round() + (Random().nextInt(4) + 6)) * (pi / 2);
+    return Tween<double>(begin: cur, end: end).animate(CurvedAnimation(parent: c, curve: Curves.elasticOut));
+  }
+
   int _getFaceValue(double x, double y) {
     int iX = (x / (pi / 2)).round() % 4;
     int iY = (y / (pi / 2)).round() % 4;
     if (iX < 0) iX += 4;
     if (iY < 0) iY += 4;
-
     if (iX == 0) {
       if (iY == 0) return 1; if (iY == 1) return 4; if (iY == 2) return 6; return 3;
     } else if (iX == 1) return 5;
@@ -71,43 +129,17 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
   void _calculateResult() {
     int val1 = _getFaceValue(_x1, _y1);
     int val2 = _getFaceValue(_x2, _y2);
-
     setState(() {
       _totalResult = val1 + val2;
       _isDouble = (val1 == val2);
       _isRolling = false;
-
-      // 💡 [핵심] 계산된 주사위 값을 GameMain으로 전달만 함 (턴 계산 X)
       widget.onRoll(val1, val2);
     });
-  }
-
-  void runAllDice() {
-    if (_controller1.isAnimating || _controller2.isAnimating) return;
-
-    setState(() {
-      _isDouble = false;
-      _isRolling = true;
-    });
-
-    _animationX1 = _createDiceAnim(_controller1, _x1);
-    _animationY1 = _createDiceAnim(_controller1, _y1);
-    _animationX2 = _createDiceAnim(_controller2, _x2);
-    _animationY2 = _createDiceAnim(_controller2, _y2);
-
-    _controller1.forward(from: 0.0);
-    _controller2.forward(from: 0.0);
-  }
-
-  Animation<double> _createDiceAnim(AnimationController c, double cur) {
-    double end = ((cur / (pi / 2)).round() + (Random().nextInt(4) + 6)) * (pi / 2);
-    return Tween<double>(begin: cur, end: end).animate(CurvedAnimation(parent: c, curve: Curves.elasticOut));
   }
 
   @override
   Widget build(BuildContext context) {
     List<Color> colors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
-    // widget.turn을 사용하여 부모에서 받은 턴 정보 표시
     int currentTurnIndex = (widget.turn - 1).clamp(0, 3);
 
     return FittedBox(
@@ -120,11 +152,7 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white24, width: 1.5),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              blurRadius: 10,
-              spreadRadius: 2,
-            )
+            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)
           ],
         ),
         child: Column(
@@ -137,14 +165,8 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
                   ? const Text("✨ DOUBLE!! ✨", style: TextStyle(color: Colors.yellowAccent, fontSize: 16, fontWeight: FontWeight.bold))
                   : null,
             ),
-            Text(
-                "남은턴 : ${widget.totalTurn}",
-                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2)
-            ),
-            Text(
-                "user${widget.turn}님의 턴",
-                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
-            ),
+            Text("남은턴 : ${widget.totalTurn}", style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            Text("user${widget.turn}님의 턴", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
             Text(
                 _isRolling ? "Rolling..." : "TOTAL: $_totalResult",
                 style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
@@ -159,17 +181,23 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: runAllDice,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                backgroundColor: colors[currentTurnIndex],
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                elevation: 5,
-              ),
-              child: const Text("ROLL DICE 🎲", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
+
+            // 💡 [수정] 봇(isBot == true)이면 버튼을 숨김
+            if (!widget.isBot)
+              ElevatedButton(
+                onPressed: runAllDice,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  backgroundColor: colors[currentTurnIndex],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  elevation: 5,
+                ),
+                child: const Text("ROLL DICE 🎲", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              )
+            else
+            // 버튼이 사라져서 레이아웃이 확 줄어드는게 싫다면 빈 공간을 둘 수 있음
+              const SizedBox(height: 48),
           ],
         ),
       ),
@@ -191,6 +219,7 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
   void dispose() { _controller1.dispose(); _controller2.dispose(); super.dispose(); }
 }
 
+// ... (Cube, DiceDotsPainter 클래스는 기존과 동일) ...
 class Cube extends StatelessWidget {
   const Cube({super.key, required this.x, required this.y, required this.size});
   final double x, y, size;
