@@ -11,13 +11,15 @@ class IslandDialog extends StatefulWidget {
 
 class _IslandDialogState extends State<IslandDialog> {
   final FirebaseFirestore fs = FirebaseFirestore.instance;
-  int turn =-0;
+  int turn =0;
   Future<void> getTurn() async{
     final snap = await fs.collection("games").doc("users").get();
     if(snap.exists){
       turn=snap.data()!["user${widget.user}"]["islandCount"];
     }
-    print(turn);
+    setState(() {
+      turn;
+    });
   }
 
   @override
@@ -32,7 +34,8 @@ class _IslandDialogState extends State<IslandDialog> {
 
     Future<void> payment() async{
       await fs.collection("games").doc("users").update({
-        "user${widget.user}.money" :FieldValue.increment(-1000000)
+        "user${widget.user}.money" :FieldValue.increment(-1000000),
+        "user${widget.user}.islandCount":0
       });
     }
 
@@ -91,7 +94,7 @@ class _IslandDialogState extends State<IslandDialog> {
                   children: [
                     Text(
                       "무인도에 도착했습니다.\n"
-                          "${3-turn} 턴 동안 이동할 수 없습니다.",
+                          "${turn} 턴 동안 이동할 수 없습니다.",
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,
@@ -100,7 +103,7 @@ class _IslandDialogState extends State<IslandDialog> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Row(
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Expanded(
@@ -117,7 +120,7 @@ class _IslandDialogState extends State<IslandDialog> {
                         Expanded(
                           child: Text(
                             "• 더블이 나오면 즉시 탈출\n"
-                                "• 3턴 경과 시 자동 탈출",
+                                "• ${turn}턴 경과 시 자동 탈출",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 16,
@@ -166,8 +169,10 @@ class _IslandDialogState extends State<IslandDialog> {
                   /// 주사위 굴리기
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
-                        // TODO: 주사위 굴리기
+                      onPressed: () async {
+                        await fs.collection("games").doc("users").update({
+                          "user${widget.user}.islandCount":turn-1
+                        });
                         Navigator.pop(context);
                       },
                       style: OutlinedButton.styleFrom(
