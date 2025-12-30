@@ -112,48 +112,22 @@ class _DetailPopupPopupState extends State<DetailPopup> {
                             Expanded(
                               flex: 4,
                               child: Column(
-                                mainAxisAlignment:
-                                MainAxisAlignment.center,
                                 children: [
-                                  AspectRatio(
-                                    aspectRatio: 3 / 4,
+                                  // 🔥 이미지 영역 (높이 제한)
+                                  Expanded(
                                     child: Container(
+                                      width: double.infinity,
                                       decoration: BoxDecoration(
-                                        borderRadius:
-                                        BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color:
-                                          const Color(0xFF5D4037),
-                                          width: 2,
-                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: const Color(0xFF5D4037), width: 2),
                                         image: DecorationImage(
-                                          image: NetworkImage(
-                                            detail["image"] ??
-                                                "https://via.placeholder.com/300",
-                                          ),
+                                          image: NetworkImage(detail["img"]),
                                           fit: BoxFit.cover,
                                         ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    detail["title"] ?? "",
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    detail["summary"] ?? "",
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.black54,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
+                                  // 제목
                                 ],
                               ),
                             ),
@@ -233,21 +207,47 @@ class _DetailPopupPopupState extends State<DetailPopup> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+      Row(
+      children: [
+      const Icon(
+      Icons.menu_book_rounded,
+        size: 18,
+        color: Color(0xFF5D4037),
+      ),
+      const SizedBox(width: 8),
+
+      Expanded(
+        child: RichText(
+          text: TextSpan(
             children: [
-              Icon(Icons.menu_book_rounded,
-                  size: 18, color: Color(0xFF5D4037)),
-              SizedBox(width: 8),
-              Text(
-                "문화재 정보",
-                style: TextStyle(
-                  fontSize: 14,
+              TextSpan(
+                text: detail["name"] ?? "",
+                style: const TextStyle(
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF5D4037),
                 ),
               ),
+              const TextSpan(
+                text: "  ·  ",
+                style: TextStyle(color: Colors.grey),
+              ),
+              TextSpan(
+                text: "(${detail["times"]})" ?? "",
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8D6E63),
+                ),
+              ),
             ],
           ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      ],
+    ),
           const Divider(height: 16, color: Color(0xFFEFEBE9)),
           Text(
             detail["description"] ?? "",

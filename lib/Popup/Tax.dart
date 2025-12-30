@@ -188,7 +188,7 @@ class TaxPage extends StatelessWidget {
                     ));
                   }, child: Text("파산")),
                   ElevatedButton(onPressed: (){
-                    showDialog(context: context, builder: (context)=>DetailPopup(boardNum: 1,));
+                    showDialog(context: context, builder: (context)=>DetailPopup(boardNum: 2,));
                   }, child: Text("디테일"))
                 ],
               )
