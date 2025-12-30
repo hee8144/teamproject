@@ -9,6 +9,11 @@ import '../Popup/TaxDialog.dart';
 import '../Popup/Bankruptcy.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Island.dart';
+import '../quiz/quiz_dialog.dart'; // 퀴즈 부분
+import '../quiz/quiz_result_popup.dart'; // 퀴즈 부분
+import '../quiz/chance_card_quiz_after_v2.dart'; // 퀴즈 부분
+import '../quiz/quiz_repository.dart'; // 퀴즈 부분
+import '../quiz/quiz_question.dart'; // 퀴즈 부분
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -559,6 +564,57 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         await showDialog(context: context, builder: (context)=> TaxDialog(user: player));
       }
     }
+
+    else if ([3, 10, 17, 24].contains(changePosition)) { // 찬스 카드
+      // 1. 퀴즈 문제 가져오기 (랜덤)
+      QuizQuestion? question = await QuizRepository.getRandomQuiz();
+
+      bool isCorrect = false;
+      int? selectedIndex;
+
+      if (question != null && mounted) {
+        // 2. 퀴즈 다이얼로그 띄우기
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => QuizDialog(
+            question: question,
+            onQuizFinished: (index, correct) {
+              selectedIndex = index;
+              isCorrect = correct;
+            },
+          ),
+        );
+
+        // 3. 정답/오답 결과 팝업
+        if (mounted) {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => QuizResultPopup(
+              isCorrect: isCorrect,
+              question: question,
+              selectedIndex: selectedIndex ?? -1,
+            ),
+          );
+        }
+      }
+
+      // 4. 카드 뽑기 화면
+      if (mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => ChanceCardQuizAfterV2(
+            quizEffect: isCorrect, // 정답이면 좋은 카드 확률 UP
+          ),
+        );
+      }
+
+      // 5. 화면 갱신 (카드로 인한 변화 반영)
+      await _readPlayer();
+    }
+
     else if(changePosition == 14){ // 축제
       bool hasMyLand = false;
       boardList.forEach((key, val) {
