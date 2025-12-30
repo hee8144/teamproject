@@ -17,50 +17,35 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   DocumentReference get _usersDoc =>
       _firestore.collection('games').doc('users');
 
-  Stream<DocumentSnapshot> get _usersStream => _usersDoc.snapshots();
+  // 슬롯을 변경할 때 DB에 바로 반영하지 않고 임시로 저장할 리스트
+  List<String> tempTypes = ['N', 'N', 'N', 'N']; // 초기 상태는 모두 N (빈 슬롯)
 
   /* ================== Firestore helpers ================== */
 
-  Future<void> _addUser(int index, String type) async {
-    final turn = await _getNextTurn();
+  // 게임 시작 버튼 클릭 시, 임시 리스트에 저장된 데이터를 DB에 반영
+  Future<void> _updateUsersInDB() async {
     await _usersDoc.update({
-      'user${index + 1}.type': type,
-      // 'user${index + 1}.turn': turn,
+      'user1.type': tempTypes[0],
+      'user2.type': tempTypes[1],
+      'user3.type': tempTypes[2],
+      'user4.type': tempTypes[3],
     });
-  }
-
-  Future<void> _removeUser(int index) async {
-    await _usersDoc.update({
-      'user${index + 1}.type': 'N',
-      // 'user${index + 1}.turn': 0,
-    });
-  }
-
-  Future<int> _getNextTurn() async {
-    final snapshot = await _usersDoc.get();
-    final data = snapshot.data() as Map<String, dynamic>;
-
-    final turns = List.generate(4, (i) {
-      return (data['user${i + 1}']['turn'] ?? 0) as int;
-    }).where((t) => t > 0).toList();
-
-    if (turns.isEmpty) return 1;
-    return turns.reduce((a, b) => a > b ? a : b) + 1;
   }
 
   int _getDisplayNumber(Map<String, dynamic> data, int index) {
+    // 슬롯 상태가 'N'이 아닌 경우만 필터링
     final entries = List.generate(4, (i) {
       return {
         'id': i,
-        'turn': data['user${i + 1}']['turn'] ?? 0,
+        'type': data['user${i + 1}']['type'],
       };
-    }).where((e) => e['turn'] > 0).toList()
-      ..sort((a, b) => (a['turn'] as int).compareTo(b['turn'] as int));
+    }).where((e) => e['type'] != 'N').toList();
 
+    // 'type'이 'N'이 아닌 슬롯만 순서대로 번호 부여
     final orderIndex = entries.indexWhere((e) => e['id'] == index);
 
-    // Here we ensure the numbering starts from 1
-    return orderIndex == -1 ? 0 : orderIndex + 1; // It now returns from 1
+    // 번호는 1부터 시작
+    return orderIndex == -1 ? 0 : orderIndex + 1;
   }
 
   @override
@@ -82,41 +67,20 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
 
           // ================= 메인 =================
           SafeArea(
-            child: StreamBuilder<DocumentSnapshot>(
-              stream: _usersStream,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 🔹 Grid (남은 영역 전부 사용)
+                Expanded(  // Use Expanded to automatically take the available space
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 50, 10, 10), // Padding 감소
+                    child: _buildLandscapeGrid(),
+                  ),
+                ),
 
-                final data = snapshot.data!.data() as Map<String, dynamic>;
-
-                final activeCount = List.generate(4, (i) {
-                  return data['user${i + 1}']['type'];
-                }).where((t) => t != 'N').length;
-
-                final canStart = activeCount >= 2;
-
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // 🔹 Grid (남은 영역 전부 사용)
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 50, 10, 10), // Padding 감소
-                        child: _buildLandscapeGrid(data),
-                      ),
-                    ),
-
-                    // 🔹 게임 시작 버튼 (정중앙)
-                    Center(
-                      child: _buildStartButton(canStart, context),
-                    ),
-                  ],
-                );
-              },
+                // 🔹 게임 시작 버튼 (정중앙)
+                _buildStartButton(),
+              ],
             ),
           ),
 
@@ -137,7 +101,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   }
 
   /* ================== 가로 ================== */
-  Widget _buildLandscapeGrid(Map<String, dynamic> data) {
+  Widget _buildLandscapeGrid() {
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -147,16 +111,15 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
         childAspectRatio: 3.3, // 슬롯 크기를 더 줄임 (세로 크기 축소)
       ),
       itemCount: 4,
-      itemBuilder: (_, index) => _buildPlayerSlot(data, index),
+      itemBuilder: (_, index) => _buildPlayerSlot(index),
     );
   }
 
   /* ================== 슬롯 ================== */
-  Widget _buildPlayerSlot(Map<String, dynamic> data, int index) {
-    final user = data['user${index + 1}'];
-    final String type = user['type'];
+  Widget _buildPlayerSlot(int index) {
+    final String type = tempTypes[index];
     final bool isEmpty = type == 'N';
-    final int number = _getDisplayNumber(data, index); // 번호를 1부터 시작하도록 수정
+    final int number = index + 1; // 번호는 1부터 시작
 
     return Stack(
       children: [
@@ -175,12 +138,16 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 GestureDetector(
-                  onTap: () => _addUser(index, 'B'),
+                  onTap: () {
+                    _updateTempUser(index, 'B'); // 임시 리스트에 봇 추가
+                  },
                   child: _buildAddButton(Icons.android),
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => _addUser(index, 'P'),
+                  onTap: () {
+                    _updateTempUser(index, 'P'); // 임시 리스트에 플레이어 추가
+                  },
                   child: _buildAddButton(Icons.person_add),
                 ),
               ],
@@ -206,12 +173,14 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
             ),
           ),
         ),
-        if (!isEmpty && !(index == 3 && type == 'P'))
+        if (!isEmpty) // 슬롯이 비어 있지 않을 때만 X 버튼을 표시
           Positioned(
             top: 14,
             right: 8,
             child: GestureDetector(
-              onTap: () => _removeUser(index),
+              onTap: () {
+                _updateTempUser(index, 'N'); // 해당 슬롯만 빈 상태로 설정
+              },
               child: _buildCircleIcon(Icons.close),
             ),
           ),
@@ -219,11 +188,22 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     );
   }
 
-  /* ================== UI ================== */
-  Widget _buildStartButton(bool canStart, BuildContext context) {
+  /* ================== 임시 상태 업데이트 ================== */
+  void _updateTempUser(int index, String type) {
+    setState(() {
+      tempTypes[index] = type; // 임시 상태 업데이트
+    });
+  }
+
+  /* ================== 게임 시작 버튼 ================== */
+  Widget _buildStartButton() {
+    bool canStart = tempTypes.where((t) => t != 'N').length >= 2;
     return ElevatedButton(
       onPressed: canStart
-          ? () => context.go('/gameMain')
+          ? () async {
+        await _updateUsersInDB(); // 게임 시작 시 DB에 반영
+        context.go('/gameMain'); // 게임 시작 화면으로 이동
+      }
           : null,
       child: const Text('게임 시작!'),
     );

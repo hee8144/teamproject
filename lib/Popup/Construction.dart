@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'Detail.dart';
 class ConstructionDialog extends StatefulWidget {
   final int buildingId;
   final int user;
@@ -232,12 +232,16 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                 ElevatedButton(
                   onPressed: totalCost == 0 ? null : () async {
                     final targetLevel = getTargetLevel();
+                    if(targetLevel ==4){
+                      await showDialog(context: context, builder: (context)=>DetailPopup(boardNum: widget.buildingId));
+                    }
                     await _payment();
                     Navigator.pop(context,{
                       "user":widget.user,
                       "index":widget.buildingId,
                       "level":targetLevel
                     });
+
                   },
                   child: Text("구매 (${formatMoney(totalCost)})"),
                 ),
