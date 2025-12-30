@@ -19,31 +19,59 @@ class GameResultPage extends StatelessWidget {
   const GameResultPage({super.key});
 
   /// ================= 게임 상태 초기화 =================
-  /// - type, turn 유지
-  /// - 게임 진행 정보만 리셋
   Future<void> _resetGameState() async {
-    final usersRef = FirebaseFirestore.instance.collection('users');
-    final snapshot = await usersRef.get();
+    final usersDocRef =
+    FirebaseFirestore.instance.collection('games').doc('users');
+    final usersDoc = await usersDocRef.get();
+    final usersData = usersDoc.data();
+    if (usersData == null) return;
 
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
+    Map<String, dynamic> updatedUsers = {};
 
-      // 비어있는 슬롯은 건너뜀
-      if (data['type'] == 'N') continue;
+    usersData.forEach((key, user) {
+      if (user['type'] == 'N') {
+        updatedUsers[key] = user;
+      } else {
+        updatedUsers[key] = {
+          ...user,
+          'money': 7000000,
+          'totalMoney': 7000000,
+          'position': 0,
+          'card': 'N',
+          'level': 1,
+          'rank': 0,
+          'double': 0,
+          'islandCount': 0,
+          'isTraveling': false,
+          'turn': 0,
+        };
+      }
+    });
 
-      await doc.reference.update({
-        'money': 7000000,
-        'totalMoney': 7000000,
-        'position': 0,
-        'card': 'N',
-        'level': 1,
-        'rank': 0,
-        'double': 0,
-        'islandCount': 0,
-        'isTraveling': false,
-        // ❗ type, turn 은 유지
-      });
-    }
+    await usersDocRef.update(updatedUsers);
+  }
+
+  /// ================= DB에서 순위 가져오기 =================
+  Future<List<Map<String, dynamic>>> _fetchRankData() async {
+    final usersDocRef =
+    FirebaseFirestore.instance.collection('games').doc('users');
+    final usersDoc = await usersDocRef.get();
+    final usersData = usersDoc.data();
+    if (usersData == null) return [];
+
+    List<Map<String, dynamic>> players = [];
+
+    usersData.forEach((key, user) {
+      if (user['type'] != 'N') {
+        players.add({
+          'name': user['name'] ?? key,
+          'money': user['money'] ?? user['totalMoney'] ?? 0,
+        });
+      }
+    });
+
+    players.sort((a, b) => (b['money'] as int).compareTo(a['money'] as int));
+    return players;
   }
 
   @override
@@ -57,7 +85,7 @@ class GameResultPage extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          /// ================= 배경 =================
+          // 배경
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -66,8 +94,7 @@ class GameResultPage extends StatelessWidget {
               ),
             ),
           ),
-
-          /// ================= 메인 =================
+          // 메인
           Container(
             padding: EdgeInsets.only(
               top: padding.top + 16,
@@ -89,7 +116,7 @@ class GameResultPage extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // ================= 왼쪽 =================
+                    // 왼쪽
                     Flexible(
                       flex: 7,
                       child: Padding(
@@ -104,11 +131,11 @@ class GameResultPage extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFE0B2),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: borderColor, width: 1.8),
+                                border:
+                                Border.all(color: borderColor, width: 1.8),
                               ),
                               child: const Text(
-                                "플레이어 1 우승: 🏆 문화재 독점 달성 🏆",
+                                "최종 승리 결과",
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 14,
@@ -129,14 +156,33 @@ class GameResultPage extends StatelessWidget {
                             const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
-                              child: _buildRankTable(),
+                              child: FutureBuilder<List<Map<String, dynamic>>>(
+                                future: _fetchRankData(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                        child: CircularProgressIndicator());
+                                  } else if (snapshot.hasError) {
+                                    return const Center(
+                                        child: Text(
+                                            "순위 정보를 불러오는 중 오류 발생"));
+                                  } else if (!snapshot.hasData ||
+                                      snapshot.data!.isEmpty) {
+                                    return const Center(
+                                        child: Text("플레이어 정보가 없습니다."));
+                                  }
+
+                                  final players = snapshot.data!;
+                                  return _buildRankTable(players);
+                                },
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
-
-                    // ================= 오른쪽 =================
+                    // 오른쪽
                     Flexible(
                       flex: 3,
                       child: Padding(
@@ -147,15 +193,16 @@ class GameResultPage extends StatelessWidget {
                             _buildActionButton(
                               text: "다시 시작",
                               onTap: () async {
-                                await _resetGameState(); // ✅ 상태 초기화
-                                context.go('/gameWaitingRoom'); // ✅ 대기방 이동
+                                await _resetGameState();
+                                context.go(
+                                    '/gameWaitingRoom?types=user1,user2'); // 필요 시 수정
                               },
                             ),
                             const SizedBox(height: 16),
                             _buildActionButton(
                               text: "종료",
                               onTap: () {
-                                SystemNavigator.pop(); // 안전한 종료
+                                SystemNavigator.pop();
                               },
                             ),
                           ],
@@ -172,16 +219,12 @@ class GameResultPage extends StatelessWidget {
     );
   }
 
-  /// ================= 순위 테이블 =================
-  Widget _buildRankTable() {
+  Widget _buildRankTable(List<Map<String, dynamic>> players) {
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFF6D4C41)),
-      ),
+      decoration: BoxDecoration(border: Border.all(color: const Color(0xFF6D4C41))),
       child: Table(
         border: TableBorder.symmetric(
-          inside: const BorderSide(color: Colors.black26),
-        ),
+            inside: const BorderSide(color: Colors.black26)),
         columnWidths: const {
           0: FixedColumnWidth(50),
           1: FlexColumnWidth(),
@@ -189,10 +232,12 @@ class GameResultPage extends StatelessWidget {
         },
         children: [
           _buildRankRow(rank: "순위", name: "이름", money: "잔액", isHeader: true),
-          _buildRankRow(rank: "1위", name: "플레이어1", money: "₩3,200"),
-          _buildRankRow(rank: "2위", name: "봇2", money: "₩2,100"),
-          _buildRankRow(rank: "3위", name: "플레이어3", money: "₩900"),
-          _buildRankRow(rank: "4위", name: "봇4", money: "₩0"),
+          for (int i = 0; i < players.length; i++)
+            _buildRankRow(
+              rank: "${i + 1}위",
+              name: players[i]['name'],
+              money: "₩${players[i]['money']}",
+            ),
         ],
       ),
     );
@@ -205,8 +250,7 @@ class GameResultPage extends StatelessWidget {
     bool isHeader = false,
   }) {
     return TableRow(
-      decoration:
-      BoxDecoration(color: isHeader ? const Color(0xFFFFEFD5) : null),
+      decoration: BoxDecoration(color: isHeader ? const Color(0xFFFFEFD5) : null),
       children: [
         _RankCell(text: rank, isHeader: isHeader),
         _RankCell(text: name, isHeader: isHeader),

@@ -68,7 +68,7 @@ class _QuizDialogState extends State<QuizDialog>
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       child: Stack(
         children: [
           Positioned.fill(
@@ -83,7 +83,7 @@ class _QuizDialogState extends State<QuizDialog>
               builder: (context, child) {
                 return Align(
                   alignment: Alignment.centerLeft,
-                  widthFactor: _unrollAnimation.value, // ⭐ 핵심 수정
+                  widthFactor: _unrollAnimation.value,
                   child: child,
                 );
               },
@@ -120,7 +120,7 @@ class _QuizDialogState extends State<QuizDialog>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(flex: 4, child: _imageBox()),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   flex: 6,
                   child: Column(
@@ -217,12 +217,12 @@ class _QuizDialogState extends State<QuizDialog>
             color: const Color(0xFF5D4037).withOpacity(0.2)),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Text(
           widget.question.question,
           textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             height: 1.3,
           ),

@@ -137,7 +137,7 @@ class LoginScreen extends StatelessWidget {
             startColor: const Color(0xFFFFE0B2),
             endColor: const Color(0xFFFFCC80),
             borderColor: const Color(0xFFA1887F),
-            onTap: () => print("로그인 버튼 클릭"),
+            onTap: null,
           ),
           const SizedBox(height: 10),
           _buildCustomButton(
@@ -159,14 +159,14 @@ class LoginScreen extends StatelessWidget {
     required Color startColor,
     required Color endColor,
     required Color borderColor,
-    required VoidCallback onTap,
+    required VoidCallback? onTap, // nullable
   }) {
     return Container(
       width: double.infinity,
       height: 50,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [startColor, endColor],
+          colors: onTap != null ? [startColor, endColor] : [Colors.grey.shade400, Colors.grey.shade400],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -177,12 +177,12 @@ class LoginScreen extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(30),
-          onTap: onTap,
+          onTap: onTap, // null이면 클릭 불가
           child: Center(
             child: Text(
               text,
               style: TextStyle(
-                color: textColor,
+                color: onTap != null ? textColor : Colors.grey.shade700, // 비활성화 시 색 변경
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -192,4 +192,5 @@ class LoginScreen extends StatelessWidget {
       ),
     );
   }
+
 }
