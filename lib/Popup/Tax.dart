@@ -7,6 +7,8 @@ import '../firebase_options.dart';
 import '../quiz/chance_card_quiz_after.dart';
 import '../quiz/quiz_dialog.dart';
 import '../quiz/quiz_repository.dart';
+import 'Bankruptcy.dart';
+import 'ChanceCard.dart';
 import 'Takeover.dart';
 import 'TaxDialog.dart';
 import 'Construction.dart';
@@ -134,43 +136,56 @@ class TaxPage extends StatelessWidget {
                   ElevatedButton(onPressed: (){
                     showDialog(context: context, builder: (context)=>TravelDialog());
                   }, child: Text("여행")),
+                  // ElevatedButton(
+                  //   onPressed: () async {
+                  //     final random = Random();
+                  //     final bool showQuiz = random.nextBool(); // 50%
+                  //
+                  //     bool quizEffect = false;
+                  //
+                  //     if (showQuiz) {
+                  //       // 1️⃣ 퀴즈 문제 하나 가져오기 (예시)
+                  //       final question = await QuizRepository.getRandomQuiz();
+                  //
+                  //       await showDialog(
+                  //         context: context,
+                  //         barrierDismissible: false,
+                  //         builder: (_) => QuizDialog(
+                  //           question: question,
+                  //           onQuizFinished: (selectedIndex, isCorrect) {
+                  //             quizEffect = isCorrect;
+                  //           },
+                  //         ),
+                  //       );
+                  //     }
+                  //
+                  //     // 2️⃣ 카드 표시 (퀴즈를 했든 안 했든)
+                  //     await showDialog(
+                  //       context: context,
+                  //       barrierDismissible: false,
+                  //       builder: (_) => ChanceCardQuizAfter(
+                  //         quizEffect: quizEffect,
+                  //       ),
+                  //     );
+                  //   },
+                  //   child: const Text("찬스카드"),
+                  // ),
                   ElevatedButton(
                     onPressed: () async {
-                      final random = Random();
-                      final bool showQuiz = random.nextBool(); // 50%
-
-                      bool quizEffect = false;
-
-                      if (showQuiz) {
-                        // 1️⃣ 퀴즈 문제 하나 가져오기 (예시)
-                        final question = await QuizRepository.getRandomQuiz();
-
-                        await showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (_) => QuizDialog(
-                            question: question,
-                            onQuizFinished: (selectedIndex, isCorrect) {
-                              quizEffect = isCorrect;
-                            },
-                          ),
-                        );
-                      }
-
-                      // 2️⃣ 카드 표시 (퀴즈를 했든 안 했든)
-                      await showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (_) => ChanceCardQuizAfter(
-                          quizEffect: quizEffect,
-                        ),
-                      );
+                      showDialog(context: context, builder: (context)=>ChancecardDialog());
                     },
                     child: const Text("찬스카드"),
                   ),
                   ElevatedButton(onPressed: (){
                     showDialog(context: context, builder: (context)=>OriginDialog(user: 1));
-                  }, child: Text("출발지"))
+                  }, child: Text("출발지")),
+                  ElevatedButton(onPressed: (){
+                    showDialog(context: context, builder: (context)=>BankruptDialog(
+                      lackMoney: 15000,
+                      reason: "toll",
+                      user: 1,
+                    ));
+                  }, child: Text("파산"))
                 ],
               )
             ],
