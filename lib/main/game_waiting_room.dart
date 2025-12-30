@@ -25,14 +25,14 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     final turn = await _getNextTurn();
     await _usersDoc.update({
       'user${index + 1}.type': type,
-      'user${index + 1}.turn': turn,
+      // 'user${index + 1}.turn': turn,
     });
   }
 
   Future<void> _removeUser(int index) async {
     await _usersDoc.update({
       'user${index + 1}.type': 'N',
-      'user${index + 1}.turn': 0,
+      // 'user${index + 1}.turn': 0,
     });
   }
 
