@@ -17,27 +17,28 @@ class QuizDialog extends StatefulWidget {
   State<QuizDialog> createState() => _QuizDialogState();
 }
 
-class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
+class _QuizDialogState extends State<QuizDialog>
+    with TickerProviderStateMixin {
   int remainingSeconds = 60;
   Timer? _timer;
-  
+
   late AnimationController _unrollController;
   late Animation<double> _unrollAnimation;
 
   @override
   void initState() {
     super.initState();
-    
+
     _unrollController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    
+
     _unrollAnimation = CurvedAnimation(
       parent: _unrollController,
       curve: Curves.easeOutCubic,
     );
-    
+
     _unrollController.forward();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -61,8 +62,9 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final double fullWidth = min(size.width * 0.95, 800.0);
-    // 높이를 조금 더 유연하게 (너무 꽉 차지 않게 85%로 조정)
+    
+    // 화면 너비에서 안전한 여백을 뺀 값으로 설정 (오른쪽 잘림 방지)
+    final double fullWidth = min(size.width - 48, 800.0);
     final double fullHeight = size.height * 0.85;
 
     return Dialog(
@@ -91,7 +93,7 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
                       horizontal: BorderSide(color: Color(0xFF5D4037), width: 4),
                     ),
                   ),
-                  clipBehavior: Clip.hardEdge, 
+                  clipBehavior: Clip.hardEdge,
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     physics: const NeverScrollableScrollPhysics(),
@@ -111,40 +113,30 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
     );
   }
 
-  // 실제 퀴즈 내용물
   Widget _buildContent(BuildContext context) {
     return Column(
       children: [
-        // 1. 헤더 통합 (타이틀 + 타이머)
         _buildHeader(),
-        
         Expanded(
           child: Padding(
-            // 전체 패딩 축소 (16 -> 12)
             padding: const EdgeInsets.all(12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // [좌측] 이미지 영역 (40%)
-                Expanded(
-                  flex: 4,
-                  child: _imageBox(),
-                ),
+                Expanded(flex: 4, child: _imageBox()),
                 const SizedBox(width: 12),
-                
-                // [우측] 문제 + 선택지 영역 (60%)
                 Expanded(
                   flex: 6,
                   child: Column(
                     children: [
-                      // 2. 질문 박스 (높이 자동 조절되도록 Flexible 사용 가능성 열어둠)
-                      _questionBox(),
-                      
-                      const SizedBox(height: 10),
-                      
-                      // 3. 선택지 그리드
                       Expanded(
-                        child: _choicesGrid(context),
+                        flex: 4,
+                        child: _questionBox(),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        flex: 6,
+                        child: _choicesGrid(context)
                       ),
                     ],
                   ),
@@ -157,7 +149,6 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
     );
   }
 
-  // [개선 1] 타이틀과 타이머를 한 줄로 통합
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -172,7 +163,7 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
             "대한민국 문화재 퀴즈",
             style: TextStyle(
               color: Color(0xFFFFD700),
-              fontSize: 14, // 폰트 살짝 키움
+              fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -257,23 +248,23 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
     );
   }
 
-  // [개선 2] 질문 박스 최적화
   Widget _questionBox() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), // 패딩 축소
+      // padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), // 패딩은 내부 ScrollView에 주는게 나을 수도 있음
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.6),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFF5D4037).withOpacity(0.2)),
       ),
-      child: SingleChildScrollView( // 혹시라도 질문이 너무 길면 스크롤 (화면 안 깨지게)
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Text(
           widget.question.question,
           textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 15, // 폰트 크기 16 -> 15
+            fontSize: 15,
             fontWeight: FontWeight.w700,
             color: Color(0xFF2F2F2F),
             height: 1.3,
@@ -283,13 +274,12 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
     );
   }
 
-  // [개선 3] 선택지 그리드 납작하게
   Widget _choicesGrid(BuildContext context) {
     return GridView.count(
       crossAxisCount: 2,
-      crossAxisSpacing: 8, // 간격 축소 (12 -> 8)
+      crossAxisSpacing: 8,
       mainAxisSpacing: 8,
-      childAspectRatio: 3.0, // 더 납작하게 (2.2 -> 3.0)
+      childAspectRatio: 3.0,
       children: List.generate(
         widget.question.choices.length,
         (index) => _choiceButton(
@@ -323,7 +313,7 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
           child: Row(
             children: [
               Container(
-                width: 28, // 번호표 너비 축소
+                width: 28,
                 height: double.infinity,
                 decoration: const BoxDecoration(
                   color: Color(0xFF5D4037),
@@ -353,7 +343,7 @@ class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 13, // 선택지 폰트 14 -> 13
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF424242),
                       ),
