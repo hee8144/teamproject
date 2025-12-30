@@ -1,8 +1,7 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // ✅ 추가
-import '../game/gameMain.dart';
-import 'mainUI.dart';
+import 'package:flutter/services.dart'; // SystemNavigator
+import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class GameResult extends StatelessWidget {
   const GameResult({super.key});
@@ -19,6 +18,34 @@ class GameResult extends StatelessWidget {
 class GameResultPage extends StatelessWidget {
   const GameResultPage({super.key});
 
+  /// ================= 게임 상태 초기화 =================
+  /// - type, turn 유지
+  /// - 게임 진행 정보만 리셋
+  Future<void> _resetGameState() async {
+    final usersRef = FirebaseFirestore.instance.collection('users');
+    final snapshot = await usersRef.get();
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+
+      // 비어있는 슬롯은 건너뜀
+      if (data['type'] == 'N') continue;
+
+      await doc.reference.update({
+        'money': 7000000,
+        'totalMoney': 7000000,
+        'position': 0,
+        'card': 'N',
+        'level': 1,
+        'rank': 0,
+        'double': 0,
+        'islandCount': 0,
+        'isTraveling': false,
+        // ❗ type, turn 은 유지
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -30,7 +57,7 @@ class GameResultPage extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          /// 배경
+          /// ================= 배경 =================
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -40,7 +67,7 @@ class GameResultPage extends StatelessWidget {
             ),
           ),
 
-          /// SafeArea 대신 Container 사용
+          /// ================= 메인 =================
           Container(
             padding: EdgeInsets.only(
               top: padding.top + 16,
@@ -52,14 +79,14 @@ class GameResultPage extends StatelessWidget {
             height: size.height,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
                 decoration: BoxDecoration(
                   color: paperColor.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: borderColor, width: 2.5),
                 ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // ================= 왼쪽 =================
@@ -69,15 +96,16 @@ class GameResultPage extends StatelessWidget {
                         padding: const EdgeInsets.only(right: 32),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Container(
                               width: size.width * 0.5,
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 14),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFE0B2),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: borderColor, width: 1.8),
+                                border: Border.all(
+                                    color: borderColor, width: 1.8),
                               ),
                               child: const Text(
                                 "플레이어 1 우승: 🏆 문화재 독점 달성 🏆",
@@ -113,26 +141,24 @@ class GameResultPage extends StatelessWidget {
                       flex: 3,
                       child: Padding(
                         padding: const EdgeInsets.only(left: 32),
-                        child: SizedBox(
-                          height: double.infinity,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildActionButton(
-                                text: "다시 시작",
-                                onTap: () {
-                                  context.go("/gameMain"); // ✅ GoRouter
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              _buildActionButton(
-                                text: "종료",
-                                onTap: () {
-                                  context.go("/main"); // ✅ GoRouter
-                                },
-                              ),
-                            ],
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildActionButton(
+                              text: "다시 시작",
+                              onTap: () async {
+                                await _resetGameState(); // ✅ 상태 초기화
+                                context.go('/gameWaitingRoom'); // ✅ 대기방 이동
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            _buildActionButton(
+                              text: "종료",
+                              onTap: () {
+                                SystemNavigator.pop(); // 안전한 종료
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -146,6 +172,7 @@ class GameResultPage extends StatelessWidget {
     );
   }
 
+  /// ================= 순위 테이블 =================
   Widget _buildRankTable() {
     return Container(
       decoration: BoxDecoration(
@@ -178,9 +205,8 @@ class GameResultPage extends StatelessWidget {
     bool isHeader = false,
   }) {
     return TableRow(
-      decoration: BoxDecoration(
-        color: isHeader ? const Color(0xFFFFEFD5) : null,
-      ),
+      decoration:
+      BoxDecoration(color: isHeader ? const Color(0xFFFFEFD5) : null),
       children: [
         _RankCell(text: rank, isHeader: isHeader),
         _RankCell(text: name, isHeader: isHeader),
@@ -212,10 +238,7 @@ class GameResultPage extends StatelessWidget {
         onPressed: onTap,
         child: Text(
           text,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );
