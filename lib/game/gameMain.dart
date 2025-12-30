@@ -403,7 +403,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           case 1: levelMulti = 2; break;
           case 2: levelMulti = 6; break;
           case 3: levelMulti = 14; break;
-          case 4: levelMulti = 40; break;
+          case 4: levelMulti = 30; break;
         }
         int finalToll = (basePrice * multiply * levelMulti).round();
 
