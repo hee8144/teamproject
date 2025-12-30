@@ -5,13 +5,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'quiz_dialog.dart';
 import 'quiz_result_popup.dart';
 import 'region_detail_popup.dart';
-import 'chance_card_quiz_after.dart';
+import 'chance_card_quiz_after_v2.dart'; // V2 import
 import 'quiz_question.dart';
 import 'quiz_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  // Firebase 초기화는 유지 (퀴즈 데이터 등을 위해 필요할 수 있음)
+  // 만약 이것도 안되면 try-catch로 감싸거나 주석 처리
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    print("Firebase init failed (Test Mode): $e");
+  }
+  
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.immersiveSticky,
   );
@@ -42,19 +49,31 @@ class DummyBoardScreen extends StatefulWidget {
 
 class _DummyBoardScreenState extends State<DummyBoardScreen> {
   QuizSource? _currentSource;
-  String? _lastChanceAction;
+  String? _lastLog; // 마지막 로그 메시지
 
   // 퀴즈 1사이클 동안 유지돼야 하는 값들
   QuizQuestion? _currentQuestion;
   bool? _lastQuizCorrect;
 
   // ---------------------------------------------------------------------------
-  // 퀴즈 열기 (DB 연동)
+  // [테스트용] 상태 조작 함수
+  // ---------------------------------------------------------------------------
+  void _setTestCardStatus(String cardStatus) {
+    // V2 파일 내의 static 변수를 직접 수정하여 Mocking
+    ChanceCardQuizAfterV2.testUserMock['card'] = cardStatus;
+    
+    String cardName = cardStatus == 'N' ? '없음' : (cardStatus == 'escape' ? '무인도 탈출' : 'VIP 명찰');
+    setState(() {
+      _lastLog = "👉 상태 변경됨: 보유카드 = $cardName";
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 퀴즈 열기
   // ---------------------------------------------------------------------------
   void _openQuiz(QuizSource source) async {
     _currentSource = source;
 
-    // 로딩 인디케이터 표시
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -64,11 +83,10 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
     );
 
     try {
-      // DB에서 랜덤 퀴즈 가져오기
       final question = await QuizRepository.getRandomQuiz();
 
       if (!mounted) return;
-      Navigator.pop(context); // 로딩 닫기
+      Navigator.pop(context); 
 
       _currentQuestion = question;
 
@@ -84,7 +102,7 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // 로딩 닫기
+      Navigator.pop(context); 
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("퀴즈를 불러오지 못했습니다: $e")),
@@ -92,9 +110,6 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 퀴즈 종료 후 결과 팝업
-  // ---------------------------------------------------------------------------
   void _onQuizFinished(int selectedIndex, bool isCorrect) {
     _lastQuizCorrect = isCorrect;
 
@@ -116,37 +131,38 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 찬스 카드 후속 팝업
+  // 찬스 카드 후속 팝업 (V2 - 테스트 모드)
   // ---------------------------------------------------------------------------
   void _openChanceAfter() async {
-    final action = await showDialog<String>(
+    // V2 위젯 호출
+    // 테스트 모드이므로 내부에서 testUserMock을 읽고 씀
+    await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => ChanceCardQuizAfter(
+      builder: (_) => ChanceCardQuizAfterV2(
         quizEffect: _lastQuizCorrect == true,
       ),
     );
-
-    if (action != null) {
-      handleChanceCardAction(action);
-    }
+    
+    // 팝업이 닫힌 후 현재 상태 확인
+    _checkCurrentStatus();
   }
-
-  void handleChanceCardAction(String description) {
+  
+  void _checkCurrentStatus() {
+    final currentCard = ChanceCardQuizAfterV2.testUserMock['card'];
+    String cardName = currentCard == 'N' ? '없음' : (currentCard == 'escape' ? '무인도 탈출' : 'VIP 명찰');
+    
     setState(() {
-      _lastChanceAction = description;
+      _lastLog = "✅ 로직 종료 후 상태: 보유카드 = $cardName";
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // 지역 상세 팝업
-  // ---------------------------------------------------------------------------
   void _openRegionDetail() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => RegionDetailPopup(
-        quizEffect: _lastQuizCorrect == true, // 정답일 때만 혜택
+        quizEffect: _lastQuizCorrect == true, 
       ),
     );
   }
@@ -155,116 +171,92 @@ class _DummyBoardScreenState extends State<DummyBoardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF2E1F1B),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: () => _openQuiz(QuizSource.chance),
-              child: const Text("찬스카드 퀴즈 발생"),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _openQuiz(QuizSource.region),
-              child: const Text("문화재 지역 퀴즈 발생"),
-            ),
-            const SizedBox(height: 16),
-            // --- 디버깅용 버튼 추가 ---
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
-              onPressed: _testLoadQ1,
-              child: const Text("DB 연결 테스트 (q1)"),
-            ),
-            // -----------------------
-            if (_lastChanceAction != null) ...[
-              const SizedBox(height: 24),
-              Text(
-                '마지막 찬스카드 효과: $_lastChanceAction',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+      appBar: AppBar(
+        title: const Text("퀴즈 & 찬스카드 테스트 (V2)"),
+        backgroundColor: const Color(0xFF5D4037),
+      ),
+      body: SingleChildScrollView(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 20),
+              
+              // [테스트 컨트롤 패널]
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      "🛠️ 가상 DB(TestMode) 상태 조작",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text("내 보유 카드 설정:", style: TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _testButton("없음 (N)", () => _setTestCardStatus('N')),
+                        _testButton("탈출권", () => _setTestCardStatus('escape')),
+                        _testButton("VIP", () => _setTestCardStatus('sheild')),
+                      ],
+                    ),
+                  ],
                 ),
               ),
+
+              const SizedBox(height: 20),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD700),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                ),
+                onPressed: () => _openQuiz(QuizSource.chance),
+                child: const Text("🎲 찬스카드 퀴즈 시작", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              
+              const SizedBox(height: 30),
+              
+              // [로그 출력]
+              if (_lastLog != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _lastLog!,
+                    style: const TextStyle(
+                      color: Colors.greenAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
-
-  // 디버깅용 메서드: games/quiz 문서 로드 후 q1 확인
-  Future<void> _testLoadQ1() async {
-    try {
-      showDialog(
-        context: context,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-
-      print("🔥 [Test] Fetching games/quiz...");
-      final doc = await FirebaseFirestore.instance.collection('games').doc('quiz').get();
-      
-      if (!mounted) return;
-      Navigator.pop(context); // 로딩 닫기
-
-      if (doc.exists) {
-        final data = doc.data();
-        final q1Data = data?['q1'];
-
-        if (q1Data != null) {
-          print("✅ [Test] q1 Success: $q1Data");
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text("성공: q1 데이터"),
-              content: SingleChildScrollView(
-                child: Text(q1Data.toString()),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
-              ],
-            ),
-          );
-        } else {
-          print("❌ [Test] q1 field not found in quiz document");
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text("실패"),
-              content: const Text("quiz 문서 안에 'q1' 필드가 없습니다."),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
-              ],
-            ),
-          );
-        }
-      } else {
-        print("❌ [Test] quiz document not found in games collection");
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("실패"),
-            content: const Text("문서(games/quiz)가 존재하지 않습니다."),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context); // 로딩 닫기
-      print("❌ [Test] Error: $e");
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("에러 발생"),
-          content: Text(e.toString()),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
-          ],
-        ),
-      );
-    }
+  
+  Widget _testButton(String label, VoidCallback onPressed) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.grey[700],
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
+    );
   }
 }

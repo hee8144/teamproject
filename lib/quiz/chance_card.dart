@@ -3,20 +3,23 @@ class ChanceCard {
   final String description;
   final String type;
   final String action;
+  final String? imageKey; // 이미지 파일명 (예: island.png)
 
   ChanceCard({
     required this.title,
     required this.description,
     required this.type,
     required this.action,
+    this.imageKey,
   });
 
   factory ChanceCard.fromMap(Map<String, dynamic> data) {
     return ChanceCard(
-      title: data['title'],
-      description: data['description'],
-      type: data['type'],
-      action: data['action'],
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      type: data['type'] ?? 'benefit',
+      action: data['action'] ?? '',
+      imageKey: data['imageKey'], // DB 필드명 매핑
     );
   }
 }
