@@ -4,8 +4,8 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
 import 'dice.dart'; // dice.dart 파일이 같은 폴더에 있어야 합니다.
-import '../Popup/TaxDialog.dart'; // 세금 다이얼로그 파일 import (경로 확인 필요)
-import '../Popup/Construction.dart';
+import '../Popup/construction.dart'; // 경로 유지
+import '../Popup/TaxDialog.dart'; // 경로 유지
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -14,8 +14,7 @@ class GameMain extends StatefulWidget {
   State<GameMain> createState() => _GameMainState();
 }
 
-class _GameMainState extends State<GameMain> {
-  // 💡 [수정됨] 불필요한 TickerProviderStateMixin 제거
+class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   FirebaseFirestore fs = FirebaseFirestore.instance;
   String localName = "";
@@ -24,7 +23,19 @@ class _GameMainState extends State<GameMain> {
   List<Map<String, String>> heritageList = [];
   Map<String, dynamic> boardList = {};
 
-  // 지역 코드 리스트
+  String eventNow = "";
+  int _eventPlayer = 0;
+  int itsFestival = 0; // 페스티벌 로직 유지
+
+  // 💡 턴 관리 변수
+  int currentTurn = 1;
+  int totalTurn = 30;
+  int doubleCount = 0;
+
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
+  int? _highlightOwner;
+
   List<Map<String, dynamic>> localList = [
     {'인천': {'ccbaCtcd': 23}},{'세종': {'ccbaCtcd': 45}},{'울산': {'ccbaCtcd': 26}},
     {'제주': {'ccbaCtcd': 50}},{'대구': {'ccbaCtcd': 22}},{'충북': {'ccbaCtcd': 33}},
@@ -39,11 +50,111 @@ class _GameMainState extends State<GameMain> {
   @override
   void initState() {
     super.initState();
-    // 💡 [수정됨] 애니메이션 컨트롤러 초기화 코드 삭제
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
     _setLocal();
   }
 
-  // 💡 [수정됨] dispose 메서드 삭제 (해제할 컨트롤러가 없음)
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  // 💡 주사위 굴리기 콜백
+  void _onDiceRoll(int val1, int val2) {
+    bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+
+    if (isTraveling) {
+      setState(() {
+        players["user$currentTurn"]["isTraveling"] = false;
+      });
+      fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
+      _triggerHighlight(currentTurn, "trip");
+      return;
+    }
+
+    int total = val1 + val2;
+    bool isDouble = (val1 == val2);
+    movePlayer(4, currentTurn, isDouble);
+  }
+
+  // 💡 턴 시작 시 상태 체크
+  void _checkAndStartTurn() {
+    String type = players["user$currentTurn"]?["type"] ?? "N";
+    if (type == "N") {
+      _nextTurn();
+      return;
+    }
+
+    bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
+    if (isTraveling) {
+      setState(() {
+        players["user$currentTurn"]["isTraveling"] = false;
+      });
+      fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
+      _triggerHighlight(currentTurn, "trip");
+    }
+  }
+
+  void _triggerHighlight(int player, String event) {
+    _eventPlayer = player;
+    if(event == "trip"){
+      setState(() {
+        _highlightOwner = -1; // -1: 전체 맵 빛남
+        eventNow = event;
+      });
+    } else {
+      setState(() {
+        _highlightOwner = player;
+        eventNow = event;
+      });
+    }
+    _glowController.repeat(reverse: true);
+  }
+
+  Future<void> _stopHighlight(int index, String event) async {
+    setState(() {
+      _highlightOwner = null;
+    });
+    _glowController.stop();
+    _glowController.reset();
+
+    if(event == "start"){
+      final result = await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context){
+            return ConstructionDialog(user: _eventPlayer, buildingId: index);
+          }
+      );
+      if (result != null && result is Map) {
+        setState(() {
+          if (boardList["b$index"] == null) boardList["b$index"] = {};
+          boardList["b$index"]["level"] = result["level"];
+          boardList["b$index"]["owner"] = result["user"];
+        });
+        _setPlayer();
+      }
+    } else if(event == "festival"){
+      // 💡 페스티벌 로직 유지
+      if(itsFestival != 0){
+        await fs.collection("games").doc("board").update({"b$itsFestival.isFestival" : false});
+      }
+      await fs.collection("games").doc("board").update({"b$index.isFestival" : true});
+      setState(() {
+        itsFestival = index;
+      });
+      await _readLocal();
+    } else if (event == "trip"){
+      _movePlayerTo(index, _eventPlayer);
+    }
+  }
 
   Future<void> _setLocal() async{
     int random = Random().nextInt(localList.length);
@@ -61,7 +172,6 @@ class _GameMainState extends State<GameMain> {
     if(mounted) {
       setState(() { heritageList = detail; });
     }
-
     await _insertLocal();
     await _readLocal();
     await _readPlayer();
@@ -71,43 +181,54 @@ class _GameMainState extends State<GameMain> {
       setState(() { _isLoading = false; });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showStartDialog(localName);
+        _checkAndStartTurn();
       });
     }
   }
 
   Future<void> _setPlayer() async {
     await _readPlayer();
-    // 전체 덮어쓰기보다는 update가 안전할 수 있으나, 기존 로직 유지
     await fs.collection("games").doc("users").set(players);
   }
 
-  // 주사위 수만큼 움직이는 함수
-  void movePlayer(int num, int player) async {
+  void _movePlayerTo(int targetIndex, int player) async {
+    int currentPos = players["user$player"]["position"];
+    int steps = targetIndex - currentPos;
+    if (steps < 0) steps += 28;
+    movePlayer(steps, player, false);
+  }
+
+  void movePlayer(int num, int player, bool isDouble) async {
     int currentPos = players["user$player"]["position"];
     int nextPos = currentPos + num;
+    int changePosition = nextPos > 27 ? nextPos % 28 : nextPos;
 
-    // 32칸 순환 (0~31)
-    int changePosition = nextPos > 31 ? nextPos % 32 : nextPos;
-
-    // 한 바퀴 돌았을 때 레벨업 로직
-    if(nextPos > 31){
+    if(nextPos > 27){
       int level = players["user$player"]["level"];
       if(level < 4){
-        await fs.collection("games").doc("users").update({"user$player.level": level + 1});
+        await fs.collection("games").doc("users").update({
+          "user$player.level": level + 1,
+          "user$player.money": players["user$player"]["money"] + 1000000,
+          "user$player.totalMoney": players["user$player"]["totalMoney"] + 1000000
+        });
+      } else {
+        await fs.collection("games").doc("users").update({
+          "user$player.money": players["user$player"]["money"] + 1000000,
+          "user$player.totalMoney": players["user$player"]["totalMoney"] + 1000000
+        });
       }
     }
 
-    // UI 먼저 갱신
     setState(() {
       players["user$player"]["position"] = changePosition;
     });
 
-    // DB 업데이트
     await fs.collection("games").doc("users").update({"user$player.position": changePosition});
 
     String tileKey = "b$changePosition";
+    bool forceNextTurn = false;
 
-    // 도착한 곳이 '땅(land)'일 경우
+    // --- 도착지 로직 ---
     if(boardList[tileKey] != null && boardList[tileKey]["type"] == "land"){
       final result = await showDialog(
           context: context,
@@ -116,23 +237,107 @@ class _GameMainState extends State<GameMain> {
             return ConstructionDialog(user: player, buildingId: changePosition);
           }
       );
-
-      // 건설 후 데이터 갱신
       if (result != null && result is Map) {
         setState(() {
           if (boardList[tileKey] == null) boardList[tileKey] = {};
           boardList[tileKey]["level"] = result["level"];
           boardList[tileKey]["owner"] = result["user"];
-          // 💡 [수정됨] 애니메이션 트리거 코드 삭제됨
         });
       }
-    } else if(changePosition == 30){
-      // 국세청 등 특수 지역 로직
+    }
+    else if(changePosition == 26){ // 국세청
       await showDialog(context: context, builder: (context)=>
           TaxDialog(user: player)
       );
     }
+    else if(changePosition == 14){ // 축제
+      bool hasMyLand = false;
+      boardList.forEach((key, val) {
+        int owner = int.tryParse(val['owner'].toString()) ?? 0;
+        if(val['type'] == 'land' && owner == player) {
+          hasMyLand = true;
+        }
+      });
+
+      if(hasMyLand) {
+        _triggerHighlight(player, "festival");
+      } else {
+        forceNextTurn = true;
+      }
+    }
+    else if(changePosition == 0){ // 출발
+      bool hasUpgradableLand = false;
+      boardList.forEach((key, val) {
+        int owner = int.tryParse(val['owner'].toString()) ?? 0;
+        int level = val['level'] ?? 0;
+        if(val['type'] == 'land' && owner == player && level < 4) {
+          hasUpgradableLand = true;
+        }
+      });
+
+      if(hasUpgradableLand) {
+        _triggerHighlight(player, "start");
+      } else {
+        forceNextTurn = true;
+      }
+    }
+    else if(changePosition == 21){ // 여행
+      setState(() {
+        players["user$player"]["isTraveling"] = true;
+      });
+      await fs.collection("games").doc("users").update({"user$player.isTraveling": true});
+      forceNextTurn = true;
+    }
+    else if(changePosition == 7){ // 무인도
+      forceNextTurn = true;
+      fs.collection("games").doc("users").update({
+        "user$player.islandCount" : 3
+      });
+    }
+
     _setPlayer();
+
+    // 💡 턴 넘기기
+    if (forceNextTurn || !isDouble) {
+      _nextTurn();
+    } else {
+      doubleCount++;
+      if (doubleCount >= 3) {
+        setState(() {
+          players["user$player"]["position"] = 7;
+        });
+        await fs.collection("games").doc("users").update({
+          "user$player.position": 7,
+          "user$player.islandCount": 3
+        });
+        _nextTurn();
+      }
+    }
+  }
+
+  void _nextTurn() {
+    setState(() {
+      doubleCount = 0;
+      int nextPlayer = currentTurn;
+      int safetyLoop = 0;
+
+      // N 타입 건너뛰기
+      do {
+        if (nextPlayer == 4) {
+          nextPlayer = 1;
+          totalTurn--;
+          if (totalTurn == 0) {
+            // 게임 종료 로직
+          }
+        } else {
+          nextPlayer++;
+        }
+        safetyLoop++;
+      } while ((players["user$nextPlayer"]?["type"] ?? "N") == "N" && safetyLoop < 10);
+
+      currentTurn = nextPlayer;
+      _checkAndStartTurn();
+    });
   }
 
   Future<void> rankChange() async{
@@ -182,7 +387,7 @@ class _GameMainState extends State<GameMain> {
       Map<String, dynamic> updates = {};
       int heritageIndex = 0;
 
-      for (int i = 1; i <= 31; i++) {
+      for (int i = 1; i <= 27; i++) {
         String key = "b$i";
         if (boardData[key] != null && boardData[key]['type'] == 'land') {
           if (heritageIndex < heritageList.length) {
@@ -262,39 +467,43 @@ class _GameMainState extends State<GameMain> {
     );
   }
 
-  // 📍 [애니메이션] 타일 인덱스를 화면 좌표로 변환
   Map<String, double> _getTilePosition(int index, double boardSize, double tileSize) {
     double top = 0;
     double left = 0;
 
-    if (index >= 0 && index <= 8) { // 하단
+    if (index >= 0 && index <= 7) {
       top = boardSize - tileSize;
       left = boardSize - tileSize - (index * tileSize);
-    } else if (index >= 9 && index <= 16) { // 좌측
+    }
+    else if (index >= 8 && index <= 14) {
       left = 0;
-      top = boardSize - tileSize - ((index - 8) * tileSize);
-    } else if (index >= 17 && index <= 24) { // 상단
+      top = boardSize - tileSize - ((index - 7) * tileSize);
+    }
+    else if (index >= 15 && index <= 21) {
       top = 0;
-      left = (index - 16) * tileSize;
-    } else if (index >= 25 && index <= 31) { // 우측
+      left = (index - 14) * tileSize;
+    }
+    else if (index >= 22 && index <= 27) {
       left = boardSize - tileSize;
-      top = (index - 24) * tileSize;
+      top = (index - 21) * tileSize;
     }
     return {'top': top, 'left': left};
   }
 
-  // 🏃‍♂️ [애니메이션] 움직이는 플레이어 위젯
   Widget _buildAnimatedPlayer(int playerIndex, double boardSize, double tileSize) {
     String userKey = "user${playerIndex + 1}";
+
+    // N 타입이면 표시 안 함
+    String type = players[userKey]?["type"] ?? "N";
+    if (type == "N") return const SizedBox();
+
     int position = players[userKey]?["position"] ?? 0;
 
     Map<String, double> pos = _getTilePosition(position, boardSize, tileSize);
 
-    // 겹치지 않게 미세 조정
     double offsetX = (tileSize / 2) - (4 * 11 / 2) + (playerIndex * 11);
     double offsetY = tileSize * 0.7;
 
-    // 색상 통일 (1:Red, 2:Blue, 3:Green, 4:Yellow)
     final List<Color> userColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
 
     return AnimatedPositioned(
@@ -321,22 +530,13 @@ class _GameMainState extends State<GameMain> {
       return Scaffold(
         backgroundColor: Colors.grey[900],
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset("assets/Logo.png", width: 80,),
-              const SizedBox(height: 30),
-              const CircularProgressIndicator(color: Colors.amber),
-              const SizedBox(height: 20),
-              const Text("문화재 정보를 불러오고 있습니다...", style: TextStyle(color: Colors.white, fontSize: 16)),
-            ],
-          ),
+          child: CircularProgressIndicator(color: Colors.amber),
         ),
       );
     }
     final double screenHeight = MediaQuery.of(context).size.height;
-    final double boardSize = screenHeight * 0.95;
-    final double tileSize = boardSize / 9;
+    final double boardSize = screenHeight * 0.8;
+    final double tileSize = boardSize / 8;
 
     return Scaffold(
       backgroundColor: Colors.grey[900],
@@ -344,21 +544,17 @@ class _GameMainState extends State<GameMain> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 1. [배경]
             Container(
               width: double.infinity, height: double.infinity,
               decoration: const BoxDecoration(
                 image: DecorationImage(image: AssetImage('assets/board-background.PNG'), fit: BoxFit.cover),
               ),
             ),
-
-            // 2. [보드판 영역]
             SizedBox(
               width: boardSize,
               height: boardSize,
               child: Stack(
                 children: [
-                  // (1) 중앙 주사위 앱
                   Center(
                     child: Container(
                       width: boardSize * 0.75,
@@ -367,28 +563,26 @@ class _GameMainState extends State<GameMain> {
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: DiceApp(
-                        onRoll: (int result, int turn) {
-                          movePlayer(result, turn);
-                        },
-                      ),
+                      // 💡 [수정됨] 주사위 화면 또는 안내 멘트 위젯 표시
+                      child: _highlightOwner == null
+                          ? DiceApp(
+                        turn: currentTurn,
+                        totalTurn: totalTurn,
+                        onRoll: (int v1, int v2) => _onDiceRoll(v1, v2),
+                      )
+                          : _showEventDialog(),
                     ),
                   ),
 
-                  // (2) 타일들 (0~31번)
-                  ...List.generate(32, (index) {
-                    return _buildGameTile(index, tileSize);
+                  ...List.generate(28, (index) {
+                    return _buildGameTile(index, tileSize, boardSize);
                   }),
-
-                  // (3) 애니메이션 플레이어 말 (최상단 레이어)
                   ...List.generate(4, (index) {
                     return _buildAnimatedPlayer(index, boardSize, tileSize);
                   }),
                 ],
               ),
             ),
-
-            // 3. [플레이어 정보 패널] (색상 순서 통일)
             _buildPlayerInfoPanel(alignment: Alignment.bottomRight, playerData: players['user1'], color: Colors.red, name : "user1"),
             _buildPlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'], color : Colors.blue, name : "user2"),
             _buildPlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'], color: Colors.green, name : "user3"),
@@ -399,13 +593,22 @@ class _GameMainState extends State<GameMain> {
     );
   }
 
-  // 플레이어 정보 패널
   Widget _buildPlayerInfoPanel({required Alignment alignment, required Map<String, dynamic> playerData, required Color color, required String name}) {
+    String type = playerData['type'] ?? "N";
+
+    if (type == "N") return const SizedBox();
+
+    // 💡 봇 이름 변경 로직 유지
+    String displayName = name;
+    if (type == "B") {
+      displayName = "bot";
+    }
+
     bool isTop = alignment.y < 0;
     bool isLeft = alignment.x < 0;
     Color bgColor = color;
-    String money = "${(playerData['money'] / 10000).floor()}만원";
-    String totalMoney = "${(playerData['totalMoney'] / 10000).floor()}만원";
+    String money = "${playerData['money']}";
+    String totalMoney = "${playerData['totalMoney']}";
     int rank = playerData['rank'];
 
     return Positioned(
@@ -430,7 +633,7 @@ class _GameMainState extends State<GameMain> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
+                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
                     const SizedBox(height: 2),
                     Text("소지금 : $money", style: const TextStyle(color: Colors.white, fontSize: 10)),
                     Text("총 자산 : $totalMoney", style: const TextStyle(color: Colors.white, fontSize: 10)),
@@ -456,29 +659,65 @@ class _GameMainState extends State<GameMain> {
     );
   }
 
-  // 타일 디자인 함수
-  Widget _buildGameTile(int index, double size) {
+  // 💡 [추가] 안내 멘트 위젯
+  Widget _showEventDialog() {
+    String eventText = "";
+    if(eventNow == "trip") eventText = "여행갈 땅을 선택해주세요!";
+    else if(eventNow == "festival") eventText = "축제가 열릴 땅을 선택해주세요!";
+    else if(eventNow == "start") eventText = "건설할 땅을 선택해주세요!";
+
+    // 여행 등 이벤트 발생 시 중앙에 표시될 위젯
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFDF5E6),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFC0A060), width: 4),
+          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+            const SizedBox(height: 10),
+            Text(
+              eventText,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameTile(int index, double size, double boardSize) {
     double? top, bottom, left, right;
-    if (index >= 0 && index <= 8) { bottom = 0; right = index * size; }
-    else if (index >= 9 && index <= 16) { left = 0; bottom = (index - 8) * size; }
-    else if (index >= 17 && index <= 24) { top = 0; left = (index - 16) * size; }
-    else if (index >= 25 && index <= 31) { right = 0; top = (index - 24) * size; }
+
+    if (index >= 0 && index <= 7) { bottom = 0; right = index * size; }
+    else if (index >= 8 && index <= 14) { left = 0; bottom = (index - 7) * size; }
+    else if (index >= 15 && index <= 21) { top = 0; left = (index - 14) * size; }
+    else if (index >= 22 && index <= 27) { right = 0; top = (index - 21) * size; }
 
     Color barColor = Colors.grey; IconData? icon; String label = ""; bool isSpecial = false;
 
     if (index == 0) { label = "출발"; icon = Icons.flag_circle; barColor = Colors.white; isSpecial = true; }
-    else if (index == 8) { label = "무인도"; icon = Icons.lock_clock; isSpecial = true; }
-    else if (index == 16) { label = "축제"; icon = Icons.celebration; isSpecial = true; }
-    else if (index == 24) { label = "여행"; icon = Icons.flight_takeoff; isSpecial = true; }
-    else if (index == 30) { label = "국세청"; icon = Icons.account_balance; isSpecial = true; }
-    else if ([4, 12, 20, 28].contains(index)) { label = "찬스"; icon = Icons.question_mark_rounded; barColor = Colors.orange; isSpecial = true; }
-    else if (index < 4) barColor = const Color(0xFFCFFFE5);
-    else if (index < 8) barColor = const Color(0xFF66BB6A);
-    else if (index < 12) barColor = const Color(0xFF42A5F5);
-    else if (index < 16) barColor = const Color(0xFFAB47BC);
-    else if (index < 20) barColor = const Color(0xFFFFEB00);
-    else if (index < 24) barColor = const Color(0xFF808080);
-    else if (index < 28) barColor = const Color(0xFFFF69B4);
+    else if (index == 7) { label = "무인도"; icon = Icons.lock_clock; isSpecial = true; }
+    else if (index == 14) { label = "축제"; icon = Icons.celebration; isSpecial = true; }
+    else if (index == 21) { label = "여행"; icon = Icons.flight_takeoff; isSpecial = true; }
+    else if (index == 26) { label = "국세청"; icon = Icons.account_balance; isSpecial = true; }
+    else if ([3, 10, 17, 24].contains(index)) { label = "찬스"; icon = Icons.question_mark_rounded; barColor = Colors.orange; isSpecial = true; }
+
+    else if (index < 3) barColor = const Color(0xFFCFFFE5);
+    else if (index < 7) barColor = const Color(0xFF66BB6A);
+    else if (index < 10) barColor = const Color(0xFF42A5F5);
+    else if (index < 14) barColor = const Color(0xFFAB47BC);
+    else if (index < 17) barColor = const Color(0xFFFFEB00);
+    else if (index < 21) barColor = const Color(0xFF808080);
+    else if (index < 24) barColor = const Color(0xFFFF69B4);
     else barColor = const Color(0xFFEF5350);
 
     String tileName = (boardList["b$index"] != null) ? boardList["b$index"]["name"] ?? "" : "";
@@ -502,124 +741,139 @@ class _GameMainState extends State<GameMain> {
     );
   }
 
-  // 💡 [수정됨] 일반 땅 내부 디자인 (이미지 제거 -> 레벨/소유자 뱃지 표시)
   Widget _buildLandContent(Color color, String name, int price, int index) {
     var tileData = boardList["b$index"] ?? {};
-    bool isFestival = boardList["b$index"]["isFestival"];
+    bool isFestival = itsFestival == index; // 💡 페스티벌 로직 유지
     double multiply = (tileData["multiply"] as num? ?? 0).toDouble();
-    int tollPrice = (price * multiply).round();
+    int buildLevel = tileData["level"] ?? 0;
 
-    multiply = isFestival ? multiply * 2 : multiply;
+    int levelvalue = 1;
+    switch (buildLevel) {
+      case 1: levelvalue = 2; break;
+      case 2: levelvalue = 6; break;
+      case 3: levelvalue = 14; break;
+      case 4: levelvalue = 40; break;
+    }
+    if (isFestival && multiply == 1) multiply *= 2;
+
+    int tollPrice = (price * multiply * levelvalue).round();
 
     int level = tileData["level"] ?? 0;
-    // 소유자 정보
     int owner = int.tryParse(tileData["owner"].toString()) ?? 0;
 
-    // 플레이어 색상 (0:없음, 1:Red, 2:Blue, 3:Green, 4:Yellow)
     final List<Color> ownerColors = [Colors.transparent, Colors.red, Colors.blue, Colors.green, Colors.yellow];
     Color badgeColor = (owner >= 1 && owner <= 4) ? ownerColors[owner] : Colors.transparent;
 
-    // 1. 전체를 Stack으로 감싸고 ClipRRect로 둥근 모서리를 정리합니다.
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6.0), // 타일 외곽선과 동일하게 맞춤
-      child: Stack(
-        children: [
-          // 2. 기존 내용물 (Column)
-          Column(
-            children: [
-              Expanded(
-                flex: 2,
-                child: Container(
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    color: color,
-                    // borderRadius는 상위 ClipRRect에서 처리하므로 제거해도 됨
-                  ),
-                  child: (multiply != 1)
-                      ? Padding(
-                        padding: const EdgeInsets.fromLTRB(3.0, 0, 0, 0),
-                        child: Text("X${multiply == multiply.toInt() ? multiply.toInt() : multiply}",
-                        style: TextStyle(color: Colors.black.withOpacity(0.7), fontSize: 6, fontWeight: FontWeight.bold)),
-                      )
-                      : null,
-                ),
-              ),
-              Expanded(
-                flex: 5,
-                child: Container(
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // 1️⃣ [배경] 축제 아이콘 (투명도 조절)
-                      // 만약 특정 조건(예: isFestival)일 때만 보여주려면 앞에 if문을 붙이세요.
+    bool shouldGlow = false;
+    if (_highlightOwner == -1) {
+      shouldGlow = true;
+    } else if (_highlightOwner != null && _highlightOwner == owner) {
+      if (eventNow == "start") {
+        if (level < 4) shouldGlow = true;
+      } else {
+        shouldGlow = true;
+      }
+    }
 
-                      Opacity(
-                        opacity: isFestival ? 0.15 : 0, // 0.1 ~ 0.2 정도로 아주 연하게 설정
-                        child: const Icon(
-                          Icons.celebration, // 요청하신 아이콘
-                          size: 30,       // 타일 크기에 맞춰 조절 (너무 크면 글씨 방해됨)
-                          color: Colors.purple, // 축제 느낌의 색상 (또는 Colors.black)
+    return GestureDetector(
+      onTap: () {
+        if (shouldGlow) {
+          _stopHighlight(index, eventNow);
+        } else {
+          // 지역 상세정보 보여주기
+        }
+      },
+      child: AnimatedBuilder(
+        animation: _glowController,
+        builder: (context, child) {
+          double glowValue = _glowAnimation.value;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6.0),
+                child: Stack(
+                  children: [
+                    Column(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.only(left: 3.0),
+                            decoration: BoxDecoration(color: color),
+                            child: (multiply != 1)
+                                ? Text("X${multiply == multiply.toInt() ? multiply.toInt() : multiply}",
+                                style: TextStyle(color: Colors.black.withOpacity(0.7), fontSize: 6, fontWeight: FontWeight.bold))
+                                : null,
+                          ),
+                        ),
+                        Expanded(
+                          flex: 5,
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Opacity(
+                                  opacity: isFestival ? 0.15 : 0,
+                                  child: const Icon(Icons.celebration, size: 30, color: Colors.purple),
+                                ),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (price > 0)
+                                      Text("${(tollPrice/10000).floor()}만", style: TextStyle(fontSize: 7, color: Colors.grey[600])),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (level > 0)
+                      Positioned(
+                        top: 0, right: 0,
+                        child: ClipPath(
+                          clipper: _TopRightTriangleClipper(),
+                          child: Container(
+                            width: 28, height: 28, color: badgeColor,
+                            alignment: Alignment.topRight,
+                            padding: const EdgeInsets.only(top: 3, right: 5),
+                            child: level != 4 ? Text("$level", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (owner == 4) ? Colors.black : Colors.white))
+                                : Icon(Icons.star, size: 11, color: (owner == 4) ? Colors.black : Colors.white),
+                          ),
                         ),
                       ),
-
-                      // 2️⃣ [전경] 텍스트 정보 (기존 Column)
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (price > 0)
-                            Text(
-                              "$tollPrice", // 위에서 계산된 tollPrice 변수 사용
-                              style: TextStyle(fontSize: 8, color: Colors.grey[600]),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
-
-          // ★ 3. [새로 추가됨] 우측 상단 대각선 배너
-          if (level > 0)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: ClipPath(
-                clipper: _TopRightTriangleClipper(), // 파일 하단에 정의한 클리퍼 사용
-                child: Container(
-                  width: 28, // 삼각형 너비 조절
-                  height: 28, // 삼각형 높이 조절
-                  color: badgeColor, // 소유자 색상
-                  alignment: Alignment.topRight, // 텍스트를 우상단으로 정렬
-                  padding: const EdgeInsets.only(top: 3, right: 5), // 텍스트 위치 미세 조정
-                  child: Text(
-                    "$level", // 숫자만 표시 (예: "1", "3")
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        // 노랑 배경일 때만 검은 글씨, 나머지는 흰 글씨
-                        color: (owner == 4) ? Colors.black : Colors.white
+              if (shouldGlow)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6.0),
+                      border: Border.all(color: Colors.amberAccent.withOpacity(0.8), width: 2.0 + (glowValue * 2.0)),
+                      boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.6 * glowValue), blurRadius: 5 + (glowValue * 10), spreadRadius: 2)],
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  // 특수 블록 내부 디자인
   Widget _buildSpecialContent(String label, IconData icon, bool isStart, int index) {
     return Container(
       decoration: BoxDecoration(
@@ -642,14 +896,12 @@ class _TopRightTriangleClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path();
-    // (0,0)은 컨테이너의 좌상단, (width, 0)은 우상단
-    path.moveTo(size.width, 0); // 우상단에서 시작
-    path.lineTo(0, 0); // 좌상단으로 선 긋기
-    path.lineTo(size.width, size.height); // 우하단으로 선 긋기
-    path.close(); // 다시 우상단으로 연결하여 삼각형 완성
+    path.moveTo(size.width, 0);
+    path.lineTo(0, 0);
+    path.lineTo(size.width, size.height);
+    path.close();
     return path;
   }
-
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

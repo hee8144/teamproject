@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'Construction.dart';
 
 class TakeoverDialog extends StatefulWidget {
   final int buildingId;
@@ -36,7 +37,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
     await _loadBoard();
     await _loadUser();
 
-    takeoverCost = tollPrice * 2;
+    takeoverCost = tollPrice * builtLevel * 2;
 
     setState(() => loading = false);
   }
@@ -46,7 +47,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
     if (!snap.exists) return;
 
     final data = snap.data()!;
-    data.forEach((_, value) {
+    data.forEach((index, value) {
       if (value is Map && value["index"] == widget.buildingId) {
         tollPrice = value["tollPrice"] ?? 0;
         builtLevel = value["level"] ?? 0;
@@ -124,9 +125,16 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
                   onPressed: canBuy
                       ? () async {
                     await _payment();
-                    Navigator.pop(context, {
-                      "user": widget.user,
-                      "index": widget.buildingId,
+                    Navigator.pop(context,{});
+                    WidgetsBinding.instance.addPostFrameCallback((_){
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (_) => ConstructionDialog(
+                          buildingId: widget.buildingId,
+                          user: widget.user,
+                        ),
+                      );
                     });
                   }
                       : null,
