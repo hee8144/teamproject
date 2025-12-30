@@ -374,7 +374,9 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
                     child: AspectRatio(
                       aspectRatio: 4 / 3,
                       child: Image.asset(
-                        'assets/cards/island_storm2.png', // 이미지 경로
+                        card.imageKey != null && card.imageKey!.isNotEmpty
+                            ? 'assets/cards/${card.imageKey}'
+                            : 'assets/cards/island_storm2.png', // 기본값
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Center(
