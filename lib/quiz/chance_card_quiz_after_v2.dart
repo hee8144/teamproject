@@ -2,34 +2,44 @@ import 'package:flutter/material.dart';
 import 'chance_card.dart';
 import 'chance_card_repository.dart';
 import 'package:confetti/confetti.dart';
-import 'package:flutter_animate/flutter_animate.dart'; // 안개 효과 애니메이션용
-import 'dart:ui'; // Blur 효과용 (ImageFilter)
+import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:ui';
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class ChanceCardQuizAfter extends StatefulWidget {
+class ChanceCardQuizAfterV2 extends StatefulWidget {
   final bool quizEffect;
 
-  const ChanceCardQuizAfter({
+  const ChanceCardQuizAfterV2({
     super.key,
     required this.quizEffect,
   });
 
+  // [테스트용 설정]
+  static bool isTestMode = true; 
+  
+  // [테스트용 가짜 유저 데이터]
+  static Map<String, dynamic> testUserMock = {
+    'card': 'N', // 'N', 'escape', 'sheild'
+    'turn': 0,
+    'money': 7000000,
+  };
+
   @override
-  State<ChanceCardQuizAfter> createState() => _ChanceCardQuizAfterState();
+  State<ChanceCardQuizAfterV2> createState() => _ChanceCardQuizAfterV2State();
 }
 
-class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
+class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     with TickerProviderStateMixin {
   late final AnimationController _rotateController;
   late final Animation<double> _rotation;
-
-  // 이로운 효과용 컨트롤러 (양쪽)
+  
   late ConfettiController _leftConfettiController;
   late ConfettiController _rightConfettiController;
 
   late final Future<ChanceCard> _cardFuture;
-
-  bool _isGood = true;
+  
+  bool _isGood = true; 
   bool _hasPlayedEffect = false;
 
   @override
@@ -53,7 +63,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
 
     _rotateController.forward();
 
-    // 양쪽 폭죽 컨트롤러 초기화
     _leftConfettiController = ConfettiController(duration: const Duration(seconds: 3));
     _rightConfettiController = ConfettiController(duration: const Duration(seconds: 3));
 
@@ -69,6 +78,122 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     _rightConfettiController.dispose();
     super.dispose();
   }
+  
+  // [핵심 로직] 카드 액션 처리 (테스트 모드 지원)
+  Future<void> _handleCardAction(ChanceCard card) async {
+    try {
+      String currentCard = 'N';
+      String docId = 'unknown';
+
+      // 1. 데이터 가져오기 (테스트 모드 분기)
+      if (ChanceCardQuizAfterV2.isTestMode) {
+        debugPrint("🛠️ [TestMode] 유저 데이터 조회 중...");
+        currentCard = ChanceCardQuizAfterV2.testUserMock['card'] ?? 'N';
+        docId = 'test_user_doc_id';
+        debugPrint("🛠️ [TestMode] 현재 보유 카드: $currentCard");
+      } else {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where('turn', isEqualTo: 0)
+            .limit(1)
+            .get();
+
+        if (snapshot.docs.isEmpty) {
+          if (mounted) Navigator.pop(context, card.description);
+          return;
+        }
+
+        final userDoc = snapshot.docs.first;
+        final userData = userDoc.data();
+        currentCard = userData['card'] ?? 'N';
+        docId = userDoc.id;
+      }
+
+      // 2. 뽑은 카드가 보관용 카드인지 판별
+      String? newCardCode;
+      if (card.action == 'c_escape') newCardCode = 'escape';
+      if (card.action == 'c_shield') newCardCode = 'sheild'; 
+
+      // 3. 로직 수행
+      if (newCardCode != null) {
+        if (currentCard == 'sheild' || currentCard == 'escape') {
+          // 이미 카드가 있음 -> 교체 팝업
+          if (mounted) {
+            _showReplaceDialog(docId, currentCard, newCardCode, card.title);
+          }
+        } else {
+          // 카드 없음 -> 바로 획득
+          await _updateUserCard(docId, newCardCode);
+          if (mounted) Navigator.pop(context, card.description);
+        }
+      } else {
+        // 즉시 효과 카드 등
+        if (mounted) Navigator.pop(context, card.description);
+      }
+    } catch (e) {
+      debugPrint("Error handling card action: $e");
+      if (mounted) Navigator.pop(context, card.description);
+    }
+  }
+
+  // [내부 함수] DB 업데이트 (테스트 모드 지원)
+  Future<void> _updateUserCard(String docId, String newCardCode) async {
+    if (ChanceCardQuizAfterV2.isTestMode) {
+      debugPrint("🛠️ [TestMode] DB 업데이트: card -> $newCardCode");
+      ChanceCardQuizAfterV2.testUserMock['card'] = newCardCode;
+    } else {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(docId)
+          .update({'card': newCardCode});
+    }
+  }
+
+  // 교체 팝업
+  void _showReplaceDialog(
+      String docId, String oldCardCode, String newCardCode, String newCardTitle) {
+    
+    final String oldCardName = (oldCardCode == 'escape') ? '무인도 탈출' : 'VIP 명찰';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("카드 보관함 확인", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          "현재 보유 중인 카드: '$oldCardName'\n새로 뽑은 카드: '$newCardTitle'\n\n새 카드로 교체하시겠습니까?",
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // 버리기
+              debugPrint("🛠️ [TestMode] 카드 버림 (기존 유지)");
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
+            },
+            child: const Text("버리기", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5D4037),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              // 교체하기
+              await _updateUserCard(docId, newCardCode);
+              
+              if (!mounted) return;
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
+            },
+            child: const Text("교체하기"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,40 +203,41 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
       color: Colors.transparent,
       child: Stack(
         children: [
-          // 1. 기본 어두운 배경
+          // 1. 배경
           Container(
             width: size.width,
             height: size.height,
             color: Colors.black.withOpacity(0.6),
           ),
-
-          // 2. [해로운 효과] 검은 안개 + 블러 (카드가 결정되고 나쁜 카드일 때 표시)
+          // 2. 해로운 효과 배경 (안개)
           if (_hasPlayedEffect && !_isGood)
             Positioned.fill(
               child: Animate()
-                  .fadeIn(duration: 1500.ms) // 서서히 나타남
+                  .fadeIn(duration: 1500.ms)
                   .custom(
                 builder: (context, value, child) {
                   return BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10 * value, sigmaY: 10 * value),
+                    filter: ImageFilter.blur(
+                      sigmaX: 10 * value,
+                      sigmaY: 10 * value,
+                    ),
                     child: Container(
-                      color: Colors.black.withOpacity(0.6 * value), // 점점 더 어두워짐
+                      color: Colors.black.withOpacity(0.6 * value),
                     ),
                   );
                 },
               ),
             ),
-
-          // 3. 카드 (중앙 배치)
+          // 3. 카드 회전 애니메이션 (UI 개선: backup 스타일 적용)
           Positioned.fill(
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: size.height * 0.5,
-                  maxHeight: size.height * 0.85,
+                  maxWidth: size.height * 0.6, // 너무 넓어지지 않게 제한
+                  maxHeight: size.height * 0.9,
                 ),
                 child: AspectRatio(
-                  aspectRatio: 2 / 3.2,
+                  aspectRatio: 2 / 3.2, // 카드 비율 고정
                   child: AnimatedBuilder(
                     animation: _rotation,
                     builder: (context, child) {
@@ -129,29 +255,26 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
               ),
             ),
           ),
-
-          // 4. [이로운 효과] 양쪽 폭죽
+          // 4. 이로운 효과 폭죽
           if (_hasPlayedEffect && _isGood) ...[
-            // 왼쪽에서 오른쪽 위로 발사
             Align(
               alignment: Alignment.centerLeft,
               child: ConfettiWidget(
                 confettiController: _leftConfettiController,
-                blastDirection: -pi / 3, // 오른쪽 위 대각선
+                blastDirection: -pi / 3,
                 emissionFrequency: 0.05,
                 numberOfParticles: 10,
                 maxBlastForce: 20,
                 minBlastForce: 10,
                 gravity: 0.2,
-                colors: const [Color(0xffbb0000), Color(0xffffffff)], // 요청하신 빨강/흰색
+                colors: const [Color(0xffbb0000), Color(0xffffffff)],
               ),
             ),
-            // 오른쪽에서 왼쪽 위로 발사
             Align(
               alignment: Alignment.centerRight,
               child: ConfettiWidget(
                 confettiController: _rightConfettiController,
-                blastDirection: -pi * 2 / 3, // 왼쪽 위 대각선
+                blastDirection: -pi * 2 / 3,
                 emissionFrequency: 0.05,
                 numberOfParticles: 10,
                 maxBlastForce: 20,
@@ -166,6 +289,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     );
   }
 
+  // [UI 디자인] backup.dart 스타일 적용
   Widget _buildCard() {
     return FutureBuilder<ChanceCard>(
       future: _cardFuture,
@@ -194,7 +318,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
               _isGood = nextIsGood;
               _hasPlayedEffect = true;
             });
-            // 이로운 효과일 때만 폭죽 실행
             if (_isGood) {
               _leftConfettiController.play();
               _rightConfettiController.play();
@@ -202,7 +325,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
           });
         }
 
-        // --- 기존 레이아웃 유지 ---
         return Container(
           decoration: BoxDecoration(
             color: const Color(0xFFFDF5E6),
@@ -218,9 +340,10 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
           ),
           child: Column(
             children: [
+              // 1. 헤더 (타이틀)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: const BoxDecoration(
                   color: Color(0xFF5D4037),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
@@ -229,7 +352,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                   card.title,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFFFD700),
                     letterSpacing: 1.2,
@@ -237,8 +360,9 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                 ),
               ),
 
+              // 2. 이미지 액자
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -250,7 +374,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                     child: AspectRatio(
                       aspectRatio: 4 / 3,
                       child: Image.asset(
-                        'assets/island_storm.png',
+                        'assets/cards/island_storm2.png', // 이미지 경로
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Center(
@@ -267,9 +391,10 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                 ),
               ),
 
+              // 3. 내용 및 버튼
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Column(
                     children: [
                       if (widget.quizEffect && !isCorrectionFailed)
@@ -278,7 +403,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                       if (isCorrectionFailed)
                         _infoChip("운이 따르지 않았습니다...", const Color(0xFFD84315)),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
 
                       Expanded(
                         child: SingleChildScrollView(
@@ -286,7 +411,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                             card.description,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 15,
+                              fontSize: 14,
                               height: 1.5,
                               color: Color(0xFF4E342E),
                               fontWeight: FontWeight.w600,
@@ -295,11 +420,11 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                         ),
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
 
                       SizedBox(
                         width: double.infinity,
-                        height: 44,
+                        height: 36,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF5D4037),
@@ -312,7 +437,8 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                           onPressed: () {
                             _leftConfettiController.stop();
                             _rightConfettiController.stop();
-                            Navigator.pop(context, card.description);
+                            // [로직 연결] 확인 버튼 누르면 DB 처리 함수 호출
+                            _handleCardAction(card);
                           },
                           child: const Text(
                             "확 인",
@@ -323,7 +449,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                     ],
                   ),
                 ),
@@ -337,16 +463,16 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
 
   Widget _infoChip(String text, Color textColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: textColor.withOpacity(0.1),
-        border: Border.all(color: textColor.withOpacity(0.5)),
+        border: Border.all(color: textColor.withOpacity(0.4)),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.bold,
           color: textColor,
         ),
