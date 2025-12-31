@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// ==================== 게임 대기방 ====================
 class GameWaitingRoom extends StatefulWidget {
-  final String? typesQuery; // 쿼리 파라미터로 전달받는 types
+  final String? typesQuery;
 
   const GameWaitingRoom({super.key, this.typesQuery});
 
@@ -19,24 +19,26 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   DocumentReference get _usersDoc =>
       _firestore.collection('games').doc('users');
 
-  // 슬롯을 변경할 때 DB에 바로 반영하지 않고 임시로 저장할 리스트
-  List<String> tempTypes = ['N', 'N', 'N', 'P']; // 첫 번째 슬롯에 'P' (플레이어 1) 설정
-  List<int> playerOrder = []; // 플레이어가 추가된 순서를 저장하는 리스트
+  List<String> tempTypes = ['N', 'N', 'N', 'P'];
+  List<int> playerOrder = [];
 
   @override
   void initState() {
     super.initState();
 
-    // 생성자에서 전달받은 typesQuery를 tempTypes에 반영
     if (widget.typesQuery != null) {
-      final typesList = widget.typesQuery!.split(',');
-      tempTypes = typesList;
+      tempTypes = widget.typesQuery!.split(',');
+    }
+
+    playerOrder = [];
+    if (tempTypes[3] != 'N') playerOrder.add(3);
+    if (tempTypes[0] != 'N') playerOrder.add(0);
+    for (int i = 1; i <= 2; i++) {
+      if (tempTypes[i] != 'N') playerOrder.add(i);
     }
   }
 
-  /* ================== Firestore helpers ================== */
-
-  // 게임 시작 버튼 클릭 시, 임시 리스트에 저장된 데이터를 DB에 반영
+  /// ================== 플레이어 type DB 반영 ==================
   Future<void> _updateUsersInDB() async {
     await _usersDoc.update({
       'user1.type': tempTypes[0],
@@ -46,14 +48,45 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     });
   }
 
+  /// ================== 게임 상태만 초기화 ==================
+  Future<void> _resetGameStateOnly() async {
+    final snapshot = await _usersDoc.get();
+    final data = snapshot.data() as Map<String, dynamic>?;
+
+    if (data == null) return;
+
+    Map<String, dynamic> updates = {};
+
+    for (int i = 1; i <= 4; i++) {
+      final user = data['user$i'];
+      if (user == null) continue;
+
+      final String type = user['type'];
+      if (type == 'P' || type == 'B') {
+        updates['user$i.money'] = 7000000;
+        updates['user$i.totalMoney'] = 7000000;
+        updates['user$i.position'] = 0;
+        updates['user$i.card'] = 'N';
+        updates['user$i.level'] = 1;
+        updates['user$i.rank'] = 0;
+        updates['user$i.turn'] = 0;
+        updates['user$i.double'] = 0;
+        updates['user$i.islandCount'] = 0;
+        updates['user$i.isTraveling'] = false;
+      }
+    }
+
+    if (updates.isNotEmpty) {
+      await _usersDoc.update(updates);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       body: Stack(
         children: [
-          // ================= 배경 =================
+          /// ================= 배경 =================
           Positioned.fill(
             child: Image.asset(
               'assets/background.png',
@@ -62,30 +95,34 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
           ),
           Container(color: Colors.black.withOpacity(0.05)),
 
-          // ================= 메인 =================
+          /// ================= 메인 =================
           SafeArea(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 🔹 Grid (남은 영역 전부 사용)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 50, 10, 10),
-                    child: _buildLandscapeGrid(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 50, 10, 10),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: _buildPlayerSlot(0)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildPlayerSlot(1)),
+                    ],
                   ),
-                ),
-              ],
+                  _buildStartButton(),
+                  Row(
+                    children: [
+                      Expanded(child: _buildPlayerSlot(2)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildPlayerSlot(3)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
 
-          // ================= 게임 시작 버튼 =================
-          Positioned(
-            bottom: size.height / 2 - 50,
-            left: size.width / 2 - 30,
-            child: _buildStartButton(),
-          ),
-
-          // ================= 나가기 버튼 =================
+          /// ================= 나가기 버튼 =================
           Positioned(
             top: 12,
             left: 12,
@@ -101,103 +138,89 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
     );
   }
 
-  /* ================== 가로 ================== */
-  Widget _buildLandscapeGrid() {
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 10,
-        childAspectRatio: 3.3,
-      ),
-      itemCount: 4,
-      itemBuilder: (_, index) => _buildPlayerSlot(index),
-    );
-  }
-
   /* ================== 슬롯 ================== */
   Widget _buildPlayerSlot(int index) {
     final String type = tempTypes[index];
     final bool isEmpty = type == 'N';
+
     final int playerNumber =
     isEmpty ? playerOrder.length + 1 : playerOrder.indexOf(index) + 1;
 
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFFDF5E6).withOpacity(isEmpty ? 0.6 : 1.0),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: const Color(0xFFD7C0A1),
-              width: 1.5,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 180, minHeight: 120),
+      child: AspectRatio(
+        aspectRatio: 4 / 1,
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDF5E6)
+                    .withOpacity(isEmpty ? 0.6 : 1.0),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFD7C0A1), width: 1.5),
+              ),
+              child: Center(
+                child: isEmpty
+                    ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _updateTempUser(index, 'B'),
+                      child: _buildAddButton(Icons.android),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => _updateTempUser(index, 'P'),
+                      child: _buildAddButton(Icons.person_add),
+                    ),
+                  ],
+                )
+                    : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      type == 'B' ? Icons.android : Icons.person,
+                      size: 30,
+                      color: const Color(0xFF5D4037),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      type == 'B'
+                          ? '봇$playerNumber'
+                          : '플레이어$playerNumber',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF5D4037),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          child: Center(
-            child: isEmpty
-                ? Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    _updateTempUser(index, 'B');
-                  },
-                  child: _buildAddButton(Icons.android),
+            if (!isEmpty && index != 3)
+              Positioned(
+                top: 14,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => _updateTempUser(index, 'N'),
+                  child: _buildCircleIcon(Icons.close),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    _updateTempUser(index, 'P');
-                  },
-                  child: _buildAddButton(Icons.person_add),
-                ),
-              ],
-            )
-                : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  type == 'B' ? Icons.android : Icons.person,
-                  size: 30,
-                  color: const Color(0xFF5D4037),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  type == 'B'
-                      ? '봇${playerNumber + 1}'
-                      : '플레이어${playerNumber + 1}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF5D4037),
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
-        if (!isEmpty && index != 3)
-          Positioned(
-            top: 14,
-            right: 8,
-            child: GestureDetector(
-              onTap: () {
-                _updateTempUser(index, 'N');
-              },
-              child: _buildCircleIcon(Icons.close),
-            ),
-          ),
-      ],
+      ),
     );
   }
 
-  /* ================== 임시 상태 업데이트 ================== */
+  /* ================== 상태 변경 ================== */
   void _updateTempUser(int index, String type) {
     setState(() {
       tempTypes[index] = type;
       if (type != 'N') {
-        playerOrder.add(index);
+        if (!playerOrder.contains(index)) {
+          playerOrder.add(index);
+        }
       } else {
         playerOrder.remove(index);
       }
@@ -206,15 +229,26 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
 
   /* ================== 게임 시작 버튼 ================== */
   Widget _buildStartButton() {
-    bool canStart = tempTypes.where((t) => t != 'N').length >= 2;
-    return ElevatedButton(
-      onPressed: canStart
-          ? () async {
-        await _updateUsersInDB();
-        context.go('/gameMain');
-      }
-          : null,
-      child: const Text('게임 시작!'),
+    final bool canStart =
+        tempTypes.where((t) => t != 'N').length >= 2;
+
+    return SizedBox(
+      height: 44,
+      child: ElevatedButton(
+        onPressed: canStart
+            ? () async {
+          // 1️⃣ 플레이어 구성 반영
+          await _updateUsersInDB();
+
+          // 2️⃣ 게임 상태 초기화
+          await _resetGameStateOnly();
+
+          // 3️⃣ 게임 시작
+          context.go('/gameMain');
+        }
+            : null,
+        child: const Text('게임 시작!'),
+      ),
     );
   }
 
@@ -235,7 +269,7 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFFFDF5E6).withOpacity(0.9),
+        color: Colors.white.withOpacity(0.9),
         border: Border.all(color: const Color(0xFFD7C0A1), width: 2),
       ),
       child: Icon(icon, size: 20, color: const Color(0xFF5D4037)),
