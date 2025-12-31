@@ -22,7 +22,10 @@ final GoRouter router = GoRouter(
     GoRoute(path: '/', builder: (context, state) => Login()),
     GoRoute(path: '/main', builder: (context, state) => MainScreen()),
     GoRoute(path: '/gameRule', builder: (context, state) => GameRulePage()),
-    GoRoute(path: '/gameWaitingRoom', builder: (context, state) => GameWaitingRoom()),
+    GoRoute(path: '/gameWaitingRoom', builder: (context, state) {
+      final types = state.uri.queryParameters['types'];
+      return GameWaitingRoom(typesQuery: types);
+    },),
     GoRoute(path: '/gameResult', builder: (context, state) => GameResult()),
     // 게임 시작 페이지
     GoRoute(path: '/gameMain', builder: (context, state) => GameMain())

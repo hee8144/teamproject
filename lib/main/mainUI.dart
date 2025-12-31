@@ -155,38 +155,48 @@ class MainScreen extends StatelessWidget {
 
   /* ===================== 룰 버튼 ===================== */
   Widget _buildRuleButtonLarge({required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 130,
-        height: 130,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          border: Border.all(
-            color: const Color(0xFFE6AD5C),
-            width: 3.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        splashColor: Colors.brown.withValues(alpha: 0.2),
+        highlightColor: Colors.brown.withValues(alpha: 0.12),
+        hoverColor: Colors.brown.withValues(alpha: 0.08),
+        child: Container(
+          width: 130,
+          height: 130,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Image.asset(
-            'assets/game_rule.png',
-            fit: BoxFit.contain,
+            border: Border.all(
+              color: const Color(0xFFE6AD5C),
+              width: 3.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Image.asset(
+              'assets/game_rule.png',
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       ),
     );
   }
+
+
 }
