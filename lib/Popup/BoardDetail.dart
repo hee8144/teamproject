@@ -63,14 +63,10 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       if(_BoardDetail["isFestival"]){
         isFestival=2;
       }
-      takeoverCost = baseToll *levelMulti;
-      toll = baseToll * isFestival * multiply * levelMulti;
+      takeoverCost = baseToll *levelMulti * 2;
+      toll = baseToll * isFestival * multiply * levelMulti * 2;
 
     }
-    print(baseToll);
-    print(isFestival);
-    print(multiply);
-    print(levelMulti);
   }
 
   @override
@@ -79,11 +75,12 @@ class _BoardDetailPopupState extends State<BoardDetail> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero,
       child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 900, // 정보가 많으므로 가로 폭을 조금 넓혔습니다.
-            maxHeight: size.height * 1,
+            maxHeight: size.height * 0.8,
           ),
           child: Container(
             decoration: BoxDecoration(
@@ -163,7 +160,6 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       title: "건설 비용",
       icon: Icons.foundation,
       content: {
-        "대지": baseToll ,
         "빌라": baseToll * 2,
         "빌딩": baseToll * 4,
         "호텔": baseToll * 8,
@@ -184,6 +180,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
             color: const Color(0xFFEFEBE9),
           ),
         ),
+        SizedBox(height: 10,),
         Expanded(
           child: _buildInfoCard(
             title: "현재 통행료",
@@ -192,6 +189,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
             color: const Color(0xFFFFF3E0),
           ),
         ),
+        SizedBox(height: 10,),
         _buildBottomButton()
       ],
     );
@@ -243,7 +241,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF5D4037),
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
         ),
         onPressed: () => Navigator.pop(context),
         child: const Text("확인", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
