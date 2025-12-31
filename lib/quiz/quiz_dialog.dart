@@ -236,7 +236,8 @@ class _QuizDialogState extends State<QuizDialog>
       crossAxisCount: 2,
       crossAxisSpacing: 8,
       mainAxisSpacing: 8,
-      childAspectRatio: 3.0,
+      childAspectRatio: 3.4,
+      physics: const NeverScrollableScrollPhysics(),
       children: List.generate(
         widget.question.choices.length,
             (i) => _choiceButton(context, i, widget.question.choices[i]),
@@ -257,19 +258,23 @@ class _QuizDialogState extends State<QuizDialog>
         child: Row(
           children: [
             Container(
-              width: 28,
+              width: 24,
               color: const Color(0xFF5D4037),
               alignment: Alignment.center,
               child: Text("${index + 1}",
-                  style: const TextStyle(color: Colors.white)),
+                  style: const TextStyle(color: Colors.white, fontSize: 12)),
             ),
             Expanded(
-              child: Center(
-                child: Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Center(
+                  child: Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),

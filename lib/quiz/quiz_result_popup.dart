@@ -44,7 +44,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Stack(
         children: [
           // 배경 오버레이
@@ -81,7 +81,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                     // 상단 타이틀 바
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: const BoxDecoration(
                         color: Color(0xFF5D4037),
                         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
@@ -109,8 +109,8 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(resultIcon, size: 80, color: themeColor),
-                                  const SizedBox(height: 16),
+                                  Icon(resultIcon, size: 70, color: themeColor),
+                                  const SizedBox(height: 10),
                                   Text(
                                     resultTitle,
                                     style: TextStyle(
@@ -142,12 +142,12 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                                   const Text(
                                     "💡 상세 해설",
                                     style: TextStyle(
-                                      fontSize: 18,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                       color: Color(0xFF4E342E),
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 10),
                                   
                                   // 해설 내용을 스크롤 가능하게 배치
                                   Expanded(
@@ -156,7 +156,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                                     ),
                                   ),
                                   
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 10),
                                   
                                   Align(
                                     alignment: Alignment.centerRight,
@@ -172,7 +172,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                                       onPressed: () => Navigator.pop(context),
                                       child: const Text(
                                         "확인",
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                                       ),
                                     ),
                                   ),
@@ -200,7 +200,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
@@ -221,7 +221,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
               widget.question.choices[widget.selectedIndex],
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFC62828),
                 decoration: TextDecoration.lineThrough,
@@ -269,7 +269,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
           child: Text(
             titleSection,
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: widget.isCorrect ? Colors.green[800] : Colors.red[800],
             ),
@@ -297,18 +297,18 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                     Text(
                       "문화재 정보",
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF5D4037),
                       ),
                     ),
                   ],
                 ),
-                const Divider(height: 16, color: Color(0xFFEFEBE9)),
+                const Divider(height: 14, color: Color(0xFFEFEBE9)),
                 Text(
                   bodySection,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 13,
                     height: 1.6,
                     color: Color(0xFF3E2723),
                   ),

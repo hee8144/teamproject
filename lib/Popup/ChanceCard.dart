@@ -44,6 +44,7 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
       await showDialog(
         context: context,
         barrierDismissible: false,
+        useSafeArea: false, // 💡 전체 화면
         builder: (_) => QuizDialog(
           question: question!,
           onQuizFinished: (index, correct) {
@@ -57,6 +58,7 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
       await showDialog(
         context: context,
         barrierDismissible: false,
+        useSafeArea: false, // 💡 전체 화면
         builder: (_) => QuizResultPopup(
           isCorrect: isCorrect,
           question: question!,
@@ -69,8 +71,9 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
     await showDialog(
       context: context,
       barrierDismissible: false,
+      useSafeArea: false, // 💡 전체 화면
       builder: (_) => ChanceCardQuizAfter(
-        quizEffect: isCorrect,
+        quizEffect: isCorrect, storedCard: '',
       ),
     );
 

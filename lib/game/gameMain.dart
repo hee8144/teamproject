@@ -144,7 +144,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 3. 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(6, currentTurn, isDouble);
+    movePlayer(7, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
@@ -668,27 +668,42 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         }
       }
 
+      final String storedCard = players["user$player"]?["card"] ?? "N";
+
       if (mounted) {
         // 💡 [수정] action 값 받기 (String?)
         final String? actionResult = await showDialog<String>(
           context: context,
+          useSafeArea: false, // 💡 전체 화면 사용
           barrierDismissible: false,
           builder: (context) => ChanceCardQuizAfter(
             quizEffect: isCorrect,
+            storedCard: storedCard,
           ),
         );
 
         // 💡 [추가] 액션에 따른 로직 실행
-        if (actionResult != null) {
-          print("찬스카드 액션 실행: $actionResult");
-          if (actionResult == "move_start") {
-            _movePlayerTo(0, player);
-            return; // 이동 후 종료
-          } else if (actionResult == "go_island") {
-            _movePlayerTo(7, player);
-            return; // 이동 후 종료
-          }
-          // 다른 액션도 여기서 처리 가능 (예: 돈 획득 등)
+        if (actionResult == null) return;
+
+        if (actionResult.startsWith("store:") ||
+            actionResult.startsWith("replace:")) {
+          final cardKey = actionResult.split(":")[1].replaceFirst("c_", "");
+          await fs.collection("games").doc("users").update({
+            "user$player.card": cardKey,
+          });
+        }
+
+        else if (actionResult == "discard") {
+          // 아무것도 안 함
+        }
+
+        else if (actionResult == "move_start") {
+          _movePlayerTo(0, player);
+          return;
+        }
+        else if (actionResult == "go_island") {
+          _movePlayerTo(7, player);
+          return;
         }
       }
       await _readPlayer();
