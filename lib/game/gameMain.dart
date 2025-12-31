@@ -146,7 +146,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 3. 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(7, currentTurn, isDouble);
+    movePlayer(6, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
