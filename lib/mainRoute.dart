@@ -23,7 +23,20 @@ final GoRouter router = GoRouter(
     GoRoute(path: '/main', builder: (context, state) => MainScreen()),
     GoRoute(path: '/gameRule', builder: (context, state) => GameRulePage()),
     GoRoute(path: '/gameWaitingRoom', builder: (context, state) => GameWaitingRoom()),
-    GoRoute(path: '/gameResult', builder: (context, state) => GameResult()),
+    GoRoute(
+      path: '/gameResult',
+      builder: (context, state) {
+        // ✅ GoRouter 7.x 이상에서는 state.uri.queryParameters 사용
+        final victoryType = state.uri.queryParameters['victoryType'] ?? 'turn_limit';
+        final winnerName = state.uri.queryParameters['winnerName'];
+        return GameResult(
+          victoryType: victoryType,
+          winnerName: winnerName,
+        );
+      },
+    ),
+
+
     // 게임 시작 페이지
     GoRoute(path: '/gameMain', builder: (context, state) => GameMain())
 
