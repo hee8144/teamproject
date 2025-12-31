@@ -48,6 +48,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   late Animation<double> _glowAnimation;
   int? _highlightOwner;
 
+  // 💡 돈 변화 이펙트
   Map<String, String?> _moneyEffects = {};
 
   List<Map<String, dynamic>> localList = [
@@ -919,6 +920,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           useSafeArea: false,
           context: context,
           barrierDismissible: false,
+          useSafeArea: false,
           builder: (context) => ChanceCardQuizAfter(
             quizEffect: isCorrect, storedCard: players["user$player"]["card"],
           ),

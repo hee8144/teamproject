@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// ==================== 게임 대기방 ====================
+/// ==================== 게임 대기방 =================
 class GameWaitingRoom extends StatefulWidget {
-  final String? typesQuery;
-
-  const GameWaitingRoom({super.key, this.typesQuery});
+  GameWaitingRoom({super.key}); // const 제거, typesQuery 제거
 
   @override
   State<GameWaitingRoom> createState() => _GameWaitingRoomState();
@@ -25,17 +23,42 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
   @override
   void initState() {
     super.initState();
+    _initializePlayersFromDB();
+  }
 
-    if (widget.typesQuery != null) {
-      tempTypes = widget.typesQuery!.split(',');
+  /// ================== DB에서 한 번만 플레이어 타입 초기화 ==================
+  Future<void> _initializePlayersFromDB() async {
+    final snapshot = await _usersDoc.get();
+    final data = snapshot.data() as Map<String, dynamic>?;
+
+    if (data == null) return;
+
+    List<String> types = ['N', 'N', 'N', 'N'];
+    for (int i = 1; i <= 4; i++) {
+      final user = data['user$i'];
+      if (user == null || user['type'] == null) continue;
+
+      String dbType = user['type'];
+      // D → P, BD → B 처리
+      if (dbType == 'D') {
+        types[i - 1] = 'P';
+      } else if (dbType == 'BD') {
+        types[i - 1] = 'B';
+      } else {
+        types[i - 1] = dbType;
+      }
     }
 
-    playerOrder = [];
-    if (tempTypes[3] != 'N') playerOrder.add(3);
-    if (tempTypes[0] != 'N') playerOrder.add(0);
-    for (int i = 1; i <= 2; i++) {
-      if (tempTypes[i] != 'N') playerOrder.add(i);
-    }
+    setState(() {
+      tempTypes = types;
+
+      playerOrder = [];
+      if (tempTypes[3] != 'N') playerOrder.add(3);
+      if (tempTypes[0] != 'N') playerOrder.add(0);
+      for (int i = 1; i <= 2; i++) {
+        if (tempTypes[i] != 'N') playerOrder.add(i);
+      }
+    });
   }
 
   /// ================== 플레이어 type DB 반영 ==================
