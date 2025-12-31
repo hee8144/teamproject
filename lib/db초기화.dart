@@ -42,10 +42,11 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
   final TextEditingController _typeController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _tollController = TextEditingController();
+  final TextEditingController _groupController = TextEditingController(); // 💡 그룹 수정용 컨트롤러 추가
 
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
-  // [기능 1] 28칸 전체 초기화 (수정됨)
+  // [기능 1] 28칸 전체 초기화 (그룹 추가됨)
   Future<void> _initializeBoardLayout() async {
     Map<String, dynamic> fullBoardData = {};
     int landCount = 0;
@@ -56,13 +57,13 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
       String type = "land";
       String? name;
 
-      // 💡 1. 7칸 기준 특수 블록 지정
+      // 1. 특수 블록 지정
       if (i == 0) { type = "start"; name = "출발지"; }
-      else if (i == 7) { type = "island"; name = "무인도"; } // 8 -> 7
-      else if (i == 14) { type = "festival"; name = "지역축제"; } // 16 -> 14
-      else if (i == 21) { type = "travel"; name = "국내여행"; } // 24 -> 21
-      else if (i == 26) { type = "tax"; name = "국세청"; } // 30 -> 26
-      else if ([3, 10, 17, 24].contains(i)) { type = "chance"; name = "찬스"; } // 찬스 위치 변경
+      else if (i == 7) { type = "island"; name = "무인도"; }
+      else if (i == 14) { type = "festival"; name = "지역축제"; }
+      else if (i == 21) { type = "travel"; name = "국내여행"; }
+      else if (i == 26) { type = "tax"; name = "국세청"; }
+      else if ([3, 10, 17, 24].contains(i)) { type = "chance"; name = "찬스"; }
 
       Map<String, dynamic> blockData = {
         "index": i,
@@ -70,9 +71,25 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
         "name": name,
       };
 
-      // 2. 땅(land)일 때만 가격 계산 로직 수행
+      // 2. 땅(land)일 때만 그룹 및 가격 계산 로직 수행
       if (type == "land") {
         int calculatedToll = 100000 + (landCount * 10000);
+
+        // 💡 [그룹 할당 로직]
+        // 1라인: 2개 / 3개
+        // 2라인: 2개 / 3개
+        // 3라인: 2개 / 3개
+        // 4라인: 2개 / 2개 (26번 국세청 제외)
+        int group = 0;
+
+        if (i == 1 || i == 2) group = 1;
+        else if (i >= 4 && i <= 6) group = 2;
+        else if (i == 8 || i == 9) group = 3;
+        else if (i >= 11 && i <= 13) group = 4;
+        else if (i == 15 || i == 16) group = 5;
+        else if (i >= 18 && i <= 20) group = 6;
+        else if (i == 22 || i == 23) group = 7;
+        else if (i == 25 || i == 27) group = 8; // 26번은 국세청이라 제외
 
         blockData.addAll({
           "name": "일반 땅 ${landCount + 1}",
@@ -81,6 +98,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
           "tollPrice": calculatedToll,
           "isFestival": false,
           "multiply": 1,
+          "group": group, // 💡 그룹 정보 저장 (1~8)
         });
         landCount++;
       }
@@ -91,7 +109,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
       await _fs.collection("games").doc("board").set(fullBoardData);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("초기화 완료! (총 28칸, 땅 $landCount개)")),
+          SnackBar(content: Text("초기화 완료! (땅 $landCount개, 그룹 1~8 할당)")),
         );
       }
     } catch (e) {
@@ -101,7 +119,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     }
   }
 
-  // [기능 2] 필드 추가 (기존 유지)
+  // [기능 2] 필드 추가 (기존 + 그룹 필드 없는 경우 0으로 추가)
   Future<void> _addFestivalFields() async {
     try {
       DocumentReference boardRef = _fs.collection("games").doc("board");
@@ -113,19 +131,24 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
 
       boardData.forEach((key, val) {
         if (val is Map && val['type'] == 'land') {
-          val['isFestival'] = false;
-          val['multiply'] = 1;
+          // 기존 필드 보장
+          if (val['isFestival'] == null) val['isFestival'] = false;
+          if (val['multiply'] == null) val['multiply'] = 1;
+
+          // 💡 그룹 정보가 없으면 기본값 0 추가 (가급적 초기화를 다시 하시는 게 좋습니다)
+          if (val['group'] == null) val['group'] = 0;
+
           updateCount++;
         }
       });
       await boardRef.update(boardData);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("총 $updateCount개 필드 추가 완료!")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("총 $updateCount개 필드 갱신 완료!")));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("에러: $e")));
     }
   }
 
-  // [기능 3] 개별 수정
+  // [기능 3] 개별 수정 (그룹 수정 기능 추가)
   Future<void> _updateSingleBlock() async {
     String key = _keyController.text.trim();
     if (key.isEmpty) return;
@@ -140,6 +163,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
           "tollPrice": int.tryParse(_tollController.text) ?? 100000,
           "isFestival": false,
           "multiply": 1,
+          "group": int.tryParse(_groupController.text) ?? 0, // 💡 그룹 수정 반영
         }
       };
       await _fs.collection("games").doc("board").set({key: data}, SetOptions(merge: true));
@@ -149,7 +173,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     }
   }
 
-  // [기능 4] 퀴즈 데이터 초기화 (기존 유지)
+  // [기능 4] 퀴즈 데이터 초기화
   Future<void> _initializeQuizData() async {
     Map<String, dynamic> quizData = {};
     for (int i = 1; i <= 24; i++) {
@@ -171,7 +195,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
     }
   }
 
-  // [기능 5] 유저 데이터 초기화 (기존 유지)
+  // [기능 5] 유저 데이터 초기화
   Future<void> _initializeUserData() async {
     Map<String, dynamic> usersData = {};
 
@@ -219,7 +243,7 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
             _buildSectionContainer(
               color: Colors.blue,
               title: "🚀 보드 초기화 (b0~b27)",
-              desc: "28칸 7x4 레이아웃으로 보드를 초기화합니다.",
+              desc: "28칸 레이아웃 + 그룹(1~8) 할당하여 초기화합니다.",
               btnText: "보드 생성하기",
               onPressed: _initializeBoardLayout,
             ),
@@ -228,9 +252,9 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
             // 섹션 2: 필드 추가
             _buildSectionContainer(
               color: Colors.orange,
-              title: "🎉 축제 필드 추가",
-              desc: "기존 land에 isFestival, multiply를 추가합니다.",
-              btnText: "필드 추가하기",
+              title: "🎉 필드 갱신",
+              desc: "기존 데이터에 빠진 필드(group 등)를 추가합니다.",
+              btnText: "필드 갱신하기",
               onPressed: _addFestivalFields,
             ),
             const SizedBox(height: 20),
@@ -267,6 +291,8 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
             TextField(controller: _nameController, decoration: const InputDecoration(labelText: "이름", border: OutlineInputBorder())),
             const SizedBox(height: 10),
             TextField(controller: _tollController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "통행료", border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: _groupController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "그룹 (1~8)", border: OutlineInputBorder())),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
