@@ -920,7 +920,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           useSafeArea: false,
           context: context,
           barrierDismissible: false,
-          useSafeArea: false,
           builder: (context) => ChanceCardQuizAfter(
             quizEffect: isCorrect, storedCard: players["user$player"]["card"],
           ),
