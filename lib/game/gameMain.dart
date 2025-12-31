@@ -829,7 +829,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           context: context,
           barrierDismissible: false,
           builder: (context) => ChanceCardQuizAfter(
-            quizEffect: isCorrect,
+            quizEffect: isCorrect, storedCard: players["user$player"]["card"],
           ),
         );
 
