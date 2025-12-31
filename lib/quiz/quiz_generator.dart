@@ -139,41 +139,33 @@ class QuizGenerator {
     );
   }
 
-  // [유틸] 보기 섞기 (빈칸 방지 로직 포함)
   static List<String> _createChoices(String correct, List<String> wrongPool) {
     final random = Random();
-    final Set<String> choicesSet = {};
+    final Set<String> choicesSet = {correct}; // 정답을 먼저 넣음
     
-    // 빈 문자열 제거
-    wrongPool.removeWhere((element) => element.trim().isEmpty);
+    // 오답 풀에서 빈 값 및 정답과 겹치는 값 제거
+    final List<String> cleanWrongPool = wrongPool
+        .where((e) => e.trim().isNotEmpty && e != correct)
+        .toList();
 
-    // 오답 3개 뽑기
-    int retryCount = 0;
-    while (choicesSet.length < 3 && wrongPool.isNotEmpty) {
-      final wrong = wrongPool[random.nextInt(wrongPool.length)];
-      if (wrong != correct) {
-        choicesSet.add(wrong);
-      }
-      
-      // 무한루프 방지
-      retryCount++;
-      if (retryCount > 20) break;
+    // 4개가 될 때까지 오답 추가
+    while (choicesSet.length < 4 && cleanWrongPool.isNotEmpty) {
+      final wrong = cleanWrongPool[random.nextInt(cleanWrongPool.length)];
+      choicesSet.add(wrong);
+      cleanWrongPool.remove(wrong); // 중복 방지를 위해 사용한 값은 제거
     }
     
-    // 그래도 부족하면 더미 추가
-    if (choicesSet.length < 3) {
-       final dummies = ['경복궁', '불국사', '석굴암'];
+    // 그래도 부족하면(데이터가 정말 없을 때) 더미 데이터 추가
+    if (choicesSet.length < 4) {
+       final dummies = ['경복궁', '불국사', '석굴암', '첨성대', '다보탑'];
        for (var d in dummies) {
-         if (d != correct && !choicesSet.contains(d)) {
-           choicesSet.add(d);
-           if (choicesSet.length == 3) break;
-         }
+         if (choicesSet.length >= 4) break;
+         choicesSet.add(d);
        }
     }
 
     final List<String> choices = choicesSet.toList();
-    choices.add(correct);
-    choices.shuffle();
+    choices.shuffle(); // 골고루 섞음
     
     return choices;
   }

@@ -13,7 +13,7 @@ import '../quiz/quiz_repository.dart';
 import '../quiz/quiz_question.dart';
 import '../quiz/quiz_dialog.dart';
 import '../quiz/quiz_result_popup.dart';
-import '../quiz/chance_card_quiz_after_v2.dart';
+import '../quiz/chance_card_quiz_after.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -144,7 +144,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 3. 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(7, currentTurn, isDouble);
+    movePlayer(6, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
@@ -673,7 +673,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         final String? actionResult = await showDialog<String>(
           context: context,
           barrierDismissible: false,
-          builder: (context) => ChanceCardQuizAfterV2(
+          builder: (context) => ChanceCardQuizAfter(
             quizEffect: isCorrect,
           ),
         );
