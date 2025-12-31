@@ -187,7 +187,9 @@ class _BoardAdminPageState extends State<BoardAdminPage> {
         'type': "N",
         'double' : 0,
         'islandCount' : 0,
-        "isTraveling" : false
+        "isTraveling" : false,
+        "restCount" : 0,
+        "isDoubleToll" : false
       };
     }
 

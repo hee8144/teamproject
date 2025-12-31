@@ -17,6 +17,7 @@ import 'Travel.dart';
 import 'Origin.dart';
 import 'Detail.dart';
 import 'BoardDetail.dart';
+import 'CardUse.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -123,6 +124,10 @@ class TaxPage extends StatelessWidget {
                       ),
                     ),
                   ),
+                  ElevatedButton(onPressed: (){
+                    showDialog(context: context, builder: (context)=>CardUseDialog(user: 3));
+                  }, child: Text("카드사용"))
+
                 ],
               ),
               Row(
@@ -200,7 +205,7 @@ class TaxPage extends StatelessWidget {
                     if(result != null){
                       showDialog(context: context, builder: (context)=>BoardDetail(boardNum: 1,data:result));
                     }
-                  }, child: Text("디테일"))
+                  }, child: Text("디테일")),
                 ],
               )
             ],
