@@ -1181,7 +1181,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   void _gameOver(String reason, {int? winnerIndex}) {
-    context.go('/gameResult');
+    int winIndex = winnerIndex ?? 0;
+    context.go('/gameResult?victoryType=$reason&winnerName=$winIndex');
   }
 
   Future<void> rankChange() async {
