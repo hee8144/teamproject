@@ -167,11 +167,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
 
                         if (!mounted) return;
 
-                        if (Card == "shield") {
                           Navigator.pop(context, true);
-                        } else if (Card == "escape") {
-                          Navigator.pop(context, false);
-                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF8D6E63),

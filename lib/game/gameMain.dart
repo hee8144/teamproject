@@ -11,6 +11,7 @@ import '../Popup/Takeover.dart';
 import '../Popup/Island.dart';
 import '../Popup/BoardDetail.dart';
 import '../Popup/Detail.dart';
+import '../Popup/CardUse.dart';
 import '../quiz/quiz_repository.dart';
 import '../quiz/quiz_question.dart';
 import '../quiz/quiz_dialog.dart';
@@ -49,10 +50,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   // 💡 돈 변화 이펙트
   Map<String, String?> _moneyEffects = {};
-
-  // 💡 주사위 위젯 제어용 키 (dice.dart에 정의된 것을 사용하거나 여기서 정의)
-  // 만약 dice.dart에 전역 변수로 정의하지 않았다면 아래 줄 주석 해제 후 사용
-  // final GlobalKey diceAppKey = GlobalKey();
 
   List<Map<String, dynamic>> localList = [
     {'인천': {'ccbaCtcd': 23}},{'세종': {'ccbaCtcd': 45}},{'울산': {'ccbaCtcd': 26}},
@@ -99,12 +96,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     });
   }
 
-  // 💡 주사위 굴리기 (무인도 탈출 시도 로직 포함)
+  // 💡 주사위 굴리기
   Future<void> _onDiceRoll(int val1, int val2) async {
     bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
     int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
 
-    // 1. 여행 중일 때
     if (isTraveling) {
       setState(() {
         players["user$currentTurn"]["isTraveling"] = false;
@@ -114,21 +110,17 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       return;
     }
 
-    // 2. 무인도 탈출 시도 (주사위)
     if (islandCount > 0) {
       bool isDouble = (val1 == val2);
 
       if (isDouble) {
-        // 더블! 탈출 성공 -> 이동
         await fs.collection("games").doc("users").update({
           "user$currentTurn.islandCount": 0
         });
         setState(() {
           players["user$currentTurn"]["islandCount"] = 0;
         });
-        // 탈출했으니 아래 movePlayer 실행됨
       } else {
-        // 탈출 실패 -> 카운트 감소, 턴 종료
         int newCount = islandCount - 1;
         await fs.collection("games").doc("users").update({
           "user$currentTurn.islandCount": newCount
@@ -136,17 +128,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         setState(() {
           players["user$currentTurn"]["islandCount"] = newCount;
         });
-
-        // 이동하지 않고 턴 넘기기
         _nextTurn();
         return;
       }
     }
 
-    // 3. 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(6, currentTurn, isDouble);
+    movePlayer(4, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
@@ -159,10 +148,36 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       return;
     }
 
+    // 💡 [추가] 턴 시작 시, 내 땅 중에 할인(0.5배)된 땅이 있다면 정상(1배)으로 복구
+    // (지난 턴에 d_priceDown으로 0.5배가 된 것을 이번 턴에 원상복구)
+    bool needUpdate = false;
+    WriteBatch batch = fs.batch();
+
+    boardList.forEach((key, val) {
+      if (val is Map && val['type'] == 'land') {
+        int owner = int.tryParse(val['owner'].toString()) ?? 0;
+        double multiply = (val['multiply'] as num? ?? 1.0).toDouble();
+
+        // 내 땅이고 배수가 1보다 작으면(0.5 등) 초기화
+        if (owner == currentTurn && multiply < 1.0) {
+          batch.update(fs.collection("games").doc("board"), {
+            "$key.multiply": 1
+          });
+          val['multiply'] = 1; // 로컬 반영을 위해
+          needUpdate = true;
+        }
+      }
+    });
+
+    if (needUpdate) {
+      await batch.commit();
+      setState(() {}); // 로컬 화면 갱신
+    }
+
     int restCount = players["user$currentTurn"]["restCount"] ?? 0;
 
     if (restCount > 0) {
-      // 휴식 카운트 감소 (1 -> 0)
+      // 휴식 카운트 감소
       await fs.collection("games").doc("users").update({
         "user$currentTurn.restCount": 0
       });
@@ -170,72 +185,76 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         players["user$currentTurn"]["restCount"] = 0;
       });
 
-      // 봇이 아니면 알림 띄우기
       if (type != "B") {
         await showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (context) =>
-                Dialog(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFDF5E6),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFC0A060), width: 4),
-                      boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.info_outline, size: 40, color: Colors.brown),
-                        const SizedBox(height: 10),
-                        Text(
-                          "한턴 쉬어갑니다~",
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                )
+            builder: (BuildContext dialogContext) { // 💡 builder의 context를 따로 이름 지어줍니다 (헷갈림 방지)
 
+              // 👇 2초 뒤에 자동으로 닫는 로직 추가
+              Future.delayed(const Duration(seconds: 2), () {
+                // 2초 뒤에 다이얼로그가 여전히 떠있다면 닫기 (오류 방지용 mounted 체크)
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              });
+
+              return Dialog(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDF5E6),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFC0A060), width: 4),
+                    boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+                      const SizedBox(height: 10),
+                      const Text( // 💡 const 추가 (성능 최적화)
+                        "한턴 쉬어갑니다~",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
         );
       } else {
-        // 봇이면 짧은 딜레이 후 넘어감
         await Future.delayed(const Duration(milliseconds: 1000));
       }
 
-      // 턴 넘기기 (주사위 안 던짐)
       _nextTurn();
       return;
     }
 
-    // 💡 2. 봇(B)일 경우 자동 주사위 굴리기
+    // 💡 봇 로직
     if (type == "B") {
-      // 1.5초 딜레이 (봇이 생각하는 척)
       Future.delayed(const Duration(milliseconds: 1500), () {
         if (!mounted) return;
-
-        // 랜덤 주사위값 생성
         int d1 = Random().nextInt(6) + 1;
         int d2 = Random().nextInt(6) + 1;
-
-        // 💡 DiceApp의 애니메이션 실행 (dice.dart에 diceAppKey가 정의되어 있어야 함)
-        // 만약 에러나면 dynamic으로 캐스팅하거나 state를 public으로 변경 필요
         (diceAppKey.currentState as dynamic)?.rollDiceForBot(d1, d2);
       });
-      return; // 봇은 아래 사람용 UI 로직 건너뜀
+      return;
     }
 
-    // --- 👇 사람(Human) 플레이어 로직 ---
-
-    // 3. 사람일 때만 무인도 다이얼로그 표시
+    // --- 사람 플레이어 ---
     int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
 
     if (islandCount > 0) {
+      if(players["user$currentTurn"]["card"] == "escape"){
+        // 무인도 넣을 자리
+        final result = await showDialog(context: context, builder: (context)=>CardUseDialog(user: currentTurn));
+        if(result) return;
+
+      }
       final bool? paidToEscape = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -243,7 +262,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       );
 
       if (paidToEscape == true) {
-        // 돈 내고 탈출 성공
         await fs.collection("games").doc("users").update({
           "user$currentTurn.islandCount": 0
         });
@@ -253,7 +271,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
     }
 
-    // 4. 여행 중이면 맵 하이라이트
     bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
     if (isTraveling) {
       setState(() {
@@ -266,12 +283,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   void _triggerHighlight(int player, String event) {
     _eventPlayer = player;
+    // 전체 맵 하이라이트 이벤트
     if(event == "trip" || event == "earthquake"){
       setState(() {
-        _highlightOwner = -1; // 전체 맵
+        _highlightOwner = -1;
         eventNow = event;
       });
     } else {
+      // 내 땅만 하이라이트 (priceDown 포함)
       setState(() {
         _highlightOwner = player;
         eventNow = event;
@@ -281,16 +300,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Future<void> _stopHighlight(int index, String event) async {
-    // 1. 하이라이트 효과 끄기
     setState(() {
       _highlightOwner = null;
     });
     _glowController.stop();
     _glowController.reset();
 
-    // 2. 이벤트별 로직 실행
     if(event == "start"){
-      // [건설] 선택한 내 땅에 건물 증축 (ConstructionDialog 호출)
       final result = await showDialog(
           context: context,
           barrierDismissible: false,
@@ -298,8 +314,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             return ConstructionDialog(user: _eventPlayer, buildingId: index);
           }
       );
-
-      // 건설 완료 후 로컬 상태 업데이트
       if (result != null && result is Map) {
         setState(() {
           String tileKey = "b$index";
@@ -308,86 +322,87 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           boardList[tileKey]["owner"] = result["user"];
         });
       }
-      _handleTurnEnd(); // 턴 종료
+
+      await _readPlayer();
+      await rankChange();
+      setState(() {});
+
+      _handleTurnEnd();
 
     } else if(event == "festival"){
-      // [축제] 이전 축제 지우고, 선택한 땅에 새 축제 개최
       if(itsFestival != 0){
         await fs.collection("games").doc("board").update({"b$itsFestival.isFestival" : false});
       }
-
       await fs.collection("games").doc("board").update({"b$index.isFestival" : true});
-
       setState(() {
         itsFestival = index;
       });
-
-      await _readLocal(); // 데이터 동기화
-      _handleTurnEnd(); // 턴 종료
+      await _readLocal();
+      _handleTurnEnd();
 
     } else if (event == "trip"){
-      // [여행] 선택한 위치로 플레이어 이동
       _movePlayerTo(index, _eventPlayer);
-      // 여행은 _movePlayerTo 안에서 이동 후 턴 처리를 하므로 여기서 _handleTurnEnd 호출 안 함
 
     } else if (event == "earthquake") {
-      // [지진] 상대 땅 파괴
       await _executeEarthquake(index);
       _handleTurnEnd();
 
     } else if (event == "storm") {
-      // [태풍] 내 땅 파괴 (지진 로직 재활용)
       await _executeEarthquake(index);
+      _handleTurnEnd();
+
+    }
+    // 💡 [추가] 통행료 할인 이벤트 처리
+    else if (event == "priceDown") {
+      // 해당 땅의 배수를 0.5로 변경 (다음 턴까지)
+      await fs.collection("games").doc("board").update({
+        "b$index.multiply": 0.5
+      });
+
+      // 로컬 반영
+      setState(() {
+        if(boardList["b$index"] != null) {
+          boardList["b$index"]["multiply"] = 0.5;
+        }
+      });
+
       _handleTurnEnd();
     }
   }
 
-  // 💡 [신규] 지진 실행 함수
   Future<void> _executeEarthquake(int targetIndex) async {
     String tileKey = "b$targetIndex";
     if (boardList[tileKey] == null) return;
 
     int currentLevel = boardList[tileKey]["level"] ?? 0;
-
-    // DB 배치 작업 시작
     final batch = fs.batch();
     final boardRef = fs.collection("games").doc("board");
 
     if (currentLevel <= 1) {
-      // 1단계(또는 0) -> 건물 파괴 및 소유권 해제
       batch.update(boardRef, {
         "$tileKey.level": 0,
-        "$tileKey.owner": "N", // 주인 없음으로 변경
-        "$tileKey.multiply": 1, // 배수 초기화 (필요 시)
-        "$tileKey.isFestival": false, // 축제 초기화
+        "$tileKey.owner": "N",
+        "$tileKey.multiply": 1,
+        "$tileKey.isFestival": false,
       });
-
-      // 로컬 갱신
       setState(() {
         boardList[tileKey]["level"] = 0;
         boardList[tileKey]["owner"] = "N";
         boardList[tileKey]["isFestival"] = false;
       });
     } else {
-      // 2, 3단계 -> 레벨 다운
       batch.update(boardRef, {
         "$tileKey.level": currentLevel - 1,
       });
-
-      // 로컬 갱신
       setState(() {
         boardList[tileKey]["level"] = currentLevel - 1;
       });
     }
-
     await batch.commit();
-    await _readLocal(); // 확실하게 동기화
-
-    // (선택) 파괴 효과음이나 알림을 넣을 수 있음
-    print("지진 발생! $targetIndex번 땅 공격 완료.");
+    await _readLocal();
+    print("지진/태풍 발생! $targetIndex번 땅 공격 완료.");
   }
 
-  // 💡 이벤트 후 더블 여부에 따라 턴 넘기기 or 유지
   void _handleTurnEnd() async {
     if (_lastIsDouble) {
       doubleCount++;
@@ -402,7 +417,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         });
         _nextTurn();
       }
-      // 더블이면 턴 안 넘김 (한 번 더)
     } else {
       _nextTurn();
     }
@@ -439,6 +453,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Future<void> _setPlayer() async {
+    await rankChange(); // 💡 저장하기 전에 랭킹 최신화!
     await _readPlayer();
     await fs.collection("games").doc("users").set(players);
   }
@@ -450,7 +465,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     movePlayer(steps, player, false);
   }
 
-  // 💡 핵심 이동 로직 (봇 자동화 포함)
   void movePlayer(int steps, int player, bool isDouble) async {
     _lastIsDouble = isDouble;
     String playerType = players["user$player"]["type"] ?? "P";
@@ -459,7 +473,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     int nextPos = currentPos + steps;
     int changePosition = nextPos > 27 ? nextPos % 28 : nextPos;
 
-    // 월급 지급
     if(nextPos > 27){
       int level = players["user$player"]["level"];
       if(level < 4){
@@ -494,10 +507,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       // 1. 내 땅일 때 (증축)
       if(owner == player) {
         if (playerType == 'B') {
-          // 🤖 봇: 자동 증축
           await _botBuild(player, changePosition);
         } else {
-          // 🧑 사람: 건설 다이얼로그
           final result = await showDialog(
               context: context,
               barrierDismissible: false,
@@ -516,23 +527,50 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
       // 2. 상대방 땅일 때 (통행료 지불 + 인수)
       else if(owner != 0 && owner != player) {
+        if(players["user$player"]["card"] == "shield"){
+          // 쉴드 카드 있을때 사용할지 물어보는 함수 넣을 자리
+          final result = await showDialog(context: context, builder: (context)=>CardUseDialog(user: player));
+          _setPlayer();
+          if (forceNextTurn || !isDouble) {
+            _nextTurn();
+          } else {
+            doubleCount++;
+            if (doubleCount >= 3) {
+              setState(() {
+                players["user$player"]["position"] = 7;
+              });
+              await fs.collection("games").doc("users").update({
+                "user$player.position": 7,
+                "user$player.islandCount": 3
+              });
+              _nextTurn();
+            }
+          }
+          if(result) return;
+        }   
         // 통행료 계산
         int basePrice = boardList[tileKey]["tollPrice"] ?? 0;
         double multiply = (boardList[tileKey]["multiply"] as num? ?? 0).toDouble();
         if(itsFestival == changePosition && multiply == 1) multiply *= 2;
         int levelMulti = 1;
-        switch (buildLevel) {
-          case 0: levelMulti = 0; break;
-          case 1: levelMulti = 2; break;
-          case 2: levelMulti = 6; break;
-          case 3: levelMulti = 14; break;
-          case 4: levelMulti = 30; break;
+
+        // 💡 [수정] 레벨 0이면 통행료 0, 랜드마크(4)는 x30
+        if (buildLevel == 0) {
+          levelMulti = 0;
+        } else {
+          switch (buildLevel) {
+            case 1: levelMulti = 2; break;
+            case 2: levelMulti = 6; break;
+            case 3: levelMulti = 14; break;
+            case 4: levelMulti = 30; break; // 40 -> 30으로 수정
+          }
         }
+
         int finalToll = (basePrice * multiply * levelMulti).round();
 
         bool isDoubleToll = players["user$player"]["isDoubleToll"] ?? false;
         if (isDoubleToll) {
-          finalToll *= 2; // 통행료 2배 적용
+          finalToll *= 2;
         }
 
         int myMoney = players["user$player"]["money"];
@@ -540,10 +578,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         int ownerMoney = players["user$owner"]["money"];
         int ownerTotal = players["user$owner"]["totalMoney"];
 
-        // 파산 체크
         if(myMoney - finalToll < 0){
           if (playerType == 'B') {
-            // 🤖 봇 파산 처리
             await fs.collection("games").doc("users").update({
               "user$player.type": "D"
             });
@@ -561,7 +597,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             }
             await _readPlayer(); await _readLocal(); _nextTurn(); return;
           } else {
-            // 🧑 사람 파산 다이얼로그
             final result = await showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -578,7 +613,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           }
         }
 
-        // 통행료 지불
         await fs.collection("games").doc("users").update({
           "user$player.money": myMoney - finalToll,
           "user$player.totalMoney": myTotal - finalToll,
@@ -589,7 +623,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if (isDoubleToll) {
           fs.collection("games").doc("users").update({"user$player.isDoubleToll" : false});
         }
-        
+
         setState(() {
           players["user$player"]["money"] = myMoney - finalToll;
           players["user$player"]["totalMoney"] = myTotal - finalToll;
@@ -602,38 +636,29 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         _triggerMoneyEffect("user$player", -finalToll);
         _triggerMoneyEffect("user$owner", finalToll);
 
-        // 인수 로직
         if (boardList[tileKey]["level"] != 4) {
           if (playerType == 'B') {
-            // 🤖 봇 인수
             int takeoverCost = tollPrice * buildLevel * 2;
             int currentBotMoney = players["user$player"]["money"];
 
             if (currentBotMoney >= takeoverCost) {
               await fs.runTransaction((tx) async {
-                // 봇 돈 차감
                 tx.update(fs.collection("games").doc("users"), {
                   "user$player.money": FieldValue.increment(-takeoverCost),
                 });
-                // 원주인 돈 입금
                 tx.update(fs.collection("games").doc("users"), {
                   "user$owner.money": FieldValue.increment(takeoverCost),
                 });
-                // 주인 변경
                 tx.update(fs.collection("games").doc("board"), {
                   "b$changePosition.owner": player,
                 });
               });
               _triggerMoneyEffect("user$player", -takeoverCost);
               _triggerMoneyEffect("user$owner", takeoverCost);
-
               await _readPlayer(); await _readLocal();
-
-              // 인수 후 추가 건설
               await _botBuild(player, changePosition);
             }
           } else {
-            // 🧑 사람 인수
             final bool? takeoverSuccess = await showDialog(
               context: context,
               barrierDismissible: false,
@@ -663,13 +688,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           }
         }
       }
-      // 3. 빈 땅일 때 (건설)
       else {
         if (playerType == 'B') {
-          // 🤖 봇 건설
           await _botBuild(player, changePosition);
         } else {
-          // 🧑 사람 건설
           final result = await showDialog(
               context: context,
               barrierDismissible: false,
@@ -687,7 +709,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         }
       }
     }
-    else if(changePosition == 26){ // 국세청
+    else if(changePosition == 26){
       if (playerType == 'B') {
         int myMoney = players["user$player"]["money"];
         int tax = (myMoney * 0.1).round();
@@ -700,7 +722,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         await showDialog(context: context, builder: (context)=> TaxDialog(user: player));
       }
     }
-    else if(changePosition == 14){ // 축제
+    else if(changePosition == 14){
       bool hasMyLand = false;
       boardList.forEach((key, val) {
         int owner = int.tryParse(val['owner'].toString()) ?? 0;
@@ -708,7 +730,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       });
       if(hasMyLand) {
         if (playerType == 'B') {
-          // 🤖 봇: 랜덤 축제 개최
           List<String> myLandKeys = [];
           boardList.forEach((key, val) {
             if(val['type'] == 'land' && val['owner'] == player) myLandKeys.add(key);
@@ -731,7 +752,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         }
       }
     }
-    else if(changePosition == 0){ // 출발
+    else if(changePosition == 0){
       bool hasUpgradableLand = false;
       boardList.forEach((key, val) {
         int owner = int.tryParse(val['owner'].toString()) ?? 0;
@@ -740,7 +761,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       });
       if(hasUpgradableLand) {
         if(playerType == 'B') {
-          // 🤖 봇: 랜덤 증축
           List<int> targets = [];
           boardList.forEach((key, val) {
             if(val['type'] == 'land' && val['owner'] == player && val['level'] < 4) {
@@ -759,21 +779,21 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         }
       }
     }
-    else if(changePosition == 21){ // 여행
+    else if(changePosition == 21){
       setState(() {
         players["user$player"]["isTraveling"] = true;
       });
       await fs.collection("games").doc("users").update({"user$player.isTraveling": true});
       forceNextTurn = true;
     }
-    else if(changePosition == 7){ // 무인도
+    else if(changePosition == 7){
       forceNextTurn = true;
       await fs.collection("games").doc("users").update({
         "user$player.islandCount" : 3
       });
       await _readPlayer();
     }
-    else if ([3, 10, 17, 24].contains(changePosition)) { // 찬스 카드
+    else if ([3, 10, 17, 24].contains(changePosition)) {
       QuizQuestion? question = await QuizRepository.getRandomQuiz();
       bool isCorrect = false;
       int? selectedIndex;
@@ -805,7 +825,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
 
       if (mounted) {
-        // 💡 [수정] action 값 받기 (String?)
         final String? actionResult = await showDialog<String>(
           context: context,
           barrierDismissible: false,
@@ -814,7 +833,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           ),
         );
 
-        // 💡 [추가] 액션에 따른 로직 실행
         if (actionResult != null) {
           print("찬스카드 액션 실행: $actionResult");
 
@@ -823,7 +841,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             return;
           }
           else if (actionResult == "c_festival") {
-            // 💡 [수정] 축제를 열 수 있는(내가 소유한) 땅이 있는지 확인
             bool hasMyLand = false;
             boardList.forEach((key, val) {
               int owner = int.tryParse(val['owner'].toString()) ?? 0;
@@ -832,7 +849,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               }
             });
 
-            // 땅이 없으면 턴 종료
             if (!hasMyLand) {
               await showDialog(
                 context: context,
@@ -841,7 +857,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               _handleTurnEnd();
               return;
             }
-
             _triggerHighlight(player, "festival");
             return;
           }
@@ -850,21 +865,17 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             return;
           }
           else if (actionResult == "c_earthquake") {
-            // 1. 공격 가능한 상대 땅 찾기 (내 땅 X, 빈 땅 X, 랜드마크 X)
             List<int> validTargets = [];
             boardList.forEach((key, val) {
               if (val is Map && val['type'] == 'land') {
                 int owner = int.tryParse(val['owner'].toString()) ?? 0;
                 int level = val['level'] ?? 0;
-
-                // 주인이 있고(0 아님), 나(player)는 아니며, 랜드마크(4)가 아닌 땅
                 if (owner != 0 && owner != player && level < 4) {
                   validTargets.add(val['index']);
                 }
               }
             });
 
-            // 💡 [수정] 타겟이 없으면 턴 종료
             if (validTargets.isEmpty) {
               await showDialog(
                 context: context,
@@ -874,15 +885,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               return;
             }
 
-            // 3. 봇 vs 사람 분기
             if (playerType == 'B') {
-              // 🤖 봇: 랜덤으로 하나 골라서 파괴
               int targetIndex = validTargets[Random().nextInt(validTargets.length)];
-              await _executeEarthquake(targetIndex); // 파괴 실행 함수
+              await _executeEarthquake(targetIndex);
               _handleTurnEnd();
               return;
             } else {
-              // 🧑 사람: 하이라이트 켜서 선택 유도
               _triggerHighlight(player, "earthquake");
               return;
             }
@@ -911,6 +919,37 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             });
           }
           else if(actionResult == "d_storm"){
+            List<int> myLands = [];
+            boardList.forEach((key, val) {
+              if (val['type'] == 'land') {
+                int owner = int.tryParse(val['owner'].toString()) ?? 0;
+                if (owner == player) {
+                  myLands.add(val['index']);
+                }
+              }
+            });
+
+            if (myLands.isEmpty) {
+              await showDialog(
+                context: context,
+                builder: (context) => const AlertDialog(content: Text("태풍이 지나갔지만 피해를 입을 건물이 없습니다.")),
+              );
+              _handleTurnEnd();
+              return;
+            }
+
+            if (playerType == 'B') {
+              int targetIndex = myLands[Random().nextInt(myLands.length)];
+              await _executeEarthquake(targetIndex);
+              _handleTurnEnd();
+              return;
+            } else {
+              _triggerHighlight(player, "storm");
+              return;
+            }
+          }
+          // 💡 [추가] 통행료 할인(반값) 이벤트 로직
+          else if(actionResult == "d_priceDown"){
             // 1. 내가 가진 땅 목록 찾기
             List<int> myLands = [];
             boardList.forEach((key, val) {
@@ -922,33 +961,38 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               }
             });
 
-            // 2. 내 땅이 하나도 없으면 피해 없이 턴 종료
+            // 2. 내 땅이 없으면 패스
             if (myLands.isEmpty) {
               await showDialog(
                 context: context,
-                builder: (context) => const AlertDialog(content: Text("태풍이 지나갔지만 피해를 입을 건물이 없습니다.")),
+                builder: (context) => const AlertDialog(content: Text("할인할 내 땅이 없습니다.")),
               );
               _handleTurnEnd();
               return;
             }
 
-            // 3. 봇 vs 사람 분기
+            // 3. 봇 vs 사람
             if (playerType == 'B') {
-              // 🤖 봇: 내 땅 중 하나 랜덤으로 파괴
+              // 봇: 랜덤 선택 후 배수 0.5로 설정
               int targetIndex = myLands[Random().nextInt(myLands.length)];
-              await _executeEarthquake(targetIndex); // 지진 로직 재활용 (레벨 다운)
+              await fs.collection("games").doc("board").update({"b$targetIndex.multiply" : 0.5});
               _handleTurnEnd();
               return;
             } else {
-              // 🧑 사람: 내 땅 하이라이트 켜서 선택 유도
-              // storm 이벤트는 _triggerHighlight에서 owner를 player로 설정하므로 내 땅만 빛남
-              _triggerHighlight(player, "storm");
+              // 사람: 하이라이트 켜서 선택 유도 (내 땅만 빛남)
+              _triggerHighlight(player, "priceDown");
               return;
             }
           }
-          else if(actionResult == "d_priceDown"){
-
+        }
+        else if(actionResult == "d_move"){
+          Random ran = Random();
+          int random = ran.nextInt(28);
+          while(random == players["user$player"]["position"]) {
+            random = ran.nextInt(28);
           }
+          _movePlayerTo(random, player);
+          return;
         }
         await _readPlayer();
       }
@@ -974,46 +1018,33 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     }
   }
 
-  // 🤖 봇 건설 함수
-  // 🤖 봇 전용 건설 함수 (플레이어 레벨에 따른 건설 제한 적용)
   Future<void> _botBuild(int player, int buildingId) async {
     String tileKey = "b$buildingId";
-    int currentBuildingLevel = boardList[tileKey]["level"] ?? 0; // 현재 건물 레벨
-    int money = players["user$player"]["money"] ?? 0; // 봇의 돈
-    int playerLapLevel = players["user$player"]["level"] ?? 1; // 💡 플레이어의 바퀴 수 (레벨)
+    int currentBuildingLevel = boardList[tileKey]["level"] ?? 0;
+    int money = players["user$player"]["money"] ?? 0;
+    int playerLapLevel = players["user$player"]["level"] ?? 1;
 
-    // 건설 비용 (임시: 30만원 고정)
     int costPerLevel = 300000;
 
     int targetLevel = currentBuildingLevel;
     int totalCost = 0;
 
-    // 💡 [수정됨] 건설 가능한 최대 레벨 제한 설정
     int maxLimit;
-
     if (currentBuildingLevel == 3) {
-      // 이미 3단계(호텔)라면 -> 랜드마크(4) 건설 가능 (보통 랜드마크는 바퀴 수 제한 없음, 혹은 3바퀴 이상)
       maxLimit = 4;
     } else {
-      // 0, 1, 2단계일 때 -> 플레이어의 바퀴 수(Level)까지만 건설 가능 (단, 최대 3단계까지)
-      // 예: 1바퀴(Lv1) -> 1단계(별장)까지만
-      //     2바퀴(Lv2) -> 2단계(빌딩)까지만
-      //     3바퀴(Lv3) 이상 -> 3단계(호텔)까지
       maxLimit = (playerLapLevel >= 3) ? 3 : playerLapLevel;
     }
 
-    // 목표 레벨까지 반복 계산
     for (int l = currentBuildingLevel + 1; l <= maxLimit; l++) {
-      // 비용 체크
       if (money >= totalCost + costPerLevel) {
         totalCost += costPerLevel;
         targetLevel = l;
       } else {
-        break; // 돈 부족하면 멈춤
+        break;
       }
     }
 
-    // 변경사항이 있을 때만 DB 업데이트
     if (targetLevel > currentBuildingLevel) {
       await fs.runTransaction((tx) async {
         tx.update(fs.collection("games").doc("users"), {
@@ -1025,7 +1056,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         });
       });
 
-      // 로컬 화면 갱신 및 이펙트
       setState(() {
         boardList[tileKey]["level"] = targetLevel;
         boardList[tileKey]["owner"] = player;
@@ -1033,11 +1063,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       _triggerMoneyEffect("user$player", -totalCost);
 
       await _readPlayer();
+      await rankChange();
+      setState(() {});
+
     }
   }
 
   void _nextTurn() {
-    // 1. 생존자 수 확인 (파산하지 않은 플레이어)
     int survivors = 0;
     int lastSurvivorIndex = 0;
 
@@ -1049,10 +1081,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
     }
 
-    // 💡 [조건 1] 생존자가 1명 이하이면 게임 종료 (독점 승리)
     if (survivors <= 1) {
       _gameOver("bankruptcy", winnerIndex: lastSurvivorIndex);
-      return; // 더 이상 턴을 진행하지 않음
+      return;
     }
 
     setState(() {
@@ -1064,11 +1095,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if (nextPlayer == 4) {
           nextPlayer = 1;
           totalTurn--;
-
-          // 💡 [조건 2] 턴 종료 (총 턴 수가 0이 됨)
           if (totalTurn == 0) {
             _gameOver("turn_limit");
-            return; // 함수 종료
+            return;
           }
         } else {
           nextPlayer++;
@@ -1076,7 +1105,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         safetyLoop++;
 
         String nextType = players["user$nextPlayer"]?["type"] ?? "N";
-        // 파산(D)하거나 없는(N) 유저는 건너뜀
         if (nextType != "N" && nextType != "D") {
           break;
         }
@@ -1087,26 +1115,38 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     });
   }
 
-  // 💡 [추가] 게임 종료 처리 함수 (자리만 만듦)
   void _gameOver(String reason, {int? winnerIndex}) {
-    // reason: "turn_limit" (턴 종료), "bankruptcy" (파산 독점)
     print("게임 종료! 사유: $reason, 승자: $winnerIndex");
-
-    // TODO: 여기에 게임 종료 팝업 띄우기, 결과창 이동, DB 업데이트 등 로직 작성
-    // 예: showDialog(...)
   }
 
   // ... (rankChange, _readPlayer, _readLocal, _insertLocal 등 하단 함수들 기존 동일) ...
-  Future<void> rankChange() async{
-    int rank = 1;
-    for(int i=1; i<=4; i++){
-      for(int j=i+1; j<=4; j++){
-        if(players["user$i"]["totalMoney"] < players["user$j"]["totalMoney"]){
-          rank++;
-        }
-        players["user$i"]["rank"] = rank;
-        rank = 1;
+  Future<void> rankChange() async {
+    // 1. 생존한 플레이어들을 리스트로 모음
+    List<Map<String, dynamic>> tempUsers = [];
+    for (int i = 1; i <= 4; i++) {
+      if (players["user$i"] != null && players["user$i"]["type"] != "N") {
+        tempUsers.add({
+          "key": "user$i",
+          "totalMoney": players["user$i"]["totalMoney"] ?? 0,
+          "money": players["user$i"]["money"] ?? 0, // 동점자 처리용
+        });
       }
+    }
+
+    // 2. 총 자산(totalMoney) 기준으로 내림차순 정렬 (돈 많으면 앞쪽으로)
+    tempUsers.sort((a, b) {
+      int compare = b["totalMoney"].compareTo(a["totalMoney"]);
+      if (compare == 0) {
+        // 총 자산 같으면 소지금 많은 순
+        return b["money"].compareTo(a["money"]);
+      }
+      return compare;
+    });
+
+    // 3. 정렬된 순서대로 players 맵에 rank 업데이트
+    for (int i = 0; i < tempUsers.length; i++) {
+      String key = tempUsers[i]["key"];
+      players[key]["rank"] = i + 1;
     }
   }
 
@@ -1264,6 +1304,20 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     String totalMoney = "${playerData['totalMoney']}";
     int rank = playerData['rank'];
 
+    // 💡 [추가] 카드 정보 가져오기
+    String card = playerData['card'] ?? "";
+    IconData? cardIcon;
+    Color cardColor = Colors.grey;
+
+    // 카드 종류에 따라 아이콘과 색상 설정
+    if (card == "shield") {
+      cardIcon = Icons.shield;
+      cardColor = Colors.blueAccent;
+    } else if (card == "escape") {
+      cardIcon = Icons.vpn_key; // 탈출권은 열쇠 아이콘
+      cardColor = Colors.orangeAccent;
+    }
+
     String? effectText = _moneyEffects[name];
 
     return Positioned(
@@ -1276,8 +1330,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
+              // 1. 메인 정보 박스
               Container(
                 width: 140, height: 70,
+                // 박스 위치 (등수 배지 위치 확보를 위해 마진 존재)
                 margin: EdgeInsets.only(top: isTop ? 0 : 10, bottom: isTop ? 10 : 0, left: isLeft ? 0 : 20, right: isLeft ? 20 : 0),
                 padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
                 decoration: BoxDecoration(
@@ -1295,8 +1351,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                   ],
                 ),
               ),
+
+              // 2. 등수 배지 (기존 코드: 박스의 한쪽 구석)
               Positioned(
-                top: isTop ? 40 : 0, left: isLeft ? 110 : 0,
+                top: isTop ? 40 : 0,
+                left: isLeft ? 110 : 0,
                 child: Container(
                   width: 40, height: 40, alignment: Alignment.center,
                   decoration: BoxDecoration(
@@ -1307,6 +1366,27 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                   child: Text("$rank등", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
                 ),
               ),
+
+              // 💡 [추가] 카드 아이콘 (등수 배지의 반대쪽 구석에 배치)
+              if (cardIcon != null)
+                Positioned(
+                  // 등수 배지와 같은 높이(Y축), 하지만 반대편(X축)
+                  top: isTop ? 40 : 0,
+                  left: isLeft ? 0 : 110, // 등수 배지와 반대 위치
+                  child: Container(
+                    width: 35, height: 35, // 배지보다 약간 작게
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                    ),
+                    child: Icon(cardIcon, size: 20, color: Colors.white),
+                  ),
+                ),
+
+              // 3. 돈 변화 이펙트
               if (effectText != null)
                 Positioned(
                   top: isTop ? -20 : -30,
@@ -1343,6 +1423,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     else if(eventNow == "start") eventText = "건설할 땅을 선택해주세요!";
     else if(eventNow == "storm") eventText = "태풍 피해를 입을 내 땅을 선택하세요.";
     else if(eventNow == "earthquake") eventText = "지진을 일으킬 상대 땅을 선택하세요!";
+    // 💡 [추가] 통행료 할인 이벤트 문구
+    else if(eventNow == "priceDown") eventText = "통행료를 할인할 내 땅을 선택하세요!";
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -1504,12 +1586,18 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     int buildLevel = tileData["level"] ?? 0;
 
     int levelvalue = 1;
-    switch (buildLevel) {
-      case 1: levelvalue = 2; break;
-      case 2: levelvalue = 6; break;
-      case 3: levelvalue = 14; break;
-      case 4: levelvalue = 40; break;
+    // 💡 [수정] 레벨 0일 경우 levelValue 0, 랜드마크(4)일 경우 30배
+    if (buildLevel == 0) {
+      levelvalue = 0;
+    } else {
+      switch (buildLevel) {
+        case 1: levelvalue = 2; break;
+        case 2: levelvalue = 6; break;
+        case 3: levelvalue = 14; break;
+        case 4: levelvalue = 30; break;
+      }
     }
+
     if (isFestival && multiply == 1) multiply *= 2;
 
     int tollPrice = (price * multiply * levelvalue).round();
