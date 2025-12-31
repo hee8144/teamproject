@@ -9,6 +9,8 @@ import '../Popup/TaxDialog.dart';
 import '../Popup/Bankruptcy.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Island.dart';
+import '../Popup/BoardDetail.dart';
+import '../Popup/Detail.dart';
 import '../quiz/quiz_repository.dart';
 import '../quiz/quiz_question.dart';
 import '../quiz/quiz_dialog.dart';
@@ -210,7 +212,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   void _triggerHighlight(int player, String event) {
     _eventPlayer = player;
-    if(event == "trip"){
+    if(event == "trip" || event == "earthquake"){
       setState(() {
         _highlightOwner = -1; // 전체 맵
         eventNow = event;
@@ -232,37 +234,67 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     _glowController.reset();
 
     if(event == "start"){
-      final result = await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context){
-            return ConstructionDialog(user: _eventPlayer, buildingId: index);
-          }
-      );
-      if (result != null && result is Map) {
-        setState(() {
-          if (boardList["b$index"] == null) boardList["b$index"] = {};
-          boardList["b$index"]["level"] = result["level"];
-          boardList["b$index"]["owner"] = result["user"];
-        });
-        _setPlayer();
-      }
-      _handleTurnEnd();
+      // ... (기존 start 로직) ...
+      _handleTurnEnd(); // 기존 코드에 있음
 
     } else if(event == "festival"){
-      if(itsFestival != 0){
-        await fs.collection("games").doc("board").update({"b$itsFestival.isFestival" : false});
-      }
-      await fs.collection("games").doc("board").update({"b$index.isFestival" : true});
-      setState(() {
-        itsFestival = index;
-      });
-      await _readLocal();
-      _handleTurnEnd();
+      // ... (기존 festival 로직) ...
+      _handleTurnEnd(); // 기존 코드에 있음
 
     } else if (event == "trip"){
       _movePlayerTo(index, _eventPlayer);
+
     }
+    // 💡 [추가] 지진 이벤트 처리
+    else if (event == "earthquake") {
+      await _executeEarthquake(index); // 파괴 실행
+      _handleTurnEnd(); // 턴 종료
+    }
+  }
+
+  // 💡 [신규] 지진 실행 함수
+  Future<void> _executeEarthquake(int targetIndex) async {
+    String tileKey = "b$targetIndex";
+    if (boardList[tileKey] == null) return;
+
+    int currentLevel = boardList[tileKey]["level"] ?? 0;
+
+    // DB 배치 작업 시작
+    final batch = fs.batch();
+    final boardRef = fs.collection("games").doc("board");
+
+    if (currentLevel <= 1) {
+      // 1단계(또는 0) -> 건물 파괴 및 소유권 해제
+      batch.update(boardRef, {
+        "$tileKey.level": 0,
+        "$tileKey.owner": "N", // 주인 없음으로 변경
+        "$tileKey.multiply": 1, // 배수 초기화 (필요 시)
+        "$tileKey.isFestival": false, // 축제 초기화
+      });
+
+      // 로컬 갱신
+      setState(() {
+        boardList[tileKey]["level"] = 0;
+        boardList[tileKey]["owner"] = "N";
+        boardList[tileKey]["isFestival"] = false;
+      });
+    } else {
+      // 2, 3단계 -> 레벨 다운
+      batch.update(boardRef, {
+        "$tileKey.level": currentLevel - 1,
+      });
+
+      // 로컬 갱신
+      setState(() {
+        boardList[tileKey]["level"] = currentLevel - 1;
+      });
+    }
+
+    await batch.commit();
+    await _readLocal(); // 확실하게 동기화
+
+    // (선택) 파괴 효과음이나 알림을 넣을 수 있음
+    print("지진 발생! $targetIndex번 땅 공격 완료.");
   }
 
   // 💡 이벤트 후 더블 여부에 따라 턴 넘기기 or 유지
@@ -681,17 +713,76 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         // 💡 [추가] 액션에 따른 로직 실행
         if (actionResult != null) {
           print("찬스카드 액션 실행: $actionResult");
-          if (actionResult == "move_start") {
-            _movePlayerTo(0, player);
-            return; // 이동 후 종료
-          } else if (actionResult == "go_island") {
-            _movePlayerTo(7, player);
-            return; // 이동 후 종료
+
+          if (actionResult == "c_trip") {
+            _movePlayerTo(21, player);
+            return;
           }
-          // 다른 액션도 여기서 처리 가능 (예: 돈 획득 등)
+          else if (actionResult == "c_festival") {
+            _triggerHighlight(player, "festival");
+            return;
+          }
+          else if (actionResult == "c_start") {
+            _movePlayerTo(0, player);
+            return;
+          }
+          else if (actionResult == "c_earthquake") {
+            // 1. 공격 가능한 상대 땅 찾기 (내 땅 X, 빈 땅 X, 랜드마크 X)
+            List<int> validTargets = [];
+            boardList.forEach((key, val) {
+              if (val is Map && val['type'] == 'land') {
+                int owner = int.tryParse(val['owner'].toString()) ?? 0;
+                int level = val['level'] ?? 0;
+
+                // 주인이 있고(0 아님), 나(player)는 아니며, 랜드마크(4)가 아닌 땅
+                if (owner != 0 && owner != player && level < 4) {
+                  validTargets.add(val['index']);
+                }
+              }
+            });
+
+            // 2. 타겟이 없으면 그냥 턴 종료
+            if (validTargets.isEmpty) {
+              await showDialog(
+                context: context,
+                builder: (context) => const AlertDialog(content: Text("공격할 수 있는 상대 땅이 없습니다.")),
+              );
+              _handleTurnEnd();
+              return;
+            }
+
+            // 3. 봇 vs 사람 분기
+            if (playerType == 'B') {
+              // 🤖 봇: 랜덤으로 하나 골라서 파괴
+              int targetIndex = validTargets[Random().nextInt(validTargets.length)];
+              await _executeEarthquake(targetIndex); // 파괴 실행 함수
+              _handleTurnEnd();
+              return;
+            } else {
+              // 🧑 사람: 하이라이트 켜서 선택 유도
+              _triggerHighlight(player, "earthquake");
+              return;
+            }
+          }
+          else if(actionResult == "c_bonus"){
+            await fs.collection("games").doc("users").update({
+              "user$player.money" : players["user$player"]["money"] + 3000000,
+              "user$player.totalMoney" : players["user$player"]["totalMoney"] + 3000000
+            });
+            _triggerMoneyEffect("user$player", 3000000);
+          }
+          else if(actionResult == "d_island"){
+            _movePlayerTo(7, player);
+          }
+          else if(actionResult == "d_tax"){
+            _movePlayerTo(26, player);
+          }
+          else if(actionResult == "d_rest"){
+
+          }
         }
+        await _readPlayer();
       }
-      await _readPlayer();
     }
 
 
@@ -1156,8 +1247,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     }
 
     if (_highlightOwner == -1) {
-      if(index != 21) {
-        shouldGlow = true;
+      if (eventNow == "trip") {
+        if(index != 21) shouldGlow = true;
+      }
+      // 💡 [추가] 지진: 상대방 땅이고 랜드마크가 아니면 빛남
+      else if (eventNow == "earthquake") {
+        if (owner != 0 && owner != _eventPlayer && level < 4) {
+          shouldGlow = true;
+        }
       }
     } else if (_highlightOwner != null && _highlightOwner == owner) {
       if (eventNow == "start") {
@@ -1170,7 +1267,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     return Positioned(
       top: top, bottom: bottom, left: left, right: right,
       child: GestureDetector(
-        onTap: () {
+        onTap: () async{
           // 1. 이벤트 하이라이트 상태일 때 (땅 선택)
           if (shouldGlow) {
             _stopHighlight(index, eventNow);
@@ -1181,7 +1278,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             if (!isSpecial && boardList["b$index"] != null && boardList["b$index"]["type"] == "land") {
               // TODO: 여기에 상세정보 보여주는 함수 호출
               // showDetailInfo(index);
+              final result = await showDialog(context: context, builder: (context) {
+                return DetailPopup(boardNum: index,onNext: (){},);
+              });
+              if(result != null){
+                showDialog(context: context, builder: (context)=>BoardDetail(boardNum: index,data: result));
+              }
+
               print("땅 상세정보 클릭: $index, $tileName");
+
             }
           }
         },
