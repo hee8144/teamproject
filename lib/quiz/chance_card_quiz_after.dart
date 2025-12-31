@@ -70,7 +70,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
       color: Colors.black.withOpacity(0.6),
       child: Stack(
         children: [
-          // 메인 카드 배치
           Align(
             alignment: const Alignment(0.0, -0.4),
             child: FutureBuilder<ChanceCard>(
@@ -144,7 +143,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
       mainAxisSize: MainAxisSize.min,
       children: [
         _cardFrame(card: card),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _actionButton("확 인", () {
           Navigator.pop(context, isStorage ? "store:${card.action}" : card.action);
         }),
@@ -322,7 +321,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
       style: ElevatedButton.styleFrom(
         backgroundColor: isGrey ? Colors.grey[700] : const Color(0xFF5D4037),
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 5,
       ),
