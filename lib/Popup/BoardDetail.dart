@@ -63,8 +63,8 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       if(_BoardDetail["isFestival"]){
         isFestival=2;
       }
-      takeoverCost = baseToll *levelMulti * 2;
-      toll = baseToll * isFestival * multiply * levelMulti * 2;
+      takeoverCost = baseToll * levelMulti;
+      toll = baseToll * isFestival * multiply * levelMulti;
 
     }
   }
@@ -160,10 +160,10 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       title: "건설 비용",
       icon: Icons.foundation,
       content: {
-        "빌라": baseToll * 2,
-        "빌딩": baseToll * 4,
-        "호텔": baseToll * 8,
-        "랜드마크": baseToll * 16,
+        "빌라": baseToll,
+        "빌딩": baseToll * 2,
+        "호텔": baseToll * 4,
+        "랜드마크": baseToll * 8,
       },
     );
   }
