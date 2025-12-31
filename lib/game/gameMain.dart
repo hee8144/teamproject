@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
+import '../quiz/DiscountQuizManager.dart';
 import 'dice.dart'; // diceAppKey, DiceApp import
 import '../Popup/construction.dart';
 import '../Popup/TaxDialog.dart';
@@ -135,7 +136,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(4, currentTurn, isDouble);
+    movePlayer(6, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
@@ -568,6 +569,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
         int finalToll = (basePrice * multiply * levelMulti).round();
 
+        bool isDiscounted = await DiscountQuizManager.startDiscountQuiz(context, "통행료");
+        if (isDiscounted) {
+          finalToll = (finalToll * 0.5).round();
+        }
+
         bool isDoubleToll = players["user$player"]["isDoubleToll"] ?? false;
         if (isDoubleToll) {
           finalToll *= 2;
@@ -828,6 +834,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         final String? actionResult = await showDialog<String>(
           context: context,
           barrierDismissible: false,
+          useSafeArea: false,
           builder: (context) => ChanceCardQuizAfter(
             quizEffect: isCorrect, storedCard: players["user$player"]["card"],
           ),

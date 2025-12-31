@@ -50,7 +50,20 @@ class QuizRepository {
       final List<Map<String, dynamic>> loadedList = [];
       data.forEach((key, value) {
         if (key.startsWith('q') && value is Map) {
-          loadedList.add(Map<String, dynamic>.from(value));
+          final map = Map<String, dynamic>.from(value);
+
+          // 💡 필수 필드 검증 (하나라도 비어있으면 퀴즈 목록에서 제외)
+          bool isValid = 
+              map['name']?.toString().trim().isNotEmpty == true &&
+              map['img']?.toString().trim().isNotEmpty == true &&
+              map['times']?.toString().trim().isNotEmpty == true &&
+              map['description']?.toString().trim().isNotEmpty == true;
+
+          if (isValid) {
+            loadedList.add(map);
+          } else {
+            print("⚠️ [QuizRepository] 부실 데이터 제외됨: $key");
+          }
         }
       });
 
