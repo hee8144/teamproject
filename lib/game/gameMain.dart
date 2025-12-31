@@ -11,6 +11,7 @@ import '../Popup/Takeover.dart';
 import '../Popup/Island.dart';
 import '../Popup/BoardDetail.dart';
 import '../Popup/Detail.dart';
+import '../Popup/CardUse.dart';
 import '../quiz/quiz_repository.dart';
 import '../quiz/quiz_question.dart';
 import '../quiz/quiz_dialog.dart';
@@ -134,7 +135,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(7, currentTurn, isDouble);
+    movePlayer(4, currentTurn, isDouble);
   }
 
   // 💡 턴 시작 체크 (봇 자동화 포함)
@@ -248,6 +249,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     int islandCount = players["user$currentTurn"]["islandCount"] ?? 0;
 
     if (islandCount > 0) {
+      if(players["user$currentTurn"]["card"] == "escape"){
+        // 무인도 넣을 자리
+        final result = await showDialog(context: context, builder: (context)=>CardUseDialog(user: currentTurn));
+        if(result) return;
+
+      }
       final bool? paidToEscape = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -315,6 +322,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           boardList[tileKey]["owner"] = result["user"];
         });
       }
+
+      await _readPlayer();
+      await rankChange();
+      setState(() {});
+
       _handleTurnEnd();
 
     } else if(event == "festival"){
@@ -441,6 +453,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Future<void> _setPlayer() async {
+    await rankChange(); // 💡 저장하기 전에 랭킹 최신화!
     await _readPlayer();
     await fs.collection("games").doc("users").set(players);
   }
@@ -514,8 +527,26 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
       // 2. 상대방 땅일 때 (통행료 지불 + 인수)
       else if(owner != 0 && owner != player) {
-        if(players["user$player"]["card"] == "sheild"){
+        if(players["user$player"]["card"] == "shield"){
           // 쉴드 카드 있을때 사용할지 물어보는 함수 넣을 자리
+          final result = await showDialog(context: context, builder: (context)=>CardUseDialog(user: player));
+          _setPlayer();
+          if (forceNextTurn || !isDouble) {
+            _nextTurn();
+          } else {
+            doubleCount++;
+            if (doubleCount >= 3) {
+              setState(() {
+                players["user$player"]["position"] = 7;
+              });
+              await fs.collection("games").doc("users").update({
+                "user$player.position": 7,
+                "user$player.islandCount": 3
+              });
+              _nextTurn();
+            }
+          }
+          if(result) return;
         }   
         // 통행료 계산
         int basePrice = boardList[tileKey]["tollPrice"] ?? 0;
@@ -1032,6 +1063,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       _triggerMoneyEffect("user$player", -totalCost);
 
       await _readPlayer();
+      await rankChange();
+      setState(() {});
+
     }
   }
 
@@ -1086,16 +1120,33 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   // ... (rankChange, _readPlayer, _readLocal, _insertLocal 등 하단 함수들 기존 동일) ...
-  Future<void> rankChange() async{
-    int rank = 1;
-    for(int i=1; i<=4; i++){
-      for(int j=i+1; j<=4; j++){
-        if(players["user$i"]["totalMoney"] < players["user$j"]["totalMoney"]){
-          rank++;
-        }
-        players["user$i"]["rank"] = rank;
-        rank = 1;
+  Future<void> rankChange() async {
+    // 1. 생존한 플레이어들을 리스트로 모음
+    List<Map<String, dynamic>> tempUsers = [];
+    for (int i = 1; i <= 4; i++) {
+      if (players["user$i"] != null && players["user$i"]["type"] != "N") {
+        tempUsers.add({
+          "key": "user$i",
+          "totalMoney": players["user$i"]["totalMoney"] ?? 0,
+          "money": players["user$i"]["money"] ?? 0, // 동점자 처리용
+        });
       }
+    }
+
+    // 2. 총 자산(totalMoney) 기준으로 내림차순 정렬 (돈 많으면 앞쪽으로)
+    tempUsers.sort((a, b) {
+      int compare = b["totalMoney"].compareTo(a["totalMoney"]);
+      if (compare == 0) {
+        // 총 자산 같으면 소지금 많은 순
+        return b["money"].compareTo(a["money"]);
+      }
+      return compare;
+    });
+
+    // 3. 정렬된 순서대로 players 맵에 rank 업데이트
+    for (int i = 0; i < tempUsers.length; i++) {
+      String key = tempUsers[i]["key"];
+      players[key]["rank"] = i + 1;
     }
   }
 
@@ -1253,6 +1304,20 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     String totalMoney = "${playerData['totalMoney']}";
     int rank = playerData['rank'];
 
+    // 💡 [추가] 카드 정보 가져오기
+    String card = playerData['card'] ?? "";
+    IconData? cardIcon;
+    Color cardColor = Colors.grey;
+
+    // 카드 종류에 따라 아이콘과 색상 설정
+    if (card == "shield") {
+      cardIcon = Icons.shield;
+      cardColor = Colors.blueAccent;
+    } else if (card == "escape") {
+      cardIcon = Icons.vpn_key; // 탈출권은 열쇠 아이콘
+      cardColor = Colors.orangeAccent;
+    }
+
     String? effectText = _moneyEffects[name];
 
     return Positioned(
@@ -1265,8 +1330,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
+              // 1. 메인 정보 박스
               Container(
                 width: 140, height: 70,
+                // 박스 위치 (등수 배지 위치 확보를 위해 마진 존재)
                 margin: EdgeInsets.only(top: isTop ? 0 : 10, bottom: isTop ? 10 : 0, left: isLeft ? 0 : 20, right: isLeft ? 20 : 0),
                 padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
                 decoration: BoxDecoration(
@@ -1284,8 +1351,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                   ],
                 ),
               ),
+
+              // 2. 등수 배지 (기존 코드: 박스의 한쪽 구석)
               Positioned(
-                top: isTop ? 40 : 0, left: isLeft ? 110 : 0,
+                top: isTop ? 40 : 0,
+                left: isLeft ? 110 : 0,
                 child: Container(
                   width: 40, height: 40, alignment: Alignment.center,
                   decoration: BoxDecoration(
@@ -1296,6 +1366,27 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                   child: Text("$rank등", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
                 ),
               ),
+
+              // 💡 [추가] 카드 아이콘 (등수 배지의 반대쪽 구석에 배치)
+              if (cardIcon != null)
+                Positioned(
+                  // 등수 배지와 같은 높이(Y축), 하지만 반대편(X축)
+                  top: isTop ? 40 : 0,
+                  left: isLeft ? 0 : 110, // 등수 배지와 반대 위치
+                  child: Container(
+                    width: 35, height: 35, // 배지보다 약간 작게
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                    ),
+                    child: Icon(cardIcon, size: 20, color: Colors.white),
+                  ),
+                ),
+
+              // 3. 돈 변화 이펙트
               if (effectText != null)
                 Positioned(
                   top: isTop ? -20 : -30,
