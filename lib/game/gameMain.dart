@@ -18,7 +18,6 @@ import '../quiz/quiz_question.dart';
 import '../quiz/quiz_dialog.dart';
 import '../quiz/quiz_result_popup.dart';
 import '../quiz/chance_card_quiz_after.dart';
-import '../main/game_result.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -134,7 +133,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(total, currentTurn, isDouble);
+    movePlayer(2, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
@@ -145,6 +144,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       _nextTurn();
       return;
     }
+    await _checkWinCondition(currentTurn);
 
     bool needUpdate = false;
     WriteBatch batch = fs.batch();
@@ -388,6 +388,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Future<void> _checkWinCondition(int player) async {
+    print("승리조건체크");
     int ownedGroups = 0;
     for (int g = 1; g <= 8; g++) {
       List<Map<String, dynamic>> groupTiles = [];
@@ -490,8 +491,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   Future<void> _setPlayer() async {
     await rankChange();
-    await _readPlayer();
     await fs.collection("games").doc("users").set(players);
+    await _readPlayer();
   }
 
   void _movePlayerTo(int targetIndex, int player) async {
@@ -542,7 +543,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       if(owner == player) {
         if (playerType == 'B') {
           await _botBuild(player, changePosition);
-        } else {
+        }
+        else {
           final result = await showDialog(
               context: context,
               barrierDismissible: false,
@@ -578,6 +580,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               });
               _nextTurn();
             }
+
           }
           if(result) return;
         }
@@ -725,7 +728,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               await _readPlayer(); await _readLocal();
               await _botBuild(player, changePosition);
             }
-          } else {
+          }
+          else {
+            // 1. 인수 다이얼로그 호출
             final bool? takeoverSuccess = await showDialog(
               context: context,
               barrierDismissible: false,
@@ -733,9 +738,23 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 return TakeoverDialog(buildingId: changePosition, user: player);
               },
             );
+
+            // 2. 인수 성공 시 로직
             if (takeoverSuccess == true) {
+
+              // 💡 [핵심 수정] DB에서 읽어오기 전에, 일단 내 땅이라고 로컬에 강제 설정!
+              // 이렇게 해야 ConstructionDialog가 "내 땅"으로 인식하고 안 꺼집니다.
+              setState(() {
+                if (boardList[tileKey] == null) boardList[tileKey] = {};
+                boardList[tileKey]["owner"] = player;
+              });
+
+              // 그 다음 DB 정보 불러오기 (혹시 모르니)
               await _readLocal();
+
               if (!mounted) return;
+
+              // 3. 건설 다이얼로그 호출
               final constructionResult = await showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -743,12 +762,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                   return ConstructionDialog(user: player, buildingId: changePosition);
                 },
               );
+
+              // 4. 건설 완료 후 처리
               if (constructionResult != null) {
                 setState(() {
-                  if (boardList[tileKey] == null) boardList[tileKey] = {};
                   boardList[tileKey]["level"] = constructionResult["level"];
                   boardList[tileKey]["owner"] = constructionResult["user"];
                 });
+
+                // 💡 [추가] 건설 후 독점 체크 필수
                 await _checkWinCondition(player);
                 await _readLocal();
               }
@@ -895,9 +917,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
       if (mounted) {
         final String? actionResult = await showDialog<String>(
+          useSafeArea: false,
           context: context,
           barrierDismissible: false,
-          useSafeArea: false,
           builder: (context) => ChanceCardQuizAfter(
             quizEffect: isCorrect, storedCard: players["user$player"]["card"],
           ),
