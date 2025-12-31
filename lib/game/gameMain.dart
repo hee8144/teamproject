@@ -49,12 +49,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   late Animation<double> _glowAnimation;
   int? _highlightOwner;
 
+  // 💡 돈 변화 이펙트
   Map<String, String?> _moneyEffects = {};
 
   List<Map<String, dynamic>> localList = [
     {'인천': {'ccbaCtcd': 23}},{'세종': {'ccbaCtcd': 45}},{'울산': {'ccbaCtcd': 26}},
     {'제주': {'ccbaCtcd': 50}},{'대구': {'ccbaCtcd': 22}},{'충북': {'ccbaCtcd': 33}},
-    {'대전': {'ccbaCtcd': 25}},{'전북': {'ccbaCtcd': 35}},{'강원': {'ccbaCtcd': 32}},
+    {'전북': {'ccbaCtcd': 35}},{'강원': {'ccbaCtcd': 32}},
     {'부산': {'ccbaCtcd': 21}},{'충남': {'ccbaCtcd': 35}},{'경기': {'ccbaCtcd': 31}},
     {'경남': {'ccbaCtcd': 38}},{'전남': {'ccbaCtcd': 36}},{'경북': {'ccbaCtcd': 37}},
     {'광주': {'ccbaCtcd': 24}},{'서울': {'ccbaCtcd': 11}}
@@ -896,6 +897,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         final String? actionResult = await showDialog<String>(
           context: context,
           barrierDismissible: false,
+          useSafeArea: false,
           builder: (context) => ChanceCardQuizAfter(
             quizEffect: isCorrect, storedCard: players["user$player"]["card"],
           ),
@@ -1181,7 +1183,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   void _gameOver(String reason, {int? winnerIndex}) {
-    context.go('/gameResult');
+    int winIndex = winnerIndex ?? 0;
+    context.go('/gameResult?victoryType=$reason&winnerName=$winIndex');
   }
 
   Future<void> rankChange() async {
