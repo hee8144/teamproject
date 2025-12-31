@@ -3,7 +3,7 @@ class ChanceCard {
   final String description;
   final String type;
   final String action;
-  final String? imageKey; // 이미지 파일명 (예: island.png)
+  final String? imageKey;
 
   ChanceCard({
     required this.title,
@@ -19,7 +19,7 @@ class ChanceCard {
       description: data['description'] ?? '',
       type: data['type'] ?? 'benefit',
       action: data['action'] ?? '',
-      imageKey: data['imageKey'], // DB 필드명 매핑
+      imageKey: data['imageKey'],
     );
   }
 }

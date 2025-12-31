@@ -547,7 +547,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             }
           }
           if(result) return;
-        }   
+        }
         // 통행료 계산
         int basePrice = boardList[tileKey]["tollPrice"] ?? 0;
         double multiply = (boardList[tileKey]["multiply"] as num? ?? 0).toDouble();
@@ -829,7 +829,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           context: context,
           barrierDismissible: false,
           builder: (context) => ChanceCardQuizAfter(
-            quizEffect: isCorrect,
+            quizEffect: isCorrect, storedCard: players["user$player"]["card"],
           ),
         );
 
