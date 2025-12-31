@@ -9,13 +9,11 @@ enum DetailPopupActionType {
 
 class DetailPopup extends StatefulWidget {
   final int boardNum;
-  final DetailPopupActionType actionType;
   final VoidCallback? onNext;
 
   const DetailPopup({
     super.key,
     required this.boardNum,
-    this.actionType = DetailPopupActionType.close,
     this.onNext,
   });
 
@@ -28,13 +26,18 @@ class _DetailPopupPopupState extends State<DetailPopup> {
 
   Map<String, dynamic> detail = {};
   bool isLoading = true;
+  List<int> nums = [3, 7, 10, 14, 17, 21, 24, 26];
 
   Future<void> getDetail() async {
     final snap = await fs.collection("games").doc("quiz").get();
+    int boardNum = widget.boardNum;
     if (!snap.exists) return;
+    int minusCount = nums.where((n) => n < boardNum).length;
+
+    int quizNum = boardNum - minusCount;
 
     final data = snap.data();
-    final key = "q${widget.boardNum}";
+    final key = "q${quizNum}";
 
     if (data != null && data[key] != null) {
       setState(() {
@@ -55,18 +58,12 @@ class _DetailPopupPopupState extends State<DetailPopup> {
     final size = MediaQuery.of(context).size;
 
     return Dialog(
-      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.7)),
-          ),
-
           Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: 800,
                 maxHeight: size.height * 0.85,
               ),
               child: Container(
@@ -88,7 +85,6 @@ class _DetailPopupPopupState extends State<DetailPopup> {
                 child: Column(
                   children: [
                     _buildHeader(),
-
                     Expanded(
                       child: isLoading
                           ? const Center(child: CircularProgressIndicator())

@@ -63,14 +63,10 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       if(_BoardDetail["isFestival"]){
         isFestival=2;
       }
-      takeoverCost = baseToll *levelMulti;
+      takeoverCost = baseToll * levelMulti;
       toll = baseToll * isFestival * multiply * levelMulti;
 
     }
-    print(baseToll);
-    print(isFestival);
-    print(multiply);
-    print(levelMulti);
   }
 
   @override
@@ -79,11 +75,12 @@ class _BoardDetailPopupState extends State<BoardDetail> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero,
       child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 900, // 정보가 많으므로 가로 폭을 조금 넓혔습니다.
-            maxHeight: size.height * 0.9,
+            maxHeight: size.height * 0.8,
           ),
           child: Container(
             decoration: BoxDecoration(
@@ -98,7 +95,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(10),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -163,11 +160,10 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       title: "건설 비용",
       icon: Icons.foundation,
       content: {
-        "대지": baseToll ,
-        "빌라": baseToll * 2,
-        "빌딩": baseToll * 4,
-        "호텔": baseToll * 8,
-        "랜드마크": baseToll * 16,
+        "빌라": baseToll,
+        "빌딩": baseToll * 2,
+        "호텔": baseToll * 4,
+        "랜드마크": baseToll * 8,
       },
     );
   }
@@ -184,7 +180,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
             color: const Color(0xFFEFEBE9),
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10,),
         Expanded(
           child: _buildInfoCard(
             title: "현재 통행료",
@@ -193,7 +189,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
             color: const Color(0xFFFFF3E0),
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10,),
         _buildBottomButton()
       ],
     );
@@ -207,7 +203,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
     Color color = Colors.white,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(12),
@@ -241,7 +237,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
 
   Widget _buildBottomButton() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(bottom: 1),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF5D4037),
