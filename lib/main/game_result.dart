@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 /// ================= 앱 단독 실행용 main =================
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -13,8 +14,8 @@ Future<void> main() async {
     MaterialApp(
       debugShowCheckedModeBanner: false,
       home: const GameResult(
-        victoryType: 'triple_monopoly', // 예: 'triple_monopoly', 'line_monopoly', 'bankruptcy', 'turn_limit'
-        winnerName: 'user1', // null이면 DB 기반으로 승자 계산
+        victoryType: 'bankruptcy', // 예: 'triple_monopoly', 'line_monopoly', 'bankruptcy', 'turn_limit'
+        winnerName: '0', // 파산일 경우 '0'으로 표기하고 DB 기반으로 남은 잔액을 따져서 승자 계산
       ),
     ),
   );
@@ -84,16 +85,19 @@ class GameResult extends StatelessWidget {
 
   /// ================= 승자 이름 계산 (DB 기반) =================
   String _determineWinner(List<Map<String, dynamic>> players) {
-    if (winnerName != null) return winnerName!;
-
-    final nonBankruptPlayers =
-    players.where((p) => p['isBankrupt'] == false).toList();
-    if (nonBankruptPlayers.isNotEmpty) {
-      nonBankruptPlayers.sort(
-              (a, b) => (b['money'] as int).compareTo(a['money'] as int));
-      return nonBankruptPlayers.first['name'];
+    // winnerName이 null이거나 '0'이면 DB 기반으로 계산
+    if (winnerName == null || winnerName == '0') {
+      final nonBankruptPlayers =
+      players.where((p) => p['isBankrupt'] == false).toList();
+      if (nonBankruptPlayers.isNotEmpty) {
+        nonBankruptPlayers.sort(
+                (a, b) => (b['money'] as int).compareTo(a['money'] as int));
+        return nonBankruptPlayers.first['name'];
+      }
+      return '무명';
     }
-    return '무명';
+
+    return winnerName!;
   }
 
   /// ================= 승리 조건 텍스트 =================
@@ -142,8 +146,7 @@ class GameResult extends StatelessWidget {
                 future: _fetchPlayers(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
-                    return const Center(
-                        child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   final players = snapshot.data!;
@@ -195,12 +198,15 @@ class GameResult extends StatelessWidget {
                               _buildActionButton(
                                 text: "다시 시작",
                                 onTap: () async {
-                                  final String typesQuery =
-                                  await _saveUserTypesBeforeReset();
-                                  context.go(
-                                      '/gameWaitingRoom?types=$typesQuery');
+                                  // GoRouter 안전 호출
+                                  try {
+                                    GoRouter.of(context).go('/gameWaitingRoom');
+                                  } catch (e) {
+                                    print('GoRouter 없음. 단독 실행 중');
+                                  }
                                 },
                               ),
+
                               const SizedBox(height: 16),
                               _buildActionButton(
                                 text: "종료",
