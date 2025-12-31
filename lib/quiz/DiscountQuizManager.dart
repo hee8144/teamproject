@@ -6,7 +6,6 @@ import 'quiz_result_popup.dart';
 import 'quiz_question.dart';
 
 class DiscountQuizManager {
-  /// 퀴즈를 발생시키고 할인 여부를 반환합니다.
   static Future<bool> startDiscountQuiz(BuildContext context, String purpose) async {
     // 1. 50% 확률 체크
     final random = Random();
@@ -19,11 +18,23 @@ class DiscountQuizManager {
 
     // 퀴즈 시작 알림
     if (context.mounted) {
+      final screenHeight = MediaQuery.of(context).size.height;
+      final screenWidth = MediaQuery.of(context).size.width;
+
+      ScaffoldMessenger.of(context).removeCurrentSnackBar(); // 💡 추가
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("✨ $purpose 50% 할인 찬스! 퀴즈가 시작됩니다!"),
+          content: Text("✨ $purpose 50% 할인 찬스! 퀴즈가 시작됩니다!", textAlign: TextAlign.center),
           duration: const Duration(seconds: 2),
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: Colors.deepPurple.withOpacity(0.9),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(
+            bottom: screenHeight - 60,
+            left: screenWidth * 0.2,
+            right: screenWidth * 0.2,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         ),
       );
     }
@@ -68,10 +79,22 @@ class DiscountQuizManager {
 
       // 5. 정답 시 할인 확정 안내
       if (isCorrect && context.mounted) {
+        final screenHeight = MediaQuery.of(context).size.height;
+        final screenWidth = MediaQuery.of(context).size.width;
+
+        ScaffoldMessenger.of(context).removeCurrentSnackBar(); // 💡 추가
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("🎉 축하합니다! $purpose 50% 할인이 적용됩니다!"),
-            backgroundColor: Colors.green,
+            content: Text("🎉 축하합니다! $purpose 50% 할인이 적용됩니다!", textAlign: TextAlign.center),
+            backgroundColor: Colors.green.withOpacity(0.9),
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(
+              bottom: screenHeight - 60, 
+              left: screenWidth * 0.2,
+              right: screenWidth * 0.2,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           ),
         );
       }

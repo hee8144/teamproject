@@ -94,6 +94,7 @@ class _TestChanceCardLogicState extends State<TestChanceCardLogic> {
 
       final result = await showDialog(
         context: context,
+        useSafeArea: false, // 💡 찬스카드는 전체 화면 사용 (잘림 방지)
         builder: (_) => ChanceCardQuizAfter(
           quizEffect: isCorrect,
           storedCard: myStoredCard, 
@@ -189,30 +190,39 @@ class _TestChanceCardLogicState extends State<TestChanceCardLogic> {
                         });
                       },
                     ),
-                    const SizedBox(height: 20),
-
-                    const Text("--- 일반 팝업 UI 호출 테스트 ---", style: TextStyle(fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () => showDialog(context: context, builder: (_) => const ConstructionDialog(buildingId: 1, user: 1)),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.pink[100], foregroundColor: Colors.pink[900]),
-                          child: const Text("건설 팝업 열기"),
-                        ),
-                        const SizedBox(width: 10),
-                        ElevatedButton(
-                          onPressed: () => showDialog(context: context, builder: (_) => const TakeoverDialog(buildingId: 1, user: 1)),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[100], foregroundColor: Colors.blue[900]),
-                          child: const Text("인수 팝업 열기"),
-                        ),
-                        const SizedBox(width: 10),
-                        ElevatedButton(
-                          onPressed: () => setState(() => myStoredCard = "N"),
-                          child: const Text("카드 리셋"),
-                        ),
-                      ],
+
+                    // 💡 [복구] 보관용 카드 테스트 버튼
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.compare_arrows),
+                      label: const Text("보관용 카드 테스트 (교체 팝업 강제)"),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+                      onPressed: () async {
+                        final dummyEscapeCard = ChanceCard(
+                          title: "무인도 탈출",
+                          description: "무인도에서 즉시 탈출하거나,\n나중에 사용할 수 있습니다.",
+                          type: "benefit",
+                          action: "c_escape",
+                          imageKey: "c_escape",
+                        );
+                        final result = await showDialog(
+                          context: context,
+                          useSafeArea: false, // 💡 전체 화면
+                          builder: (_) => ChanceCardQuizAfter(
+                            quizEffect: true,
+                            storedCard: myStoredCard,
+                            debugCard: dummyEscapeCard,
+                          ),
+                        );
+                        if (result != null) _processResult(result.toString());
+                      },
+                    ),
+                    const SizedBox(height: 30),
+                    
+                    ElevatedButton(
+                      onPressed: () => setState(() => myStoredCard = "N"),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+                      child: const Text("보유카드 리셋 (N으로 변경)"),
                     ),
                   ],
                 ),
