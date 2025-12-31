@@ -78,19 +78,17 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     _rightConfettiController.dispose();
     super.dispose();
   }
-  
+
   // [핵심 로직] 카드 액션 처리
   Future<void> _handleCardAction(ChanceCard card) async {
     try {
       String currentCard = 'N';
       String docId = 'unknown';
 
-      // 1. 데이터 가져오기
+      // 1. 데이터 가져오기 (테스트 모드 분기)
       if (ChanceCardQuizAfterV2.isTestMode) {
-        debugPrint("🛠️ [TestMode] 유저 데이터 조회 중...");
         currentCard = ChanceCardQuizAfterV2.testUserMock['card'] ?? 'N';
         docId = 'test_user_doc_id';
-        debugPrint("🛠️ [TestMode] 현재 보유 카드: $currentCard");
       } else {
         final snapshot = await FirebaseFirestore.instance
             .collection('users')
@@ -99,7 +97,8 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
             .get();
 
         if (snapshot.docs.isEmpty) {
-          if (mounted) Navigator.pop(context, card.description);
+          // 💡 [수정] description 대신 action 반환
+          if (mounted) Navigator.pop(context, card.action);
           return;
         }
 
@@ -112,34 +111,31 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
       // 2. 뽑은 카드가 보관용 카드인지 판별
       String? newCardCode;
       if (card.action == 'c_escape') newCardCode = 'escape';
-      if (card.action == 'c_shield') newCardCode = 'sheild'; 
+      if (card.action == 'c_shield') newCardCode = 'sheild';
 
       // 3. 로직 수행
       if (newCardCode != null) {
         if (currentCard == 'sheild' || currentCard == 'escape') {
-          // 이미 카드가 있음 -> [수정됨] 비교 팝업 호출 (새 카드 정보도 전달)
+          // 이미 카드가 있음 -> 교체 팝업
           if (mounted) {
-            _showCompareDialog(
-              docId, 
-              currentCard, 
-              newCardCode, 
-              card.title, 
-              card.imageKey ?? card.action, // 새 카드 이미지 키
-              card.description
-            );
+            // 교체 팝업에도 card.action을 넘겨줘서 최종적으로 반환하게 해야 함
+            _showReplaceDialog(docId, currentCard, newCardCode, card.title, card.action);
           }
         } else {
           // 카드 없음 -> 바로 획득
           await _updateUserCard(docId, newCardCode);
-          if (mounted) Navigator.pop(context, card.description);
+          // 💡 [수정] description 대신 action 반환
+          if (mounted) Navigator.pop(context, card.action);
         }
       } else {
         // 즉시 효과 카드 등
-        if (mounted) Navigator.pop(context, card.description);
+        // 💡 [수정] description 대신 action 반환
+        if (mounted) Navigator.pop(context, card.action);
       }
     } catch (e) {
       debugPrint("Error handling card action: $e");
-      if (mounted) Navigator.pop(context, card.description);
+      // 에러 시에도 일단 닫으며 action 반환 (null 대신)
+      if (mounted) Navigator.pop(context, card.action);
     }
   }
 
@@ -170,124 +166,49 @@ class _ChanceCardQuizAfterV2State extends State<ChanceCardQuizAfterV2>
     return 'assets/cards/$imageKey.png';
   }
 
-  // [UI] 카드 비교 및 교체 다이얼로그
-  void _showCompareDialog(
-      String docId, 
-      String oldCardCode, 
-      String newCardCode, 
-      String newCardTitle, 
-      String newCardImageKey,
-      String description) {
-    
+  // 교체 팝업 (action 인자 추가)
+  void _showReplaceDialog(
+      String docId, String oldCardCode, String newCardCode, String newCardTitle, String action) {
+
     final String oldCardName = (oldCardCode == 'escape') ? '무인도 탈출' : 'VIP 명찰';
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 600, // 넉넉한 너비
-          height: 400,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFDF5E6),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF5D4037), width: 4),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "⚠️ 보관함이 가득 찼습니다!",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFD84315)),
-              ),
-              const SizedBox(height: 8),
-              const Text("하나만 선택하여 보관할 수 있습니다.", style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 20),
-              
-              Expanded(
-                child: Row(
-                  children: [
-                    // [좌측] 기존 카드
-                    Expanded(
-                      child: _buildCompareCardItem(
-                        title: oldCardName,
-                        imagePath: _getImagePath(oldCardCode),
-                        label: "보유 중",
-                        labelColor: Colors.blueGrey,
-                        isNew: false,
-                      ),
-                    ),
-                    
-                    // [중앙] VS 아이콘
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.swap_horiz, size: 40, color: Color(0xFF5D4037)),
-                          Text("VS", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5D4037))),
-                        ],
-                      ),
-                    ),
-                    
-                    // [우측] 새 카드
-                    Expanded(
-                      child: _buildCompareCardItem(
-                        title: newCardTitle,
-                        imagePath: _getImagePath(newCardImageKey),
-                        label: "새로 획득",
-                        labelColor: Colors.amber[800]!,
-                        isNew: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // [하단 버튼]
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[600],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                    onPressed: () {
-                      // 기존 유지 (버리기)
-                      debugPrint("🛠️ [TestMode] 카드 버림 (기존 유지)");
-                      Navigator.pop(dialogContext);
-                      Navigator.pop(context, description);
-                    },
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text("새 카드 버리기"),
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5D4037),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                    onPressed: () async {
-                      // 교체하기
-                      await _updateUserCard(docId, newCardCode);
-                      if (!mounted) return;
-                      Navigator.pop(dialogContext);
-                      Navigator.pop(context, description);
-                    },
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text("새 카드로 교체"),
-                  ),
-                ],
-              ),
-            ],
-          ),
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("카드 보관함 확인", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          "현재 보유 중인 카드: '$oldCardName'\n새로 뽑은 카드: '$newCardTitle'\n\n새 카드로 교체하시겠습니까?",
+          style: const TextStyle(height: 1.5),
         ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // 버리기
+              Navigator.pop(dialogContext);
+              // 💡 버렸더라도 카드는 뽑았으므로 action 반환 (GameMain에서 로그 등으로 확인 가능)
+              Navigator.pop(context, action);
+            },
+            child: const Text("버리기", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5D4037),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              // 교체하기
+              await _updateUserCard(docId, newCardCode);
+
+              if (!mounted) return;
+              Navigator.pop(dialogContext);
+              // 💡 교체 후 action 반환
+              Navigator.pop(context, action);
+            },
+            child: const Text("교체하기"),
+          ),
+        ],
       ),
     );
   }

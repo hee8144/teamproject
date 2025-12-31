@@ -83,7 +83,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 900, // 정보가 많으므로 가로 폭을 조금 넓혔습니다.
-            maxHeight: size.height * 0.9,
+            maxHeight: size.height * 1,
           ),
           child: Container(
             decoration: BoxDecoration(
@@ -98,7 +98,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(10),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -184,7 +184,6 @@ class _BoardDetailPopupState extends State<BoardDetail> {
             color: const Color(0xFFEFEBE9),
           ),
         ),
-        const SizedBox(height: 10),
         Expanded(
           child: _buildInfoCard(
             title: "현재 통행료",
@@ -193,7 +192,6 @@ class _BoardDetailPopupState extends State<BoardDetail> {
             color: const Color(0xFFFFF3E0),
           ),
         ),
-        const SizedBox(height: 10),
         _buildBottomButton()
       ],
     );
@@ -207,7 +205,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
     Color color = Colors.white,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(12),
@@ -241,11 +239,11 @@ class _BoardDetailPopupState extends State<BoardDetail> {
 
   Widget _buildBottomButton() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(bottom: 1),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF5D4037),
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
         ),
         onPressed: () => Navigator.pop(context),
         child: const Text("확인", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
