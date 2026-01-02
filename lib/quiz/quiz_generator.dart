@@ -165,7 +165,7 @@ class QuizGenerator {
     }
 
     final List<String> choices = choicesSet.toList();
-    choices.shuffle(); // 골고루 섞음
+    choices.shuffle();
     
     return choices;
   }

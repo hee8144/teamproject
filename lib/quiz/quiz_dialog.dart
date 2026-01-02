@@ -19,7 +19,7 @@ class QuizDialog extends StatefulWidget {
 
 class _QuizDialogState extends State<QuizDialog>
     with TickerProviderStateMixin {
-  int remainingSeconds = 60;
+  int remainingSeconds = 40;
   Timer? _timer;
 
   late AnimationController _unrollController;
