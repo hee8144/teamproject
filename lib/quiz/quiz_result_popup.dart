@@ -23,22 +23,21 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
     final bool isTimeout = widget.selectedIndex == -1;
     final size = MediaQuery.of(context).size;
 
-    // 결과에 따른 테마 색상 및 텍스트 설정
     String resultTitle;
     Color themeColor;
     IconData resultIcon;
 
     if (isTimeout) {
       resultTitle = "시간 초과!";
-      themeColor = const Color(0xFFD84315); // 진한 주황
+      themeColor = const Color(0xFFD84315);
       resultIcon = Icons.timer_off_outlined;
     } else if (widget.isCorrect) {
       resultTitle = "정답입니다!";
-      themeColor = const Color(0xFF2E7D32); // 진한 초록
+      themeColor = const Color(0xFF2E7D32);
       resultIcon = Icons.check_circle_outline;
     } else {
       resultTitle = "오답입니다!";
-      themeColor = const Color(0xFFC62828); // 진한 빨강
+      themeColor = const Color(0xFFC62828);
       resultIcon = Icons.cancel_outlined;
     }
 
@@ -47,7 +46,6 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Stack(
         children: [
-          // 배경 오버레이
           Positioned.fill(
             child: GestureDetector(
               onTap: () {},
@@ -62,10 +60,10 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
               ),
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFDF5E6), // 한지 배경
+                  color: const Color(0xFFFDF5E6),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFF5D4037), // 나무 테두리
+                    color: const Color(0xFF5D4037),
                     width: 6,
                   ),
                   boxShadow: [
@@ -139,15 +137,15 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  const Text(
-                                    "💡 상세 해설",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF4E342E),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
+                                  // const Text(
+                                  //   "💡 상세 해설",
+                                  //   style: TextStyle(
+                                  //     fontSize: 16,
+                                  //     fontWeight: FontWeight.bold,
+                                  //     color: Color(0xFF4E342E),
+                                  //   ),
+                                  // ),
+                                  // const SizedBox(height: 10),
                                   
                                   // 해설 내용을 스크롤 가능하게 배치
                                   Expanded(
