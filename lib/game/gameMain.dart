@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
+import '../Popup/warning.dart';
 import 'dice.dart'; // diceAppKey, DiceApp import
 import '../Popup/construction.dart';
 import '../Popup/TaxDialog.dart';
@@ -14,6 +15,7 @@ import '../Popup/Island.dart';
 import '../Popup/BoardDetail.dart';
 import '../Popup/Detail.dart';
 import '../Popup/CardUse.dart';
+import '../Popup/check.dart';
 import '../quiz/quiz_repository.dart';
 import '../quiz/quiz_question.dart';
 import '../quiz/quiz_dialog.dart';
@@ -75,6 +77,25 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
             (Match m) => '${m[1]},');
   }
+
+  Future<void> showWarningIfNeeded(BuildContext context) async {
+    final checker = WarningChecker();
+    final result = await checker.check();
+
+
+    if (result == null) return; // 🔥 조건 불충족 → 아무 것도 안 함
+
+
+    showDialog(
+      context: context,
+      builder: (_) => WarningDialog(
+        players: result.players,
+        type: result.type,
+      ),
+    );
+  }
+
+
 
   @override
   void initState() {
@@ -160,7 +181,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(5, currentTurn, isDouble);
+    movePlayer(total, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
@@ -266,7 +287,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     if (islandCount > 0) {
       if(players["user$currentTurn"]["card"] == "escape"){
         final result = await showDialog(context: context, builder: (context)=>CardUseDialog(user: currentTurn));
-        if(result) return;
+        if(result) {
+          fs.collection("games").doc("users").update({
+            "user$currentTurn.card" : "N"
+          });
+        }
       }
       final bool? paidToEscape = await showDialog<bool>(
           context: context,
@@ -432,6 +457,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   Future<void> _checkWinCondition(int player) async {
     print("승리조건체크");
+    await showWarningIfNeeded(context);
     int ownedGroups = 0;
     for (int g = 1; g <= 8; g++) {
       List<Map<String, dynamic>> groupTiles = [];
@@ -606,8 +632,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 boardList[tileKey]["level"] = result["level"];
                 boardList[tileKey]["owner"] = result["user"];
               });
+              await _readPlayer();
               await _checkWinCondition(player);
             }
+
           }
         }
       }
@@ -631,7 +659,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             }
 
           }
-          if(result) return;
+          if(result){
+            fs.collection("games").doc("users").update({
+              "user$player.card" : "N"
+            });
+          }
         }
 
         int basePrice = boardList[tileKey]["tollPrice"] ?? 0;
@@ -803,7 +835,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 if (boardList[tileKey] == null) boardList[tileKey] = {};
                 boardList[tileKey]["owner"] = player;
               });
-
+              await _readPlayer();
               await _readLocal();
 
               if (!mounted) return;
@@ -828,9 +860,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                     boardList[tileKey]["level"] = constructionResult["level"];
                     boardList[tileKey]["owner"] = constructionResult["user"];
                   });
-
-                  await _checkWinCondition(player);
+                  await _readPlayer();
                   await _readLocal();
+                  await _checkWinCondition(player);
                 }
               }
             }
@@ -859,6 +891,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 boardList[tileKey]["level"] = result["level"];
                 boardList[tileKey]["owner"] = result["user"];
               });
+              await _readPlayer();
               await _checkWinCondition(player);
             }
           }
