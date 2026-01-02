@@ -133,7 +133,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(2, currentTurn, isDouble);
+    movePlayer(total, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
@@ -741,7 +741,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
             // 2. 인수 성공 시 로직
             if (takeoverSuccess == true) {
-
+              await _checkWinCondition(player);
               // 💡 [핵심 수정] DB에서 읽어오기 전에, 일단 내 땅이라고 로컬에 강제 설정!
               // 이렇게 해야 ConstructionDialog가 "내 땅"으로 인식하고 안 꺼집니다.
               setState(() {
