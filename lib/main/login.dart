@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ✅ 가로모드 고정용
 import 'package:go_router/go_router.dart';
-import 'mainUI.dart'; // MainScreen
+import 'package:teamproject/network/socket_service.dart';
 
 class Login extends StatelessWidget {
   const Login({super.key});
@@ -137,7 +137,9 @@ class LoginScreen extends StatelessWidget {
             startColor: const Color(0xFFFFE0B2),
             endColor: const Color(0xFFFFCC80),
             borderColor: const Color(0xFFA1887F),
-            onTap: null,
+            onTap: (){
+              context.go('/onlinemain');
+            },
           ),
           const SizedBox(height: 10),
           _buildCustomButton(
