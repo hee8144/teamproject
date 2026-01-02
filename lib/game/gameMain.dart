@@ -185,7 +185,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(total, currentTurn, isDouble);
+    movePlayer(5, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
@@ -312,6 +312,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         setState(() {
           players["user$currentTurn"]["islandCount"] = 0;
         });
+        await _readPlayer();
       }
     }
 
@@ -588,16 +589,37 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     if(nextPos > 27){
       int level = players["user$player"]["level"];
+      int currentMoney = players["user$player"]["money"];
+      int currentTotalMoney = players["user$player"]["totalMoney"];
+
+      // 월급 100만원
+      int salary = 1000000;
+
       if(level < 4){
+        // DB 업데이트
         await fs.collection("games").doc("users").update({
           "user$player.level": level + 1,
-          "user$player.money": players["user$player"]["money"] + 1000000,
-          "user$player.totalMoney": players["user$player"]["totalMoney"] + 1000000
+          "user$player.money": currentMoney + salary,
+          "user$player.totalMoney": currentTotalMoney + salary
+        });
+
+        // 🔥 [핵심] 로컬 상태 즉시 업데이트 (이게 없으면 건설할 때 레벨이 안 맞음)
+        setState(() {
+          players["user$player"]["level"] = level + 1;
+          players["user$player"]["money"] = currentMoney + salary;
+          players["user$player"]["totalMoney"] = currentTotalMoney + salary;
         });
       } else {
+        // 만렙이면 돈만 증가
         await fs.collection("games").doc("users").update({
-          "user$player.money": players["user$player"]["money"] + 1000000,
-          "user$player.totalMoney": players["user$player"]["totalMoney"] + 1000000
+          "user$player.money": currentMoney + salary,
+          "user$player.totalMoney": currentTotalMoney + salary
+        });
+
+        // 로컬 돈 업데이트
+        setState(() {
+          players["user$player"]["money"] = currentMoney + salary;
+          players["user$player"]["totalMoney"] = currentTotalMoney + salary;
         });
       }
     }

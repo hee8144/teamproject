@@ -35,6 +35,7 @@ class _IslandDialogState extends State<IslandDialog> {
     Future<void> payment() async{
       await fs.collection("games").doc("users").update({
         "user${widget.user}.money" :FieldValue.increment(-1000000),
+        "user${widget.user}.totalMoney" :FieldValue.increment(-1000000),
         "user${widget.user}.islandCount" : 0
       });
     }
