@@ -81,10 +81,36 @@ class _QuizDialogState extends State<QuizDialog>
             child: AnimatedBuilder(
               animation: _unrollAnimation,
               builder: (context, child) {
-                return Align(
+                final currentWidth = _unrollAnimation.value * fullWidth;
+                return Stack(
                   alignment: Alignment.centerLeft,
-                  widthFactor: _unrollAnimation.value,
-                  child: child,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: currentWidth,
+                      height: fullHeight,
+                      clipBehavior: Clip.hardEdge,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDF5E6),
+                        border: const Border.symmetric(
+                          vertical: BorderSide(color: Color(0xFF3E2723), width: 12),
+                          horizontal: BorderSide(color: Color(0xFF5D4037), width: 4),
+                        ),
+                      ),
+                      child: OverflowBox(
+                        minWidth: fullWidth,
+                        maxWidth: fullWidth,
+                        minHeight: fullHeight,
+                        maxHeight: fullHeight,
+                        alignment: Alignment.centerLeft,
+                        child: child,
+                      ),
+                    ),
+                    Positioned(
+                      left: currentWidth - 12,
+                      child: _buildScrollHandle(fullHeight),
+                    ),
+                  ]
                 );
               },
               child: Container(
@@ -115,7 +141,7 @@ class _QuizDialogState extends State<QuizDialog>
         _buildHeader(),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 30, 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -178,6 +204,32 @@ class _QuizDialogState extends State<QuizDialog>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildScrollHandle(double height) {
+    return Container(
+      width: 24,
+      height: height + 16,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 6,
+            offset: const Offset(2, 2),
+          ),
+        ],
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Color(0xFF3E2723),
+            Color(0xFF8D6E63),
+            Color(0xFF3E2723),
+          ],
+        ),
       ),
     );
   }
