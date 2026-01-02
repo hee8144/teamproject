@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
-
 import '../firebase_options.dart';
 import 'game/gameMain.dart';
 import 'main/login.dart';
@@ -9,7 +8,6 @@ import 'main/mainUI.dart';
 import 'main/game_rule.dart';
 import 'main/game_waiting_room.dart';
 import 'main/game_result.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

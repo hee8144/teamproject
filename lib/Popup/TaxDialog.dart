@@ -56,6 +56,7 @@ class _TaxDialogState extends State<TaxDialog> {
   Future<void> _updateMoney() async {
     await fs.collection("games").doc("users").update({
       "user${widget.user}.money": FieldValue.increment(-tax),
+      "user${widget.user}.totalMoney": FieldValue.increment(-tax),
     });
   }
 
