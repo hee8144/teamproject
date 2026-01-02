@@ -82,7 +82,7 @@ class DiscountQuizManager {
         final screenHeight = MediaQuery.of(context).size.height;
         final screenWidth = MediaQuery.of(context).size.width;
 
-        ScaffoldMessenger.of(context).removeCurrentSnackBar(); // 💡 추가
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

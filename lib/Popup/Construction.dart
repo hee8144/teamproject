@@ -190,67 +190,126 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: Colors.amber));
     }
+    
+    final size = MediaQuery.of(context).size;
+    final dialogWidth = size.width * 0.85;
+    final dialogHeight = size.height * 0.85;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 450,
+        width: dialogWidth,
+        height: dialogHeight,
         decoration: BoxDecoration(
           color: const Color(0xFFFDF5E6),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFC0A060), width: 4),
+          border: Border.all(color: const Color(0xFF5D4037), width: 6),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 5)),
+          ],
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
             _header(),
-            Padding(
-              padding: const EdgeInsets.all(5),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(4, _buildItem),
-              ),
-            ),
-            Text(
-              "보유 금액: ${formatMoney(userMoney)}",
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              "건설 비용 합계: ${formatMoney(totalCost)}",
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: totalCost == 0 ? null : () async {
-                    final targetLevel = getTargetLevel();
-                    if(targetLevel ==4){
-                      await showDialog(context: context, builder: (context)=>DetailPopup(boardNum: widget.buildingId));
-                    }
-                    await _payment();
-                    Navigator.pop(context,{
-                      "user":widget.user,
-                      "index":widget.buildingId,
-                      "level":targetLevel
-                    });
-
-                  },
-                  child: Text("구매 (${formatMoney(totalCost)})"),
+            
+            // 본문 영역
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFD7CCC8)),
+                        ),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: List.generate(4, (index) => Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: _buildItem(index),
+                            )),
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 16),
+                    
+                    // [우측] 정보 및 버튼
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // 정보 박스
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFD7CCC8)),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(2, 2))
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                _infoRow("보유 금액", userMoney),
+                                const Divider(height: 14, color: Color(0xFF8D6E63)),
+                                _infoRow("건설 비용", totalCost, isHighlight: true),
+                              ],
+                            ),
+                          ),
+                          
+                          const Spacer(),
+                          
+                          // 버튼들 (세로 배치)
+                          SizedBox(
+                            width: double.infinity,
+                            child: _actionButton(
+                              label: "구매하기",
+                              color: const Color(0xFF5D4037),
+                              onTap: totalCost == 0 ? null : () async {
+                                final targetLevel = getTargetLevel();
+                                if(targetLevel == 4){
+                                  await showDialog(context: context, builder: (context)=>DetailPopup(boardNum: widget.buildingId));
+                                }
+                                await _payment();
+                                Navigator.pop(context,{
+                                  "user":widget.user,
+                                  "index":widget.buildingId,
+                                  "level":targetLevel
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            width: double.infinity,
+                            child: _actionButton(
+                              label: "취소",
+                              color: Colors.grey[600]!,
+                              onTap: () => Navigator.pop(context),
+                              isOutline: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                ElevatedButton(onPressed: (){
-                  Navigator.pop(context);
-                }, child: Text("취소"))
-              ],
+              ),
             ),
-            // const SizedBox(height: 16),
           ],
         ),
       ),
@@ -260,78 +319,145 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
   Widget _header() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: const BoxDecoration(
-        color: Color(0xFFBC58B1),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        color: Color(0xFF5D4037),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       child: const Center(
         child: Text(
-          "건설",
+          "건 설 하 기",
           style: TextStyle(
-            color: Colors.white,
+            color: Color(0xFFFFD700),
             fontSize: 22,
             fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
           ),
         ),
       ),
     );
   }
 
+  Widget _infoRow(String label, int value, {bool isHighlight = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 16, color: Colors.grey[800])),
+        Text(
+          "${formatMoney(value)} 원",
+          style: TextStyle(
+            fontSize: isHighlight ? 20 : 16,
+            fontWeight: FontWeight.bold,
+            color: isHighlight ? const Color(0xFFD84315) : Colors.black,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _actionButton({
+    required String label, 
+    required Color color, 
+    required VoidCallback? onTap,
+    bool isOutline = false,
+  }) {
+    if (onTap == null) { // 비활성화 상태
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.grey[300],
+          disabledBackgroundColor: Colors.grey[300],
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
+      );
+    }
+
+    if (isOutline) {
+      return OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: color, width: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Text(label, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+      );
+    }
+
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+        elevation: 5,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+    );
+  }
+
   Widget _buildItem(int index) {
     final selectable = canSelect(index);
     final built = index < builtLevel;
+    final selected = selectedItems[index];
 
     return GestureDetector(
       onTap: selectable ? () => selectUntil(index) : null,
       child: Opacity(
-        opacity: built ? 0.6 : selectable ? 1 : 0.35,
-        child: Container(
-          width: 90,
-          decoration: BoxDecoration(
-            color: built ? Colors.grey.shade300 : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selectedItems[index]
-                  ? Colors.orange
-                  : Colors.grey.shade300,
-              width: 2,
+        opacity: built ? 0.5 : selectable ? 1 : 0.4,
+        child: Column(
+          children: [
+            // 상태 뱃지
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: built ? Colors.grey : (selectable ? const Color(0xFF8D6E63) : Colors.red[300]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                statusText(index),
+                style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFD2B48C),
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(8),
+            
+            // 아이템 박스
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 90,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: selected 
+                      ? const Color(0xFFD84315)
+                      : const Color(0xFF8D6E63).withOpacity(0.3),
+                  width: selected ? 3 : 1.5,
+                ),
+                boxShadow: selected ? [
+                   BoxShadow(color: const Color(0xFFD84315).withOpacity(0.4), blurRadius: 10, spreadRadius: 1)
+                ] : [],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(itemImages[index], height: 50),
+                  const SizedBox(height: 8),
+                  Text(
+                    formatMoney(costs[index]),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: selected ? const Color(0xFFD84315) : Colors.grey[700],
+                    ),
                   ),
-                ),
-                child: Text(
-                  statusText(index),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11, color: Colors.white),
-                ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Image.asset(itemImages[index], height: 45),
-              const SizedBox(height: 6),
-              Text(
-                formatMoney(costs[index]),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: built
-                      ? Colors.grey
-                      : selectable
-                      ? Colors.orange
-                      : Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 6),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
