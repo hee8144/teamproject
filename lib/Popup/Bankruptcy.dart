@@ -329,7 +329,6 @@ class _BankruptDialogState extends State<BankruptDialog> {
                         await bankruptcy();
                         Navigator.pop(context, {"result": "BANKRUPT", "reason": widget.reason});
                       },
-                      isOutline: true,
                     ),
                   ),
                 ],

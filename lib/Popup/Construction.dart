@@ -328,7 +328,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
         child: Text(
           "건 설 하 기",
           style: TextStyle(
-            color: Color(0xFFFFD700), // 금색 텍스트
+            color: Color(0xFFFFD700),
             fontSize: 22,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
