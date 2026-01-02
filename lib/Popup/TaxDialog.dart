@@ -52,6 +52,14 @@ class _TaxDialogState extends State<TaxDialog> {
     });
   }
 
+  /// 금액 포맷 (1,000,000 형태)
+  String formatMoney(int value) {
+    return value.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+          (m) => ',',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
@@ -70,7 +78,7 @@ class _TaxDialogState extends State<TaxDialog> {
             decoration: BoxDecoration(
               color: const Color(0xFFFDF5E6), // 한지 배경
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF5D4037), width: 6), // 나무 테두리
+              border: Border.all(color: const Color(0xFF5D4037), width: 6), // 짙은 갈색 테두리
               boxShadow: const [
                 BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 6)),
               ],
@@ -90,34 +98,34 @@ class _TaxDialogState extends State<TaxDialog> {
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.5),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFB0BEC5), width: 2),
+                              border: Border.all(color: const Color(0xFF8D6E63), width: 2), // 연한 갈색 테두리
                             ),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.account_balance, size: 80, color: Color(0xFF607D8B)),
+                                const Icon(Icons.account_balance, size: 80, color: Color(0xFF5D4037)), // 짙은 갈색 아이콘
                                 const SizedBox(height: 16),
-                                Text(
+                                const Text(
                                   "보유하신 건물의\n세금을 징수합니다.",
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.blueGrey[900],
+                                    color: Color(0xFF3E2723), // 아주 짙은 갈색 텍스트
                                     height: 1.4,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
                                   "(전체 보유 건물 가액의 10%)",
-                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  style: TextStyle(fontSize: 12, color: Colors.brown),
                                 ),
                               ],
                             ),
                           ),
                         ),
                         
-                        const SizedBox(width: 20),
+                        const SizedBox(width: 20), 
                         
                         // [우측] 정보 및 버튼
                         Expanded(
@@ -130,7 +138,7 @@ class _TaxDialogState extends State<TaxDialog> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFFB0BEC5)) ,
+                                  border: Border.all(color: const Color(0xFF8D6E63)), // 연한 갈색 테두리
                                   boxShadow: const [
                                     BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(2, 2))
                                   ],
@@ -138,9 +146,9 @@ class _TaxDialogState extends State<TaxDialog> {
                                 child: Column(
                                   children: [
                                     _infoRow("현재 보유 금액", userMoney),
-                                    const Divider(height: 24, color: Color(0xFFB0BEC5)),
+                                    const Divider(height: 24, color: Color(0xFF8D6E63)),
                                     _infoRow("납부할 세금", tax, isHighlight: true),
-                                    const Divider(height: 24, color: Color(0xFFB0BEC5)),
+                                    const Divider(height: 24, color: Color(0xFF8D6E63)),
                                     _infoRow("납부 후 예상 잔액", remainMoney, 
                                         isWarning: remainMoney < 0),
                                   ],
@@ -154,7 +162,7 @@ class _TaxDialogState extends State<TaxDialog> {
                                   Expanded(
                                     child: _actionButton(
                                       label: "세금 납부",
-                                      color: const Color(0xFF607D8B), // 청회색
+                                      color: const Color(0xFF5D4037), // 짙은 갈색 버튼
                                       onTap: isPaying ? null : () async {
                                         if (userMoney < tax) {
                                           final lackMoney = tax - userMoney;
@@ -197,7 +205,7 @@ class _TaxDialogState extends State<TaxDialog> {
                     ),
                   ),
                 )
-              ]
+              ],
             ),
           ),
         );
@@ -210,7 +218,7 @@ class _TaxDialogState extends State<TaxDialog> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: const BoxDecoration(
-        color: Color(0xFF607D8B), // 청회색
+        color: Color(0xFF5D4037), // 짙은 갈색 헤더
         borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       child: const Center(
@@ -228,16 +236,16 @@ class _TaxDialogState extends State<TaxDialog> {
   }
 
   Widget _infoRow(String title, int value, {bool isHighlight = false, bool isWarning = false}) {
-    Color valueColor = Colors.black;
-    if (isHighlight) valueColor = const Color(0xFFD84315); // 강조는 주황/빨강 계열
+    Color valueColor = const Color(0xFF3E2723);
+    if (isHighlight) valueColor = const Color(0xFFD84315); // 강조는 주황/적색
     if (isWarning) valueColor = Colors.red;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: TextStyle(fontSize: 16, color: Colors.grey[800])),
+        Text(title, style: const TextStyle(fontSize: 16, color: Color(0xFF5D4037), fontWeight: FontWeight.w600)),
         Text(
-          "${value.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')} 원",
+          "${formatMoney(value)} 원",
           style: TextStyle(
             fontSize: isHighlight ? 20 : 16,
             fontWeight: FontWeight.bold,
