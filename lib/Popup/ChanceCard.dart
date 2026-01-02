@@ -23,7 +23,6 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
   void initState() {
     super.initState();
 
-    // 다이얼로그가 뜬 직후 실행
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _runChanceFlow();
     });
@@ -31,7 +30,7 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
 
   Future<void> _runChanceFlow() async {
     final random = Random();
-    final bool showQuiz = true; // ✅ 테스트 끝나면 random.nextBool()
+    final bool showQuiz = true;
 
     bool isCorrect = false;
     int? selectedIndex;
@@ -44,7 +43,7 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
       await showDialog(
         context: context,
         barrierDismissible: false,
-        useSafeArea: false, // 💡 전체 화면
+        useSafeArea: false,
         builder: (_) => QuizDialog(
           question: question!,
           onQuizFinished: (index, correct) {
@@ -58,7 +57,7 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
       await showDialog(
         context: context,
         barrierDismissible: false,
-        useSafeArea: false, // 💡 전체 화면
+        useSafeArea: false,
         builder: (_) => QuizResultPopup(
           isCorrect: isCorrect,
           question: question!,
@@ -71,13 +70,13 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
     await showDialog(
       context: context,
       barrierDismissible: false,
-      useSafeArea: false, // 💡 전체 화면
+      useSafeArea: false,
       builder: (_) => ChanceCardQuizAfter(
         quizEffect: isCorrect, storedCard: '', userIndex: 1,
       ),
     );
 
-    Navigator.pop(context); // ChancecardDialog 닫기
+    Navigator.pop(context);
   }
 
   @override
@@ -93,7 +92,7 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
           borderRadius: BorderRadius.circular(28),
         ),
         child: const Center(
-          child: CircularProgressIndicator(), // 로딩 연출
+          child: CircularProgressIndicator(),
         ),
       ),
     );

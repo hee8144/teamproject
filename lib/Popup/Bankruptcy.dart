@@ -21,17 +21,9 @@ class _BankruptDialogState extends State<BankruptDialog> {
   final FirebaseFirestore fs = FirebaseFirestore.instance;
 
   bool isAssetMode = false; // 자산 정리 화면 진입 여부
-
-  /// 🔥 자산 리스트
   List<Map<String, dynamic>> assets = [];
-
-  /// 선택된 자산의 index들 (Set으로 중복 방지)
   final Set<int> selectedIndexes = {};
-
-  /// 현재 선택한 자산들의 총 판매액
   int currentSelectionTotal = 0;
-
-  /// 현재 남은 부족 금액 (판매할 때마다 줄어듦)
   late int remainingLack;
 
   @override
@@ -42,19 +34,16 @@ class _BankruptDialogState extends State<BankruptDialog> {
 
   String get reasonTitle {
     switch (widget.reason) {
-      case "tax":
-        return "세금을 납부할 수 없습니다";
-      case "toll":
-        return "통행료를 지불할 수 없습니다";
-      default:
-        return "지불할 수 없습니다";
+      case "tax": return "세금을 납부할 수 없습니다";
+      case "toll": return "통행료를 지불할 수 없습니다";
+      default: return "지불할 수 없습니다";
     }
   }
 
   String formatMoney(int value) {
     return value.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (m) => ',',
+      (m) => ',',
     );
   }
 
@@ -62,30 +51,18 @@ class _BankruptDialogState extends State<BankruptDialog> {
   Future<void> bankruptcy() async {
     final boardRef = fs.collection("games").doc("board");
     final usersRef = fs.collection("games").doc("users");
-
     final boardSnap = await boardRef.get();
     if (!boardSnap.exists) return;
 
     final batch = fs.batch();
-    final boardData = boardSnap.data()!;
-
-    // 유저 상태 D(Dead/파산)로 변경
-    batch.update(usersRef, {
-      "user${widget.user}.type": "D",
-    });
-
-    // 소유 땅 초기화
-    boardData.forEach((key, value) {
+    batch.update(usersRef, {"user${widget.user}.type": "D"});
+    boardSnap.data()!.forEach((key, value) {
       if (value is Map && value["owner"] == widget.user) {
         batch.update(boardRef, {
-          "$key.owner": "N",
-          "$key.level": 0,
-          "$key.multiply": 1,
-          "$key.isFestival": false,
+          "$key.owner": "N", "$key.level": 0, "$key.multiply": 1, "$key.isFestival": false,
         });
       }
     });
-
     await batch.commit();
   }
 
@@ -98,31 +75,16 @@ class _BankruptDialogState extends State<BankruptDialog> {
       var boardData = boardSnap.data()!;
       boardData.forEach((key, value) {
         if (value is Map && value["owner"] == widget.user) {
-
-          // 1. Firebase에서 기본 tollPrice와 현재 레벨 가져오기
           int toll = value["tollPrice"] ?? 0;
           int level = value["level"] ?? 0;
-
-          // 💡 2. [요청하신 기준 적용] 판매 금액 계산
           int sellPrice = 0;
 
           switch (level) {
-            case 1:
-              sellPrice = toll;       // 1배
-              break;
-            case 2:
-              sellPrice = toll * 3;   // 3배
-              break;
-            case 3:
-              sellPrice = toll * 7;   // 7배
-              break;
-            case 4:
-              sellPrice = toll * 15;  // 15배
-              break;
-            default:
-            // 혹시 레벨이 0이거나 데이터가 이상할 경우 기본값(1배) 처리
-              sellPrice = toll;
-              break;
+            case 1: sellPrice = toll; break;
+            case 2: sellPrice = toll * 3; break;
+            case 3: sellPrice = toll * 7; break;
+            case 4: sellPrice = toll * 15; break;
+            default: sellPrice = toll; break;
           }
 
           temp.add({
@@ -130,7 +92,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
             "index": value["index"],
             "name": value["name"],
             "level": level,
-            "sellPrice": sellPrice,   // 계산된 판매 금액 저장
+            "sellPrice": sellPrice,
           });
         }
       });
@@ -147,40 +109,38 @@ class _BankruptDialogState extends State<BankruptDialog> {
   Future<void> sellSelectedAssets() async {
     if (selectedIndexes.isEmpty) return;
 
-    Map<String, dynamic> boardUpdateData = {};
     int totalSellPrice = 0;
+    for (int idx in selectedIndexes) {
+      totalSellPrice += (assets[idx]["sellPrice"] as int);
+    }
 
-    // 1. 선택된 자산들 DB 업데이트 데이터 생성
+    Map<String, dynamic> boardUpdateData = {};
     for (int idx in selectedIndexes) {
       final asset = assets[idx];
       boardUpdateData["${asset["boardKey"]}.owner"] = 'N';
       boardUpdateData["${asset["boardKey"]}.level"] = 0;
       boardUpdateData["${asset["boardKey"]}.isFestival"] = false;
-
-      totalSellPrice += (asset["sellPrice"] as int);
     }
 
-    // 2. DB 업데이트 (땅 초기화 및 유저 돈 증가)
     final batch = fs.batch();
-    final boardRef = fs.collection("games").doc("board");
-    final userRef = fs.collection("games").doc("users");
-
-    batch.update(boardRef, boardUpdateData);
-    batch.update(userRef, {
+    batch.update(fs.collection("games").doc("board"), boardUpdateData);
+    batch.update(fs.collection("games").doc("users"), {
       "user${widget.user}.money": FieldValue.increment(totalSellPrice),
-      "user${widget.user}.totalMoney": FieldValue.increment(totalSellPrice), // 자산 변동은 없지만 현금 확보
+      "user${widget.user}.totalMoney": FieldValue.increment(totalSellPrice),
     });
-
     await batch.commit();
 
-    // 3. 상태 업데이트 (부족 금액 차감)
     setState(() {
       remainingLack -= totalSellPrice;
+      final List<int> sortedIndices = selectedIndexes.toList()..sort((a, b) => b.compareTo(a));
+      for (int idx in sortedIndices) {
+        assets.removeAt(idx);
+      }
+      selectedIndexes.clear();
+      currentSelectionTotal = 0;
     });
 
-    // 4. 생존 여부 확인
     if (remainingLack <= 0) {
-      // 빚을 다 갚음 -> 생존!
       if (mounted) {
         await showDialog(
           context: context,
@@ -188,17 +148,13 @@ class _BankruptDialogState extends State<BankruptDialog> {
             title: const Text("위기 탈출!", style: TextStyle(color: Colors.blue)),
             content: const Text("자산을 매각하여 빚을 모두 청산했습니다.\n게임을 계속 진행합니다."),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("확인"),
-              )
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
             ],
           ),
         );
-        Navigator.pop(context, "SURVIVED"); // 파산 안하고 닫기
+        Navigator.pop(context, "SURVIVED");
       }
     } else {
-      // 아직도 빚이 남음 -> 목록 갱신해서 더 팔게 함
       await boardGet();
     }
   }
@@ -228,8 +184,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
             _header(),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(20),
-                // 모드에 따라 화면 전환
+                padding: const EdgeInsets.all(16),
                 child: isAssetMode ? _assetSellingView() : _bankruptChoiceView(),
               ),
             ),
@@ -242,30 +197,23 @@ class _BankruptDialogState extends State<BankruptDialog> {
   Widget _header() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: const BoxDecoration(
-        color: Color(0xFFC62828),
+        color: Color(0xFFC62828), 
         borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
       child: const Center(
         child: Text(
           "파 산 위 기",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2.0,
-          ),
+          style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 2.0),
         ),
       ),
     );
   }
 
-  /// 초기 선택 화면 (파산 vs 자산정리)
   Widget _bankruptChoiceView() {
     return Row(
       children: [
-        // 경고 비주얼
         Expanded(
           flex: 4,
           child: Column(
@@ -273,16 +221,10 @@ class _BankruptDialogState extends State<BankruptDialog> {
             children: [
               const Icon(Icons.warning_amber_rounded, size: 100, color: Color(0xFFC62828)),
               const SizedBox(height: 20),
-              Text(
-                reasonTitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
-              ),
+              Text(reasonTitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown)),
             ],
           ),
         ),
-        
-        // [우측] 정보 및 선택 버튼
         Expanded(
           flex: 6,
           child: Column(
@@ -290,7 +232,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
             children: [
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -299,11 +241,8 @@ class _BankruptDialogState extends State<BankruptDialog> {
                 child: Column(
                   children: [
                     const Text("부족한 금액", style: TextStyle(fontSize: 16, color: Colors.grey)),
-                    const SizedBox(height: 10),
-                    Text(
-                      "${formatMoney(remainingLack)} 원",
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFFC62828)),
-                    ),
+                    const SizedBox(height: 8),
+                    Text("${formatMoney(remainingLack)} 원", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFFC62828)))
                   ],
                 ),
               ),
@@ -320,14 +259,16 @@ class _BankruptDialogState extends State<BankruptDialog> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 18),
                   Expanded(
                     child: _actionButton(
                       label: "즉시 파산",
                       color: const Color(0xFFC62828),
                       onTap: () async {
                         await bankruptcy();
-                        Navigator.pop(context, {"result": "BANKRUPT", "reason": widget.reason});
+                        if (context.mounted) {
+                          Navigator.pop(context, {"result": "BANKRUPT", "reason": widget.reason});
+                        }
                       },
                     ),
                   ),
@@ -340,11 +281,9 @@ class _BankruptDialogState extends State<BankruptDialog> {
     );
   }
 
-  /// 자산 정리 화면 (그리드 뷰)
   Widget _assetSellingView() {
     return Row(
       children: [
-        // [좌측] 요약 정보
         Expanded(
           flex: 3,
           child: Column(
@@ -359,7 +298,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
                 color: const Color(0xFF2E7D32),
                 onTap: selectedIndexes.isNotEmpty ? () => sellSelectedAssets() : null,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               _actionButton(
                 label: "뒤로가기",
                 color: Colors.grey[700]!,
@@ -373,14 +312,11 @@ class _BankruptDialogState extends State<BankruptDialog> {
             ],
           ),
         ),
-        
-        const SizedBox(width: 18),
-
-        // [우측] 자산 목록 그리드
+        const SizedBox(width: 20),
         Expanded(
           flex: 7,
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.only(top: 50, right: 20, left: 20, bottom: 25),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.5),
               borderRadius: BorderRadius.circular(16),
@@ -388,67 +324,79 @@ class _BankruptDialogState extends State<BankruptDialog> {
             ),
             child: assets.isEmpty
                 ? const Center(child: Text("매각할 수 있는 자산이 없습니다."))
-                : GridView.builder(
-              itemCount: assets.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 1.1,
-              ),
-              itemBuilder: (context, index) {
-                final asset = assets[index];
-                final isSelected = selectedIndexes.contains(index);
+                : Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ListView.builder(
+                        scrollDirection: Axis.horizontal, 
+                        itemCount: assets.length,
+                        itemBuilder: (context, index) {
+                          final asset = assets[index];
+                          final isSelected = selectedIndexes.contains(index);
 
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (isSelected) {
-                        selectedIndexes.remove(index);
-                        currentSelectionTotal -= (asset["sellPrice"] as int);
-                      } else {
-                        selectedIndexes.add(index);
-                        currentSelectionTotal += (asset["sellPrice"] as int);
-                      }
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? const Color(0xFF2E7D32) : Colors.grey.shade300,
-                        width: isSelected ? 3 : 1.5,
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (isSelected) {
+                                  selectedIndexes.remove(index);
+                                  currentSelectionTotal -= (asset["sellPrice"] as int);
+                                } else {
+                                  selectedIndexes.add(index);
+                                  currentSelectionTotal += (asset["sellPrice"] as int);
+                                }
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 140, 
+                              margin: const EdgeInsets.only(right: 12, bottom: 20), 
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isSelected ? const Color(0xFF2E7D32) : Colors.grey.shade300,
+                                  width: isSelected ? 3 : 1.5,
+                                ),
+                                boxShadow: isSelected
+                                    ? [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)]
+                                    : [],
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    asset['name'],
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "${asset['level']}단계",
+                                    style: TextStyle(fontSize: 11, color: Colors.blue[700], fontWeight: FontWeight.bold),
+                                  ),
+                                  const Divider(indent: 15, endIndent: 15),
+                                  Text(
+                                    "${formatMoney(asset['sellPrice'])}원",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                      boxShadow: isSelected
-                          ? [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)]
-                          : [],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          asset['name'],
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          textAlign: TextAlign.center,
+                      if (assets.length > 3) ...[
+                        Positioned(
+                          left: -15, top: 0, bottom: 20,
+                          child: Icon(Icons.chevron_left_rounded, color: const Color(0xFF5D4037).withOpacity(0.4), size: 40),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${asset['level']}단계",
-                          style: TextStyle(fontSize: 11, color: Colors.blue[700], fontWeight: FontWeight.bold),
-                        ),
-                        const Divider(indent: 15, endIndent: 15),
-                        Text(
-                          "${formatMoney(asset['sellPrice'])}원",
-                          style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.bold),
+                        Positioned(
+                          right: -15, top: 0, bottom: 20,
+                          child: Icon(Icons.chevron_right_rounded, color: const Color(0xFF5D4037).withOpacity(0.4), size: 40),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                );
-              },
-            ),
           ),
         ),
       ],
@@ -467,36 +415,25 @@ class _BankruptDialogState extends State<BankruptDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          FittedBox(
-            child: Text(
-              "${formatMoney(value)}원",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: color),
-            ),
-          ),
+          const SizedBox(height: 2),
+          FittedBox(child: Text("${formatMoney(value)}원", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)))
         ],
       ),
     );
   }
 
-  Widget _actionButton({
-    required String label,
-    required Color color,
-    required VoidCallback? onTap,
-    bool isOutline = false,
-  }) {
+  Widget _actionButton({required String label, required Color color, required VoidCallback? onTap, bool isOutline = false}) {
     if (onTap == null) {
       return ElevatedButton(
         onPressed: null,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.grey[300],
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
       );
     }
-
     if (isOutline) {
       return OutlinedButton(
         onPressed: onTap,
@@ -508,15 +445,9 @@ class _BankruptDialogState extends State<BankruptDialog> {
         child: Text(label, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
       );
     }
-
     return ElevatedButton(
       onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+      style: ElevatedButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(vertical: 14), elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
       child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
     );
   }

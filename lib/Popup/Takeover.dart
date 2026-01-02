@@ -47,29 +47,37 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
   }
 
   Future<void> _loadBoard() async {
-    final snap = await fs.collection("games").doc("board").get();
-    if (!snap.exists) return;
+    try {
+      final snap = await fs.collection("games").doc("board").get();
+      if (!snap.exists) return;
 
-    final data = snap.data()!;
-    data.forEach((index, value) {
-      if (value is Map && value["index"] == widget.buildingId) {
-        tollPrice = value["tollPrice"] ?? 0;
-        builtLevel = value["level"] ?? 0;
-      }
-    });
-
-    if (builtLevel >= 4) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pop(context);
+      final data = snap.data()!;
+      data.forEach((index, value) {
+        if (value is Map && value["index"] == widget.buildingId) {
+          tollPrice = value["tollPrice"] ?? 0;
+          builtLevel = value["level"] ?? 0;
+        }
       });
+
+      if (builtLevel >= 4) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pop(context);
+        });
+      }
+    } catch (e) {
+      print("Board load error: $e");
     }
   }
 
   Future<void> _loadUser() async {
-    final snap = await fs.collection("games").doc("users").get();
-    if (!snap.exists) return;
+    try {
+      final snap = await fs.collection("games").doc("users").get();
+      if (!snap.exists) return;
 
-    userMoney = snap.data()!["user${widget.user}"]["money"] ?? 0;
+      userMoney = snap.data()!["user${widget.user}"]["money"] ?? 0;
+    } catch (e) {
+      print("User load error: $e");
+    }
   }
 
   /// ================= 인수 처리 =================
@@ -100,7 +108,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
     }
 
     final size = MediaQuery.of(context).size;
-    final dialogWidth = size.width * 0.6;
+    final dialogWidth = size.width * 0.6; 
     final dialogHeight = size.height * 0.8;
     final canBuy = userMoney >= takeoverCost;
 
@@ -112,7 +120,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
         decoration: BoxDecoration(
           color: const Color(0xFFFDF5E6),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF5D4037), width: 4),
+          border: Border.all(color: const Color(0xFF5D4037), width: 6),
           boxShadow: [
             BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 5)),
           ],
@@ -123,12 +131,13 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
             
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // 정보 박스
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 24),
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
@@ -140,9 +149,9 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
                       child: Column(
                         children: [
                           _infoRow("보유 금액", userMoney),
-                          const Divider(height: 20, color: Color(0xFF8D6E63)),
+                          const Divider(height: 18, color: Color(0xFF8D6E63)),
                           _infoRow("인수 비용", takeoverCost, isHighlight: true),
-                          const Divider(height: 20, color: Color(0xFF8D6E63)),
+                          const Divider(height: 18, color: Color(0xFF8D6E63)),
                           _infoRow("인수 후 잔액", userMoney - takeoverCost, 
                               isWarning: (userMoney - takeoverCost) < 0),
                         ],
@@ -170,7 +179,6 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
                             label: "포기",
                             color: Colors.grey[700]!,
                             onTap: () => Navigator.pop(context),
-                            isOutline: true,
                           ),
                         ),
                       ],
@@ -188,7 +196,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
   Widget _header() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: const BoxDecoration(
         color: Color(0xFF5D4037),
         borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
@@ -252,7 +260,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: color, width: 2),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: Text(label, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
@@ -263,7 +271,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ✅ 가로모드 고정용
 import 'package:go_router/go_router.dart';
-import 'package:teamproject/network/socket_service.dart';
+
 
 class Login extends StatelessWidget {
   const Login({super.key});

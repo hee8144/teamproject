@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:teamproject/online/onlineMain.dart';
+
 import '../firebase_options.dart';
 import 'game/gameMain.dart';
 import 'main/login.dart';
@@ -9,7 +9,7 @@ import 'main/mainUI.dart';
 import 'main/game_rule.dart';
 import 'main/game_waiting_room.dart';
 import 'main/game_result.dart';
-import 'online/onlineRoomList.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,8 +23,6 @@ final GoRouter router = GoRouter(
   routes: [
     GoRoute(path: '/', builder: (context, state) => Login()),
     GoRoute(path: '/main', builder: (context, state) => MainScreen()),
-    GoRoute(path: '/onlinemain', builder: (context, state) => onlineMainScreen()),
-    GoRoute(path: '/onlineRoom', builder: (context, state) => OnlineRoomListPage()),
     GoRoute(path: '/gameRule', builder: (context, state) => GameRulePage()),
     GoRoute(path: '/gameWaitingRoom', builder: (context, state) => GameWaitingRoom()),
     GoRoute(
