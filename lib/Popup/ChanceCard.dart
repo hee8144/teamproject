@@ -73,7 +73,7 @@ class _ChancecardDialogState extends State<ChancecardDialog> {
       barrierDismissible: false,
       useSafeArea: false, // 💡 전체 화면
       builder: (_) => ChanceCardQuizAfter(
-        quizEffect: isCorrect, storedCard: '',
+        quizEffect: isCorrect, storedCard: '', userIndex: 1,
       ),
     );
 
