@@ -168,7 +168,6 @@ class _BankruptDialogState extends State<BankruptDialog> {
     batch.update(boardRef, boardUpdateData);
     batch.update(userRef, {
       "user${widget.user}.money": FieldValue.increment(totalSellPrice),
-      "user${widget.user}.totalMoney": FieldValue.increment(totalSellPrice), // 자산 변동은 없지만 현금 확보
     });
 
     await batch.commit();
