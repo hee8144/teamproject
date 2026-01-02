@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'chance_card.dart';
 import 'chance_card_repository.dart';
 import 'package:confetti/confetti.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 
 class ChanceCardQuizAfter extends StatefulWidget {
   final bool quizEffect;
   final String storedCard; // "N", "shield", "escape"
   final ChanceCard? debugCard;
+  final int userIndex;
 
   const ChanceCardQuizAfter({
     super.key,
     required this.quizEffect,
     required this.storedCard,
+    required this.userIndex,
     this.debugCard,
   });
 
@@ -32,13 +35,12 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
   late ConfettiController _rightConfettiController;
 
   late final Future<ChanceCard> _cardFuture;
-  ChanceCard? _loadedCard; // 💡 로드된 카드 저장용
+  ChanceCard? _loadedCard; 
 
   @override
   void initState() {
     super.initState();
 
-    // 1. 애니메이션 및 폭죽 초기화
     _rotateController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
     _rotation = Tween<double>(begin: -6 * pi, end: 0.0).animate(CurvedAnimation(parent: _rotateController, curve: Curves.easeInOutQuart));
     
@@ -49,12 +51,10 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     _leftConfettiController = ConfettiController(duration: const Duration(seconds: 3));
     _rightConfettiController = ConfettiController(duration: const Duration(seconds: 3));
 
-    // 2. 데이터 로드
     _cardFuture = widget.debugCard != null 
         ? Future.value(widget.debugCard!) 
         : ChanceCardRepository.fetchRandom(quizCorrect: widget.quizEffect);
 
-    // 3. 💡 [수정] 애니메이션 종료 후 폭죽 발사
     _rotateController.forward().then((_) {
       if (_loadedCard != null && _loadedCard!.type == 'benefit') {
         _leftConfettiController.play();
@@ -72,6 +72,20 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     super.dispose();
   }
 
+  /// DB에 카드 저장하는 함수
+  Future<void> _updateCard(String cardAction) async {
+    String cardValue = "";
+    if (cardAction == "c_shield") cardValue = "shield";
+    else if (cardAction == "c_escape") cardValue = "escape";
+
+    if (cardValue.isNotEmpty) {
+      await FirebaseFirestore.instance
+          .collection("games")
+          .doc("users")
+          .update({"user${widget.userIndex}.card": cardValue});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -86,7 +100,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                 if (!snapshot.hasData) return const CircularProgressIndicator(color: Colors.amber);
 
                 final card = snapshot.data!;
-                _loadedCard = card; // 💡 종료 후 폭죽 판단을 위해 저장
+                _loadedCard = card;
                 
                 final bool isStorage = card.action == "c_shield" || card.action == "c_escape";
                 final bool hasStored = widget.storedCard != "N";
@@ -95,7 +109,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                   animation: _rotation,
                   builder: (context, child) {
                     final double angle = _rotation.value;
-                    // 💡 코사인 값이 양수면 앞면, 음수면 뒷면
                     final bool isFront = cos(angle) > 0;
 
                     return Transform(
@@ -104,8 +117,8 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                         ..setEntry(3, 2, 0.001)
                         ..rotateY(angle),
                       child: isFront 
-                          ? child // 앞면 (기존 카드 위젯)
-                          : Transform( // 뒷면 (거울 반전 방지를 위해 pi만큼 더 회전)
+                          ? child 
+                          : Transform( 
                               alignment: Alignment.center,
                               transform: Matrix4.rotationY(pi),
                               child: _cardBack(),
@@ -120,7 +133,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
             ),
           ),
 
-          // 좌측 폭죽 (60도 방향)
           Align(
             alignment: Alignment.bottomLeft,
             child: ConfettiWidget(
@@ -133,7 +145,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
             ),
           ),
 
-          // 우측 폭죽 (120도 방향)
           Align(
             alignment: Alignment.bottomRight,
             child: ConfettiWidget(
@@ -150,7 +161,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     );
   }
 
-  // 💡 카드 뒷면 위젯 추가
   Widget _cardBack() {
     return Container(
       width: 240,
@@ -169,18 +179,22 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     );
   }
 
-  // 1장 모드 (Stack으로 겹침 배치)
   Widget _singleMode(ChanceCard card, bool isStorage) {
     return Stack(
       alignment: Alignment.center,
-      clipBehavior: Clip.none, // 버튼이 카드 밖으로 살짝 나가도 보이게
+      clipBehavior: Clip.none, 
       children: [
-        _cardFrame(card: card), // 아래 레이어: 카드
+        _cardFrame(card: card), 
         
         Positioned(
-          bottom: -15, // 💡 카드 하단에 살짝 걸치게 배치
-          child: _actionButton("확 인", () {
-            Navigator.pop(context, isStorage ? "store:${card.action}" : card.action);
+          bottom: -15, 
+          child: _actionButton("확 인", () async {
+            if (isStorage) {
+              await _updateCard(card.action);
+              if (mounted) Navigator.pop(context, "refresh"); 
+            } else {
+              Navigator.pop(context, card.action);
+            }
           }),
         ),
       ],
@@ -197,7 +211,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
           children: [
             _simpleCard(oldCardKey),
             
-            // 두 카드 사이의 역동적인 교체 아이콘
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: AnimatedBuilder(
@@ -225,7 +238,10 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _actionButton("교체하기", () => Navigator.pop(context, "replace:${newCard.action}")),
+            _actionButton("교체하기", () async {
+              await _updateCard(newCard.action);
+              if (mounted) Navigator.pop(context, "refresh");
+            }),
             const SizedBox(width: 180),
             _actionButton("버리기", () => Navigator.pop(context, "discard"), isGrey: true),
           ],
@@ -235,7 +251,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
   }
 
   Widget _cardFrame({required ChanceCard card}) {
-    // 💡 카드 타입에 따른 빛 색상 결정
     final Color glowColor = card.type == 'benefit' 
         ? Colors.amberAccent.withOpacity(0.6) 
         : Colors.redAccent.withOpacity(0.4);
@@ -250,7 +265,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
             color: const Color(0xFFFDF5E6),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFF5D4037), width: 6),
-            // 💡 여러 겹의 그림자로 아우라 표현
             boxShadow: [
               BoxShadow(
                 color: glowColor,
@@ -394,33 +408,29 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
 
   Widget _actionButton(String text, VoidCallback onTap, {bool isGrey = false}) {
     final Color mainColor = isGrey ? Colors.grey[700]! : const Color(0xFF5D4037);
-    final Color topColor = isGrey ? Colors.grey[500]! : const Color(0xFF8D6E63); // 💡 윗부분 하이라이트
+    final Color topColor = isGrey ? Colors.grey[500]! : const Color(0xFF8D6E63);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
         decoration: BoxDecoration(
-          // 💡 그라데이션으로 입체감 부여
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [topColor, mainColor],
           ),
           borderRadius: BorderRadius.circular(15),
-          // 💡 버튼 테두리 강조
           border: Border.all(
             color: Colors.black.withOpacity(0.3),
             width: 2,
           ),
-          // 💡 강력한 3D 그림자 효과
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.5),
-              offset: const Offset(0, 5), // 아래로 그림자 밀기
+              offset: const Offset(0, 5),
               blurRadius: 8,
             ),
-            // 안쪽 밝은 테두리 효과 (선택사항)
             BoxShadow(
               color: Colors.white.withOpacity(0.2),
               offset: const Offset(0, 2),
@@ -436,7 +446,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
             fontSize: 18,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.5,
-            // 💡 글자에도 입체감을 위한 그림자 추가
             shadows: [
               Shadow(
                 color: Colors.black54,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
+import '../quiz/DiscountQuizManager.dart';
 import 'dice.dart'; // diceAppKey, DiceApp import
 import '../Popup/construction.dart';
 import '../Popup/TaxDialog.dart';
@@ -665,6 +666,13 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           }
         }
 
+        if (playerType != 'B') {
+          bool quizResult = await DiscountQuizManager.startDiscountQuiz(context, "통행료");
+
+          if (quizResult) {
+            finalToll = (finalToll / 2).round();
+          }
+        }
         int myMoney = players["user$player"]["money"];
         int myTotal = players["user$player"]["totalMoney"];
         int ownerMoney = players["user$owner"]["money"];
@@ -986,12 +994,18 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           context: context,
           barrierDismissible: false,
           builder: (context) => ChanceCardQuizAfter(
-            quizEffect: isCorrect, storedCard: players["user$player"]["card"],
+            quizEffect: isCorrect, storedCard: players["user$player"]["card"],userIndex: player,
           ),
         );
 
         if (actionResult != null) {
           print("찬스카드 액션 실행: $actionResult");
+
+          if (actionResult == "refresh") {
+            await _readPlayer();
+            _handleTurnEnd();
+            return;
+          }
 
           if (actionResult == "c_trip") {
             _movePlayerTo(21, player);

@@ -52,183 +52,241 @@ class _TaxDialogState extends State<TaxDialog> {
     });
   }
 
-  /// 금액 박스
-  Widget _moneyBox(String title, int money, Color color) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: color,
-            child: const Icon(Icons.attach_money, color: Colors.white),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 18),
-            ),
-          ),
-          Text(
-            money.toString(),
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
       future: _readUser(),
       builder: (context, snapshot) {
         final size = MediaQuery.of(context).size;
+        final dialogWidth = size.width * 0.85;
+        final dialogHeight = size.height * 0.85;
 
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: EdgeInsets.zero,
           child: Container(
-            width: size.width * 0.7,
-            height: size.height * 0.9,
+            width: dialogWidth,
+            height: dialogHeight,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(25),
+              color: const Color(0xFFFDF5E6), // 한지 배경
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF5D4037), width: 6), // 나무 테두리
               boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 12,
-                  offset: Offset(0, 6),
-                ),
+                BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 6)),
               ],
             ),
             child: Column(
               children: [
-                // 헤더
-                Container(
-                  height: 70,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF607D8B),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    "🏛 국세청",
-                    style: TextStyle(
-                      fontSize: 28,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-
-                // 본문 스크롤
+                _header(),
                 Expanded(
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 왼쪽 안내
-                              Expanded(
-                                flex: 4,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Icon(Icons.account_balance, size: 90),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      "보유 건물의\n세금 10%를 징수합니다!",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(fontSize: 22),
-                                    ),
-                                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        // [좌측] 안내 비주얼
+                        Expanded(
+                          flex: 4,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFB0BEC5), width: 2),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.account_balance, size: 80, color: Color(0xFF607D8B)),
+                                const SizedBox(height: 16),
+                                Text(
+                                  "보유하신 건물의\n세금을 징수합니다.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blueGrey[900],
+                                    height: 1.4,
+                                  ),
                                 ),
-                              ),
-
-                              const SizedBox(width: 20),
-
-                              // 오른쪽 금액 정보
-                              Expanded(
-                                flex: 6,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _moneyBox("보유 금액", userMoney, Colors.blue),
-                                    _moneyBox("지불 금액", tax, Colors.red),
-                                    _moneyBox("납부 후 잔액", remainMoney, Colors.green),
-                                  ],
+                                const SizedBox(height: 8),
+                                const Text(
+                                  "(전체 보유 건물 가액의 10%)",
+                                  style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-
-                          const SizedBox(height: 30),
-
-                          // 버튼
-                          Row(
+                        ),
+                        
+                        const SizedBox(width: 20),
+                        
+                        // [우측] 정보 및 버튼
+                        Expanded(
+                          flex: 6,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: isPaying
-                                      ? null
-                                      : () async {
-                                    if (userMoney < tax) {
-                                      final lackMoney = tax - userMoney;
-                                      Navigator.pop(context);
-                                      Future.microtask(() {
-                                        showDialog(
-                                          context: context,
-                                          barrierDismissible: false,
-                                          builder: (_) => BankruptDialog(
-                                            lackMoney: lackMoney,
-                                            reason: "toll",
-                                            user: widget.user,
-                                          ),
-                                        );
-                                      });
-                                      return;
-                                    }
+                              Container(
+                                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFB0BEC5)) ,
+                                  boxShadow: const [
+                                    BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(2, 2))
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    _infoRow("현재 보유 금액", userMoney),
+                                    const Divider(height: 24, color: Color(0xFFB0BEC5)),
+                                    _infoRow("납부할 세금", tax, isHighlight: true),
+                                    const Divider(height: 24, color: Color(0xFFB0BEC5)),
+                                    _infoRow("납부 후 예상 잔액", remainMoney, 
+                                        isWarning: remainMoney < 0),
+                                  ],
+                                ),
+                              ),
+                              
+                              const Spacer(),
+                              
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _actionButton(
+                                      label: "세금 납부",
+                                      color: const Color(0xFF607D8B), // 청회색
+                                      onTap: isPaying ? null : () async {
+                                        if (userMoney < tax) {
+                                          final lackMoney = tax - userMoney;
+                                          Navigator.pop(context);
+                                          Future.microtask(() {
+                                            showDialog(
+                                              context: context,
+                                              barrierDismissible: false,
+                                              builder: (_) => BankruptDialog(
+                                                lackMoney: lackMoney,
+                                                reason: "tax",
+                                                user: widget.user,
+                                              ),
+                                            );
+                                          });
+                                          return;
+                                        }
 
-                                    setState(() => isPaying = true);
-                                    await _updateMoney();
-                                    if (context.mounted) Navigator.pop(context);
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF607D8B),
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
+                                        setState(() => isPaying = true);
+                                        await _updateMoney();
+                                        if (context.mounted) Navigator.pop(context);
+                                      },
                                     ),
                                   ),
-                                  child: const Text("지불하기", style: TextStyle(fontSize: 20)),
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _actionButton(
+                                      label: "닫기",
+                                      color: Colors.grey[700]!,
+                                      onTap: () => Navigator.pop(context),
+                                      isOutline: true,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                )
+              ]
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _header() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFF607D8B), // 청회색
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      child: const Center(
+        child: Text(
+          "국 세 청",
+          style: TextStyle(
+            color: Color(0xFFFFD700), // 금색
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2.0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String title, int value, {bool isHighlight = false, bool isWarning = false}) {
+    Color valueColor = Colors.black;
+    if (isHighlight) valueColor = const Color(0xFFD84315); // 강조는 주황/빨강 계열
+    if (isWarning) valueColor = Colors.red;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: TextStyle(fontSize: 16, color: Colors.grey[800])),
+        Text(
+          "${value.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')} 원",
+          style: TextStyle(
+            fontSize: isHighlight ? 20 : 16,
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _actionButton({
+    required String label,
+    required Color color,
+    required VoidCallback? onTap,
+    bool isOutline = false,
+  }) {
+    if (onTap == null) {
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.grey[300],
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
+      );
+    }
+
+    if (isOutline) {
+      return OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: color, width: 2),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Text(label, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+      );
+    }
+
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
     );
   }
 }
