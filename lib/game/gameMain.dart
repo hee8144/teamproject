@@ -1,10 +1,10 @@
+import 'dart:async'; // 💡 StreamSubscription을 위해 추가
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
-import '../quiz/DiscountQuizManager.dart';
 import 'dice.dart'; // diceAppKey, DiceApp import
 import '../Popup/construction.dart';
 import '../Popup/TaxDialog.dart';
@@ -19,6 +19,7 @@ import '../quiz/quiz_question.dart';
 import '../quiz/quiz_dialog.dart';
 import '../quiz/quiz_result_popup.dart';
 import '../quiz/chance_card_quiz_after.dart';
+import '../quiz/DiscountQuizManager.dart';
 
 class GameMain extends StatefulWidget {
   const GameMain({super.key});
@@ -29,6 +30,10 @@ class GameMain extends StatefulWidget {
 
 class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   FirebaseFirestore fs = FirebaseFirestore.instance;
+
+  // 💡 실시간 DB 감지를 위한 스트림 구독 변수
+  StreamSubscription<DocumentSnapshot>? _boardStream;
+
   String localName = "";
   int localcode = 0;
   bool _isLoading = true;
@@ -40,7 +45,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   int itsFestival = 0;
 
   int currentTurn = 1;
-  int totalTurn = 30;
+  int totalTurn = 20;
   int doubleCount = 0;
 
   bool _lastIsDouble = false;
@@ -63,6 +68,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   Map<String, dynamic> players = {};
 
+  // 💰 [추가] 숫자 3자리마다 콤마 찍어주는 함수
+  String _formatMoney(dynamic number) {
+    if (number == null) return "0";
+    return number.toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+            (Match m) => '${m[1]},');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -73,12 +86,25 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
+
+    // 💡 [추가] 보드 데이터 실시간 리스너 연결 (DB 수정 시 즉시 반영)
+    _boardStream = fs.collection("games").doc("board").snapshots().listen((snapshot) {
+      if (snapshot.exists && snapshot.data() != null) {
+        if(mounted) {
+          setState(() {
+            boardList = snapshot.data() as Map<String, dynamic>;
+          });
+        }
+      }
+    });
+
     _setLocal();
   }
 
   @override
   void dispose() {
     _glowController.dispose();
+    _boardStream?.cancel(); // 💡 리스너 해제 (메모리 누수 방지)
     super.dispose();
   }
 
@@ -134,13 +160,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(2, currentTurn, isDouble);
+    movePlayer(5, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
     String type = players["user$currentTurn"]?["type"] ?? "N";
 
-    // 💡 [수정] D(사람 파산) 또는 BD(봇 파산)이면 건너뛰기
     if (type == "N" || type == "D" || type == "BD") {
       _nextTurn();
       return;
@@ -266,6 +291,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       });
       await fs.collection("games").doc("users").update({"user$currentTurn.isTraveling": false});
       _triggerHighlight(currentTurn, "trip");
+      return; // ⬅️ 여기서 함수를 종료해야 안전합니다.
     }
   }
 
@@ -293,22 +319,28 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     _glowController.reset();
 
     if(event == "start"){
-      final result = await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) {
-            return ConstructionDialog(user: _eventPlayer, buildingId: index);
-          }
-      );
-      if (result != null && result is Map) {
-        setState(() {
-          String tileKey = "b$index";
-          if (boardList[tileKey] == null) boardList[tileKey] = {};
-          boardList[tileKey]["level"] = result["level"];
-          boardList[tileKey]["owner"] = result["user"];
-        });
+      // 💡 [수정] 레벨 체크 (내 레벨 > 건물 레벨)
+      int myLevel = players["user$_eventPlayer"]["level"] ?? 1;
+      int buildingLevel = boardList["b$index"]["level"] ?? 0;
 
-        await _checkWinCondition(_eventPlayer);
+      if (myLevel > buildingLevel) {
+        final result = await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) {
+              return ConstructionDialog(user: _eventPlayer, buildingId: index);
+            }
+        );
+        if (result != null && result is Map) {
+          setState(() {
+            String tileKey = "b$index";
+            if (boardList[tileKey] == null) boardList[tileKey] = {};
+            boardList[tileKey]["level"] = result["level"];
+            boardList[tileKey]["owner"] = result["user"];
+          });
+
+          await _checkWinCondition(_eventPlayer);
+        }
       }
 
       await _readPlayer();
@@ -329,6 +361,16 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       _handleTurnEnd();
 
     } else if (event == "trip"){
+      // 💡 [수정] 이동하기 전에 안전 장치로 DB에 한번 더 false 저장
+      if (players["user$_eventPlayer"]["isTraveling"] == true) {
+        setState(() {
+          players["user$_eventPlayer"]["isTraveling"] = false;
+        });
+        await fs.collection("games").doc("users").update({
+          "user$_eventPlayer.isTraveling": false
+        });
+      }
+
       _movePlayerTo(index, _eventPlayer);
 
     } else if (event == "earthquake") {
@@ -477,7 +519,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       setState(() { heritageList = detail; });
     }
     await _insertLocal();
-    await _readLocal();
+    await _readLocal(); // 스트림이 있어도 초기 로딩용으로 유지
     await _readPlayer();
     await rankChange();
 
@@ -546,20 +588,26 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           await _botBuild(player, changePosition);
         }
         else {
-          final result = await showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) {
-                return ConstructionDialog(user: player, buildingId: changePosition);
-              }
-          );
-          if (result != null && result is Map) {
-            setState(() {
-              if (boardList[tileKey] == null) boardList[tileKey] = {};
-              boardList[tileKey]["level"] = result["level"];
-              boardList[tileKey]["owner"] = result["user"];
-            });
-            await _checkWinCondition(player);
+          // 💡 [수정] 내 땅 업그레이드 시 레벨 체크
+          int myLevel = players["user$player"]["level"] ?? 1;
+          int currentBuildingLevel = (boardList[tileKey] != null) ? (boardList[tileKey]["level"] ?? 0) : 0;
+
+          if (myLevel > currentBuildingLevel) {
+            final result = await showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) {
+                  return ConstructionDialog(user: player, buildingId: changePosition);
+                }
+            );
+            if (result != null && result is Map) {
+              setState(() {
+                if (boardList[tileKey] == null) boardList[tileKey] = {};
+                boardList[tileKey]["level"] = result["level"];
+                boardList[tileKey]["owner"] = result["user"];
+              });
+              await _checkWinCondition(player);
+            }
           }
         }
       }
@@ -608,7 +656,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if (isDoubleToll) {
           finalToll *= 2;
         }
-
+        // 퀴즈자리
         if (playerType != 'B') {
           bool quizResult = await DiscountQuizManager.startDiscountQuiz(context, "통행료");
 
@@ -616,6 +664,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             finalToll = (finalToll / 2).round();
           }
         }
+
         int myMoney = players["user$player"]["money"];
         int myTotal = players["user$player"]["totalMoney"];
         int ownerMoney = players["user$owner"]["money"];
@@ -749,38 +798,40 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
             // 2. 인수 성공 시 로직
             if (takeoverSuccess == true) {
-
-              // 💡 [핵심 수정] DB에서 읽어오기 전에, 일단 내 땅이라고 로컬에 강제 설정!
-              // 이렇게 해야 ConstructionDialog가 "내 땅"으로 인식하고 안 꺼집니다.
+              await _checkWinCondition(player);
               setState(() {
                 if (boardList[tileKey] == null) boardList[tileKey] = {};
                 boardList[tileKey]["owner"] = player;
               });
 
-              // 그 다음 DB 정보 불러오기 (혹시 모르니)
               await _readLocal();
 
               if (!mounted) return;
 
-              // 3. 건설 다이얼로그 호출
-              final constructionResult = await showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) {
-                  return ConstructionDialog(user: player, buildingId: changePosition);
-                },
-              );
+              // 💡 [수정] 인수 후 바로 건설 시 레벨 체크
+              int myLevel = players["user$player"]["level"] ?? 1;
+              int currentBuildingLevel = (boardList[tileKey] != null) ? (boardList[tileKey]["level"] ?? 0) : 0;
 
-              // 4. 건설 완료 후 처리
-              if (constructionResult != null) {
-                setState(() {
-                  boardList[tileKey]["level"] = constructionResult["level"];
-                  boardList[tileKey]["owner"] = constructionResult["user"];
-                });
+              if (myLevel > currentBuildingLevel) {
+                // 3. 건설 다이얼로그 호출
+                final constructionResult = await showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) {
+                    return ConstructionDialog(user: player, buildingId: changePosition);
+                  },
+                );
 
-                // 💡 [추가] 건설 후 독점 체크 필수
-                await _checkWinCondition(player);
-                await _readLocal();
+                // 4. 건설 완료 후 처리
+                if (constructionResult != null) {
+                  setState(() {
+                    boardList[tileKey]["level"] = constructionResult["level"];
+                    boardList[tileKey]["owner"] = constructionResult["user"];
+                  });
+
+                  await _checkWinCondition(player);
+                  await _readLocal();
+                }
               }
             }
           }
@@ -790,20 +841,26 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if (playerType == 'B') {
           await _botBuild(player, changePosition);
         } else {
-          final result = await showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) {
-                return ConstructionDialog(user: player, buildingId: changePosition);
-              }
-          );
-          if (result != null && result is Map) {
-            setState(() {
-              if (boardList[tileKey] == null) boardList[tileKey] = {};
-              boardList[tileKey]["level"] = result["level"];
-              boardList[tileKey]["owner"] = result["user"];
-            });
-            await _checkWinCondition(player);
+          // 💡 [수정] 빈 땅 구매 시 레벨 체크 (보통 빈 땅은 0렙이라 무조건 통과됨)
+          int myLevel = players["user$player"]["level"] ?? 1;
+          int currentBuildingLevel = 0; // 빈 땅이므로 0
+
+          if (myLevel > currentBuildingLevel) {
+            final result = await showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) {
+                  return ConstructionDialog(user: player, buildingId: changePosition);
+                }
+            );
+            if (result != null && result is Map) {
+              setState(() {
+                if (boardList[tileKey] == null) boardList[tileKey] = {};
+                boardList[tileKey]["level"] = result["level"];
+                boardList[tileKey]["owner"] = result["user"];
+              });
+              await _checkWinCondition(player);
+            }
           }
         }
       }
@@ -929,18 +986,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           context: context,
           barrierDismissible: false,
           builder: (context) => ChanceCardQuizAfter(
-            quizEffect: isCorrect, storedCard: players["user$player"]["card"],userIndex: player,
+            quizEffect: isCorrect, storedCard: players["user$player"]["card"], userIndex: player,
           ),
         );
 
         if (actionResult != null) {
           print("찬스카드 액션 실행: $actionResult");
-
-          if (actionResult == "refresh") {
-            await _readPlayer();
-            _handleTurnEnd();
-            return;
-          }
 
           if (actionResult == "c_trip") {
             _movePlayerTo(21, player);
@@ -1403,8 +1454,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     bool isTop = alignment.y < 0;
     bool isLeft = alignment.x < 0;
     Color bgColor = color;
-    String money = "${playerData['money']}";
-    String totalMoney = "${playerData['totalMoney']}";
+
+    // 💡 [수정] 콤마 함수 적용
+    String money = _formatMoney(playerData['money']);
+    String totalMoney = _formatMoney(playerData['totalMoney']);
+
     int rank = playerData['rank'];
 
     String card = playerData['card'] ?? "";
@@ -1512,12 +1566,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
   Widget _showEventDialog() {
     String eventText = "";
-    if(eventNow == "trip") eventText = "여행갈 땅을 선택해주세요!";
-    else if(eventNow == "festival") eventText = "축제가 열릴 땅을 선택해주세요!";
-    else if(eventNow == "start") eventText = "건설할 땅을 선택해주세요!";
-    else if(eventNow == "storm") eventText = "태풍 피해를 입을 내 땅을 선택하세요.";
-    else if(eventNow == "earthquake") eventText = "지진을 일으킬 상대 땅을 선택하세요!";
-    else if(eventNow == "priceDown") eventText = "통행료를 할인할 내 땅을 선택하세요!";
+    if(eventNow == "trip") eventText = "user${currentTurn}님 여행갈 땅을 선택해주세요!";
+    else if(eventNow == "festival") eventText = "user${currentTurn}님 축제가 열릴 땅을 선택해주세요!";
+    else if(eventNow == "start") eventText = "user${currentTurn}님 건설할 땅을 선택해주세요!";
+    else if(eventNow == "storm") eventText = "user${currentTurn}님 태풍 피해를 입을 내 땅을 선택하세요.";
+    else if(eventNow == "earthquake") eventText = "user${currentTurn}님 지진을 일으킬 상대 땅을 선택하세요!";
+    else if(eventNow == "priceDown") eventText = "user${currentTurn}님 통행료를 할인할 내 땅을 선택하세요!";
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -1691,7 +1745,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     int level = tileData["level"] ?? 0;
     int owner = int.tryParse(tileData["owner"].toString()) ?? 0;
 
-    final List<Color> ownerColors = [Colors.transparent, Colors.red, Colors.blue, Colors.green, Colors.yellow];
+    final List<Color> ownerColors = [Colors.transparent, Colors.red, Colors.blue, Colors.green, Colors.purple];
     Color badgeColor = (owner >= 1 && owner <= 4) ? ownerColors[owner] : Colors.transparent;
 
     return ClipRRect(
@@ -1735,7 +1789,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                             overflow: TextOverflow.ellipsis,
                           ),
                           if (price > 0)
-                            Text("$tollPrice", style: TextStyle(fontSize: 7, color: Colors.grey[600])),
+                          // 💡 [수정] 콤마 함수 적용
+                            Text(_formatMoney(tollPrice), style: TextStyle(fontSize: 6, color: Colors.grey[600])),
                         ],
                       ),
                     ],
@@ -1753,8 +1808,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                   width: 28, height: 28, color: badgeColor,
                   alignment: Alignment.topRight,
                   padding: const EdgeInsets.only(top: 3, right: 5),
-                  child: level != 4 ? Text("$level", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (owner == 4) ? Colors.black : Colors.white))
-                      : Icon(Icons.star, size: 11, color: (owner == 4) ? Colors.black : Colors.white),
+                  child: level != 4 ? Text("$level", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white))
+                      : Icon(Icons.star, size: 11, color: Colors.white),
                 ),
               ),
             ),
@@ -1782,31 +1837,61 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   Widget _buildAnimatedPlayer(int playerIndex, double boardSize, double tileSize) {
     String userKey = "user${playerIndex + 1}";
     String type = players[userKey]?["type"] ?? "N";
-    // 💡 [수정] BD(봇 파산)도 말 숨기기 추가
+
+    // 파산하거나 게임에 없는 유저는 표시하지 않음
     if (type == "N" || type == "D" || type == "BD") return const SizedBox();
 
     int position = players[userKey]?["position"] ?? 0;
 
+    // 1. 타일의 좌상단 좌표 가져오기
     Map<String, double> pos = _getTilePosition(position, boardSize, tileSize);
+    double tileX = pos['left']!;
+    double tileY = pos['top']!;
 
-    double offsetX = (tileSize / 2) - (4 * 11 / 2) + (playerIndex * 11);
-    double offsetY = tileSize * 0.7;
+    // 2. 말판 크기 설정
+    double tokenSize = 24.0;
+    // overlapStep 변수는 이제 필요 없습니다. (옆으로 펼치지 않으므로)
 
-    final List<Color> userColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
+    // 3. [핵심 수정] 타일의 '완전 정중앙' 좌표 계산
+    // 타일의 중앙에서 말판 크기의 절반만큼 빼주면 말판의 중앙이 타일의 중앙과 일치합니다.
+    // playerIndex를 좌표 계산에 더하지 않으므로 모든 말이 정확히 같은 위치에 겹칩니다.
+    double centerOffset = (tileSize - tokenSize) / 2;
+    double finalX = tileX + centerOffset;
+    double finalY = tileY + centerOffset;
+
+    // 색상 설정
+    final List<Color> userColors = [Colors.red, Colors.blue, Colors.green, Colors.purple];
+
+    // 내 차례인지 확인
+    bool isMyTurn = (playerIndex + 1) == currentTurn;
+
+    // 스타일 설정 (내 차례일 때만 불투명 + 테두리 강조)
+    // 겹쳐 있기 때문에 투명도 조절이 중요합니다.
+    double opacity = isMyTurn ? 1.0 : 0.3; // 내 차례가 아니면 좀 더 투명하게(0.3) 해서 겹친 느낌 강조
+    double borderWidth = isMyTurn ? 3.0 : 1.0; // 내 차례가 아니면 테두리 얇게
+    Color borderColor = Colors.white.withOpacity(isMyTurn ? 1.0 : 0.6);
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOut,
-      top: pos['top']! + offsetY,
-      left: pos['left']! + offsetX,
-      child: Container(
-        width: 10,
-        height: 10,
+      top: finalY,
+      left: finalX,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        width: tokenSize,
+        height: tokenSize,
         decoration: BoxDecoration(
-            color: userColors[playerIndex],
+            color: userColors[playerIndex].withOpacity(opacity),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 1),
-            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(1,1))]
+            border: Border.all(color: borderColor, width: borderWidth),
+            boxShadow: [
+              BoxShadow(
+                // 내 차례일 때만 그림자를 진하게 줘서 맨 위에 떠있는 느낌을 줍니다.
+                  color: Colors.black.withOpacity(isMyTurn ? 0.6 : 0.1),
+                  blurRadius: isMyTurn ? 5 : 1,
+                  offset: const Offset(1,1)
+              )
+            ]
         ),
       ),
     );
@@ -1876,7 +1961,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             _buildPlayerInfoPanel(alignment: Alignment.bottomRight, playerData: players['user1'], color: Colors.red, name : "user1"),
             _buildPlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'], color : Colors.blue, name : "user2"),
             _buildPlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'], color: Colors.green, name : "user3"),
-            _buildPlayerInfoPanel(alignment: Alignment.topRight, playerData: players['user4'], color : Colors.yellow, name : "user4"),
+            _buildPlayerInfoPanel(alignment: Alignment.topRight, playerData: players['user4'], color : Colors.purple, name : "user4"),
           ],
         ),
       ),
