@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:intl/intl.dart';
 
 /// ================= 앱 단독 실행용 main =================
 
@@ -14,8 +15,8 @@ Future<void> main() async {
     MaterialApp(
       debugShowCheckedModeBanner: false,
       home: const GameResult(
-        victoryType: 'bankruptcy', // 예: 'triple_monopoly', 'line_monopoly', 'bankruptcy', 'turn_limit'
-        winnerName: '0', // 파산일 경우 '0'으로 표기하고 DB 기반으로 남은 잔액을 따져서 승자 계산
+        victoryType: 'bankruptcy',
+        winnerName: '0',
       ),
     ),
   );
@@ -31,28 +32,13 @@ class GameResult extends StatelessWidget {
     this.winnerName,
   });
 
-  /// ================= 현재 유저 타입 저장 =================
-  Future<String> _saveUserTypesBeforeReset() async {
-    final usersDocRef =
-    FirebaseFirestore.instance.collection('games').doc('users');
-    final usersDoc = await usersDocRef.get();
-    final usersData = usersDoc.data();
-
-    if (usersData == null) return 'N,N,N,N';
-
-    List<String> types = ['N', 'N', 'N', 'N'];
-
-    for (int i = 1; i <= 4; i++) {
-      final user = usersData['user$i'];
-      if (user != null && user['type'] != null) {
-        types[i - 1] = user['type'];
-      }
-    }
-
-    return types.join(',');
+  /// ================= 금액 콤마 포맷 =================
+  String _formatMoney(int money) {
+    final formatter = NumberFormat('#,###');
+    return formatter.format(money);
   }
 
-  /// ================= 순위 + 파산승리 여부 =================
+  /// ================= 순위 계산 =================
   Future<List<Map<String, dynamic>>> _fetchPlayers() async {
     final usersDocRef =
     FirebaseFirestore.instance.collection('games').doc('users');
@@ -65,39 +51,71 @@ class GameResult extends StatelessWidget {
 
     usersData.forEach((key, user) {
       final String type = user['type'];
-      final int money = user['money'] ?? 0;
+      final int totalMoney = user['totalMoney'] ?? 0;
 
       if (type == 'P' || type == 'B' || type == 'D') {
         players.add({
           'name': user['name'] ?? key,
-          'rank': user['rank'] ?? 99,
-          'money': money,
+          'totalMoney': totalMoney,
           'isBankrupt': type == 'D',
         });
       }
     });
 
-    // 순위 정렬
-    players.sort((a, b) => (a['rank'] as int).compareTo(b['rank'] as int));
+    /// 🔴 결과 화면 전용 순위 계산
+    if (victoryType == 'line_monopoly' ||
+        victoryType == 'triple_monopoly') {
+      final winner = players.firstWhere(
+            (p) => p['name'] == winnerName,
+        orElse: () => {},
+      );
+
+      final others =
+      players.where((p) => p['name'] != winnerName).toList();
+
+      others.sort(
+            (a, b) =>
+            (b['totalMoney'] as int).compareTo(a['totalMoney'] as int),
+      );
+
+      players = [
+        if (winner.isNotEmpty) winner,
+        ...others,
+      ];
+    } else {
+      // bankruptcy / turn_limit
+      players.sort(
+            (a, b) =>
+            (b['totalMoney'] as int).compareTo(a['totalMoney'] as int),
+      );
+    }
+
+    /// 로컬 rank 부여
+    for (int i = 0; i < players.length; i++) {
+      players[i]['rank'] = i + 1;
+    }
 
     return players;
   }
 
-  /// ================= 승자 이름 계산 (DB 기반) =================
+  /// ================= 승자 이름 계산 =================
   String _determineWinner(List<Map<String, dynamic>> players) {
-    // winnerName이 null이거나 '0'이면 DB 기반으로 계산
-    if (winnerName == null || winnerName == '0') {
-      final nonBankruptPlayers =
-      players.where((p) => p['isBankrupt'] == false).toList();
-      if (nonBankruptPlayers.isNotEmpty) {
-        nonBankruptPlayers.sort(
-                (a, b) => (b['money'] as int).compareTo(a['money'] as int));
-        return nonBankruptPlayers.first['name'];
-      }
-      return '무명';
+    if (winnerName != null && winnerName != '0') {
+      return winnerName!;
     }
 
-    return winnerName!;
+    final nonBankruptPlayers =
+    players.where((p) => p['isBankrupt'] == false).toList();
+
+    if (nonBankruptPlayers.isNotEmpty) {
+      nonBankruptPlayers.sort(
+            (a, b) =>
+            (b['totalMoney'] as int).compareTo(a['totalMoney'] as int),
+      );
+      return nonBankruptPlayers.first['name'];
+    }
+
+    return '무명';
   }
 
   /// ================= 승리 조건 텍스트 =================
@@ -158,8 +176,8 @@ class GameResult extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF3E0).withOpacity(0.95),
                       borderRadius: BorderRadius.circular(18),
-                      border:
-                      Border.all(color: const Color(0xFF6D4C41), width: 2.5),
+                      border: Border.all(
+                          color: const Color(0xFF6D4C41), width: 2.5),
                     ),
                     child: Row(
                       children: [
@@ -180,7 +198,6 @@ class GameResult extends StatelessWidget {
                                 "${_victoryTypeText()} 🏆 전국을 여행하며 문화재를 지켜낸 $winner 이 바로 최후의 승자입니다!",
                                 style: const TextStyle(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.normal,
                                   color: Colors.black87,
                                 ),
                                 textAlign: TextAlign.center,
@@ -197,16 +214,15 @@ class GameResult extends StatelessWidget {
                             children: [
                               _buildActionButton(
                                 text: "다시 시작",
-                                onTap: () async {
-                                  // GoRouter 안전 호출
+                                onTap: () {
                                   try {
-                                    GoRouter.of(context).go('/gameWaitingRoom');
+                                    GoRouter.of(context)
+                                        .go('/gameWaitingRoom');
                                   } catch (e) {
                                     print('GoRouter 없음. 단독 실행 중');
                                   }
                                 },
                               ),
-
                               const SizedBox(height: 16),
                               _buildActionButton(
                                 text: "종료",
@@ -227,6 +243,7 @@ class GameResult extends StatelessWidget {
     );
   }
 
+  /// ================= 🔥 여기만 핵심 수정 =================
   Widget _buildRankTable(List<Map<String, dynamic>> players) {
     return Table(
       border: TableBorder.all(color: Colors.black26),
@@ -234,9 +251,15 @@ class GameResult extends StatelessWidget {
         _buildRankRow(rank: "순위", name: "이름", money: "잔액", isHeader: true),
         for (final p in players)
           _buildRankRow(
-            rank: p['isBankrupt'] ? "${p['rank']}위 (파산)" : "${p['rank']}위",
+            rank: (p['rank'] == 1 &&
+                (victoryType == 'bankruptcy' ||
+                    p['name'] == winnerName))
+                ? "1위 (승자)"
+                : p['isBankrupt']
+                ? "${p['rank']}위 (파산)"
+                : "${p['rank']}위",
             name: p['name'],
-            money: "₩${p['money']}",
+            money: "₩${_formatMoney(p['totalMoney'])}",
           ),
       ],
     );
