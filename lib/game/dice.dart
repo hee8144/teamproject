@@ -139,7 +139,7 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    List<Color> colors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
+    List<Color> colors = [Colors.red, Colors.blue, Colors.green, Colors.purple];
     int currentTurnIndex = (widget.turn - 1).clamp(0, 3);
 
     return FittedBox(
