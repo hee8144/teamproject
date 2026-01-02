@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-class WarningDialog extends StatelessWidget {
+class WarningDialog extends StatefulWidget {
   final List<int> players;
   final String type; // "triple" | "line"
 
@@ -10,18 +12,49 @@ class WarningDialog extends StatelessWidget {
     required this.type,
   });
 
+  static final Set<String> _shownWarnings = {};
+
+  static bool canShow(List<int> players, String type) {
+    final key = _makeKey(players, type);
+    if (_shownWarnings.contains(key)) return false;
+
+    _shownWarnings.add(key);
+    return true;
+  }
+
+  static String _makeKey(List<int> players, String type) {
+    final sorted = [...players]..sort();
+    return "$type-${sorted.join("_")}";
+  }
+
+  @override
+  State<WarningDialog> createState() => _WarningDialogState();
+}
+
+class _WarningDialogState extends State<WarningDialog> {
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    final playerText = players.join(", ");
-    final typeText = type == "triple" ? "트리플 독점" : "라인 독점";
+    final playerText = widget.players.join(", ");
+    final typeText = widget.type == "triple" ? "트리플 독점" : "라인 독점";
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      elevation: 0,
       insetPadding: const EdgeInsets.all(12),
       child: Container(
-        width: size.width * 0.9,
+        width: size.width * 0.35,
         height: size.height * 0.65,
         decoration: BoxDecoration(
           color: const Color(0xFFF9F6F1),
