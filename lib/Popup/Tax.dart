@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
+import 'package:teamproject/Popup/warning.dart';
 import '../firebase_options.dart';
 import '../quiz/chance_card_quiz_after.dart';
 import '../quiz/quiz_dialog.dart';
@@ -18,6 +19,7 @@ import 'Origin.dart';
 import 'Detail.dart';
 import 'BoardDetail.dart';
 import 'CardUse.dart';
+import 'check.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -39,6 +41,21 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
+Future<void> showWarningIfNeeded(BuildContext context) async {
+  final checker = WarningChecker();
+  final result = await checker.check();
+
+  if (result == null) return; // 🔥 조건 불충족 → 아무 것도 안 함
+
+  showDialog(
+    context: context,
+    builder: (_) => WarningDialog(
+      players: result.players,
+      type: result.type,
+    ),
+  );
+}
 class TaxPage extends StatelessWidget {
   const TaxPage({super.key});
 
@@ -126,8 +143,10 @@ class TaxPage extends StatelessWidget {
                   ),
                   ElevatedButton(onPressed: (){
                     showDialog(context: context, builder: (context)=>CardUseDialog(user: 3));
-                  }, child: Text("카드사용"))
-
+                  }, child: Text("카드사용")),
+                  ElevatedButton(onPressed: () async {
+                    await showWarningIfNeeded(context);
+                  }, child: Text("경고"))
                 ],
               ),
               Row(
