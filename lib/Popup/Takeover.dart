@@ -21,6 +21,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
 
   int tollPrice = 0;
   int builtLevel = 0;
+  int currentOwner = 0; // 💡 원주인 저장 변수 추가
   int userMoney = 0;
   int levelMulti = 0;
   late int takeoverCost;
@@ -55,9 +56,12 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
       if (value is Map && value["index"] == widget.buildingId) {
         tollPrice = value["tollPrice"] ?? 0;
         builtLevel = value["level"] ?? 0;
+        // 💡 원주인 정보 가져오기
+        currentOwner = int.tryParse(value["owner"].toString()) ?? 0;
       }
     });
 
+    // 랜드마크(4단계)는 인수 불가
     if (builtLevel >= 4) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pop(context);
@@ -72,13 +76,27 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
     userMoney = snap.data()!["user${widget.user}"]["money"] ?? 0;
   }
 
-  /// ================= 인수 처리 =================
+  /// ================= 인수 처리 (수정됨) =================
   Future<void> _payment() async {
+    // 반올림된 절반 가격 (총자산 변동폭)
+    int halfCost = (takeoverCost / 2).round();
+
     await fs.runTransaction((tx) async {
+      // 1. 구매자 (나): 돈 차감, 자산 차감
       tx.update(fs.collection("games").doc("users"), {
         "user${widget.user}.money": FieldValue.increment(-takeoverCost),
+        "user${widget.user}.totalMoney": FieldValue.increment(-halfCost),
       });
 
+      // 2. 판매자 (원주인): 돈 획득, 자산 증가 (원주인이 유효한 경우에만)
+      if (currentOwner > 0 && currentOwner <= 4) {
+        tx.update(fs.collection("games").doc("users"), {
+          "user$currentOwner.money": FieldValue.increment(takeoverCost),
+          "user$currentOwner.totalMoney": FieldValue.increment(halfCost),
+        });
+      }
+
+      // 3. 보드판 업데이트 (주인 변경)
       tx.update(fs.collection("games").doc("board"), {
         "b${widget.buildingId}.owner": widget.user,
       });
@@ -120,7 +138,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
         child: Column(
           children: [
             _header(),
-            
+
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
@@ -143,14 +161,14 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
                           const Divider(height: 20, color: Color(0xFF8D6E63)),
                           _infoRow("인수 비용", takeoverCost, isHighlight: true),
                           const Divider(height: 20, color: Color(0xFF8D6E63)),
-                          _infoRow("인수 후 잔액", userMoney - takeoverCost, 
+                          _infoRow("인수 후 잔액", userMoney - takeoverCost,
                               isWarning: (userMoney - takeoverCost) < 0),
                         ],
                       ),
                     ),
-                    
+
                     const Spacer(),
-                    
+
                     // 버튼 영역
                     Row(
                       children: [
