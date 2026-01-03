@@ -7,20 +7,20 @@ import 'package:intl/intl.dart';
 
 /// ================= 앱 단독 실행용 main =================
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const GameResult(
-        victoryType: 'bankruptcy',
-        winnerName: '0',
-      ),
-    ),
-  );
-}
+// Future<void> main() async {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   await Firebase.initializeApp();
+//
+//   runApp(
+//     MaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       home: const GameResult(
+//         victoryType: 'bankruptcy',
+//         winnerName: '0',
+//       ),
+//     ),
+//   );
+// }
 
 class GameResult extends StatelessWidget {
   final String victoryType;
