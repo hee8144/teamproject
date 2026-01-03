@@ -64,6 +64,7 @@ flutter:
   assets:
     - assets/
     - assets/cards/
+    - assets/rules/
     - .env
 
   # The following line ensures that the Material Icons font is
