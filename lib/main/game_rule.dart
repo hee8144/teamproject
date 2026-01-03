@@ -14,103 +14,198 @@ class _GameRulePageState extends State<GameRulePage> {
   final CarouselSliderController _controller = CarouselSliderController();
   int _currentIndex = 0;
 
+  // 현재 열려있는 툴팁 인덱스
+  int? _openedTooltipIndex;
+
   final List<_RuleData> rules = [
-    _RuleData(imagePath: 'assets/rules/game_rule1.png'),
-    _RuleData(imagePath: 'assets/rules/game_rule2.png'),
-    _RuleData(imagePath: 'assets/rules/take_over.png'),
-    // 필요하면 다른 이미지 추가 가능
+    _RuleData(
+      imagePath: 'assets/rules/game_rule.png',
+      tooltip: '기본 게임 진행 규칙을 설명합니다',
+      iconTop: 16.0,
+      iconRight: 16.0,
+      tooltipTopRatio: 0.1,
+      tooltipLeftRatio: 0.05,
+    ),
+    _RuleData(
+      imagePath: 'assets/rules/game_rule2.png',
+      tooltip: '승리 조건과 특수 상황을 확인하세요',
+      iconTop: 100.0,
+      iconRight: 50.0,
+      tooltipTopRatio: 0.7,
+      tooltipLeftRatio: 0.5,
+    ),
+    _RuleData(
+      imagePath: 'assets/rules/take_over.png',
+      tooltip: '상대 땅을 인수하는 핵심 전략',
+      iconTop: 60.0,
+      iconRight: 30.0,
+      tooltipTopRatio: 0.4,
+      tooltipLeftRatio: 0.1,
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       body: Stack(
         children: [
-          // 배경
+          // 배경 + 오버레이
           Container(
-            width: size.width,
-            height: size.height,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.1),
+              image: const DecorationImage(
                 image: AssetImage('assets/background.png'),
                 fit: BoxFit.cover,
               ),
             ),
           ),
-          Container(color: Colors.black.withOpacity(0.1)),
 
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFDF5E6).withOpacity(0.95),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(
-                    color: const Color(0xFFD7C0A1),
-                    width: 0,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 0),
-
-                    // 뒤로가기 + 점 인디케이터
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => context.go('/main'),
-                            child: const Icon(Icons.arrow_back, size: 36),
-                          ),
-                          const Spacer(),
-                          _buildDotIndicator(),
-                        ],
-                      ),
-                    ),
-
-                    // Carousel
-                    Expanded(
-                      child: CarouselSlider(
-                        carouselController: _controller,
-                        options: CarouselOptions(
-                          height: double.infinity,
-                          enableInfiniteScroll: false,
-                          viewportFraction: 1.0,
-                          enlargeCenterPage: false,
-                          onPageChanged: (index, _) {
-                            setState(() => _currentIndex = index);
-                          },
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDF5E6).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => context.go('/main'),
+                          child: const Icon(Icons.arrow_back, size: 36),
                         ),
-                        items: rules.map((rule) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
+                        const Spacer(),
+                        _buildDotIndicator(),
+                      ],
+                    ),
+                  ),
+
+                  // ===== Carousel =====
+                  Expanded(
+                    child: CarouselSlider(
+                      carouselController: _controller,
+                      options: CarouselOptions(
+                        height: double.infinity,
+                        enableInfiniteScroll: false,
+                        viewportFraction: 1.0,
+                        onPageChanged: (index, _) {
+                          setState(() {
+                            _currentIndex = index;
+                            _openedTooltipIndex = null;
+                          });
+                        },
+                      ),
+                      items: rules.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final rule = entry.value;
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: AspectRatio(
+                              aspectRatio: 36 / 16,
                               child: LayoutBuilder(
                                 builder: (context, constraints) {
-                                  return Center(
-                                    child: AspectRatio(
-                                      // 원본 이미지 비율을 사용하면 좋지만, 고정 비율(16/9)도 가능
-                                      aspectRatio: 36 / 16,
-                                      child: FittedBox(
-                                        fit: BoxFit.cover, // 가로 꽉, 세로 비율 유지
-                                        child: Image.asset(rule.imagePath),
+                                  return Stack(
+                                    children: [
+                                      // ===== 이미지 =====
+                                      Positioned.fill(
+                                        child: Image.asset(
+                                          rule.imagePath,
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
-                                    ),
+
+                                      // ===== i 아이콘 =====
+                                      Positioned(
+                                        top: rule.iconTop,
+                                        right: rule.iconRight,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _openedTooltipIndex =
+                                              _openedTooltipIndex == index
+                                                  ? null
+                                                  : index;
+                                            });
+                                          },
+                                          child: Container(
+                                            width: 42,
+                                            height: 42,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.black,
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.info_outline,
+                                              size: 24,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+
+                                      // ===== 툴팁 =====
+                                      if (_openedTooltipIndex == index)
+                                        Positioned(
+                                          top: constraints.maxHeight *
+                                              rule.tooltipTopRatio,
+                                          left: constraints.maxWidth *
+                                              rule.tooltipLeftRatio,
+                                          child: Container(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 300,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 24,
+                                              vertical: 18,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF2E3A59),
+                                              borderRadius:
+                                              BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: const Color(0xFFE6AD5C),
+                                                width: 3,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.35),
+                                                  blurRadius: 12,
+                                                  offset: const Offset(0, 6),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Text(
+                                              rule.tooltip,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w600,
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   );
                                 },
                               ),
                             ),
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -121,7 +216,6 @@ class _GameRulePageState extends State<GameRulePage> {
 
   Widget _buildDotIndicator() {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: List.generate(rules.length, (index) {
         final isActive = _currentIndex == index;
         return GestureDetector(
@@ -132,9 +226,8 @@ class _GameRulePageState extends State<GameRulePage> {
             width: 12,
             height: 12,
             decoration: BoxDecoration(
-              color: isActive
-                  ? const Color(0xFFE6AD5C)
-                  : Colors.transparent,
+              color:
+              isActive ? const Color(0xFFE6AD5C) : Colors.transparent,
               shape: BoxShape.circle,
               border: Border.all(
                 color: isActive ? const Color(0xFFE6AD5C) : Colors.black,
@@ -150,5 +243,22 @@ class _GameRulePageState extends State<GameRulePage> {
 
 class _RuleData {
   final String imagePath;
-  _RuleData({required this.imagePath});
+  final String tooltip;
+
+  // i 아이콘 위치
+  final double iconTop;
+  final double iconRight;
+
+  // 툴팁 위치 (비율로 저장: 0.0 ~ 1.0)
+  final double tooltipTopRatio;
+  final double tooltipLeftRatio;
+
+  _RuleData({
+    required this.imagePath,
+    required this.tooltip,
+    required this.iconTop,
+    required this.iconRight,
+    required this.tooltipTopRatio,
+    required this.tooltipLeftRatio,
+  });
 }
