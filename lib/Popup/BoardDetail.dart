@@ -124,6 +124,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
   }
 
   Widget _buildHeader() {
+    var displayData = _BoardDetail.isNotEmpty ? _BoardDetail : _detail;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -133,7 +134,7 @@ class _BoardDetailPopupState extends State<BoardDetail> {
       ),
       child: Center(
         child: Text(
-          _detail["name"] ?? "상세 정보",
+          displayData["fullName"] ?? displayData["name"] ?? "상세 정보",
           style: const TextStyle(color: Color(0xFFFFD700), fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
