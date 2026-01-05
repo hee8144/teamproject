@@ -39,6 +39,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   String localName = "";
   int localcode = 0;
   bool _isLoading = true;
+
+  // 💡 [수정 1] 말이 이동 중인지 체크하는 변수 추가
+  bool _isMoving = false;
+
   List<Map<String, String>> heritageList = [];
   Map<String, dynamic> boardList = {};
 
@@ -98,8 +102,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
     }
   }
-
-
 
   @override
   void initState() {
@@ -199,7 +201,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(total, currentTurn, isDouble);
+    movePlayer(24, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
@@ -301,9 +303,9 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       if (type != 'B') {
         if(players["user$currentTurn"]["card"] == "escape"){
           final result = await showDialog(
-            context: context, 
-            useSafeArea: false,
-            builder: (context)=>CardUseDialog(user: currentTurn)
+              context: context,
+              useSafeArea: false,
+              builder: (context)=>CardUseDialog(user: currentTurn)
           );
           if(result) {
             fs.collection("games").doc("users").update({
@@ -611,19 +613,24 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
 
   void movePlayer(int steps, int player, bool isDouble) async {
+    // 💡 [수정 2] 이동 시작! UI 숨김 처리
+    setState(() {
+      _isMoving = true;
+    });
+
     _lastIsDouble = isDouble;
     String playerType = players["user$player"]["type"] ?? "P";
 
     int currentPos = players["user$player"]["position"];
     int nextPos = currentPos + steps; // 최종 목표 값 (28 이상일 수도 있음)
-    
+
     // 💡 [한 칸씩 이동 애니메이션]
     for (int i = 1; i <= steps; i++) {
       await Future.delayed(const Duration(milliseconds: 300)); // 이동 속도 조절
       if (!mounted) return;
 
       int tempPos = currentPos + i;
-      
+
       // 출발지 통과 시(28 이상) 월급 지급 (화면상에는 지나가는 것만 보여줌)
       if (tempPos == 28) {
         // 27 -> 28(0번)으로 넘어가는 순간
@@ -664,9 +671,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       });
     }
 
+    // 💡 [수정 3] 이동 종료! (여기서 UI를 다시 보여주거나 팝업 등이 뜸)
+    setState(() {
+      _isMoving = false;
+    });
+
     // --- 이동 완료 후 최종 처리 ---
     int changePosition = nextPos % 28; // 최종 도착 위치 (0~27)
-    
+
     // DB에 최종 위치 저장
     await fs.collection("games").doc("users").update({"user$player.position": changePosition});
 
@@ -1096,16 +1108,41 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               if (validTargets.isEmpty) {
                 await showDialog(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text("지진 발생 실패"),
-                    content: const Text("공격할 수 있는 상대방의 건물이 없습니다.\n(랜드마크는 공격할 수 없습니다)"),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("확인"),
+                  barrierDismissible: false, // 2초 동안은 바깥 터치로 안 꺼지게 설정 (선택사항)
+                  builder: (BuildContext dialogContext) {
+                    // 🕒 2초 뒤 자동 닫기
+                    Future.delayed(const Duration(seconds: 2), () {
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                    });
+
+                    return Dialog(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDF5E6),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFC0A060), width: 4),
+                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "공격할 상대 건물이 없습니다!",
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 );
               }
               else {
@@ -1128,8 +1165,65 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               await fs.collection("games").doc("users").update({"user$player.isDoubleToll": true});
             } else if (actionResult == "d_storm") {
               _triggerHighlight(player, "storm"); return;
-            } else if (actionResult == "d_priceDown") {
-              _triggerHighlight(player, "priceDown"); return;
+            }else if (actionResult == "d_priceDown") {
+              // 1. 내 땅이 있는지 확인
+              List<int> myLands = [];
+              boardList.forEach((key, val) {
+                if (val['type'] == 'land') {
+                  int owner = int.tryParse(val['owner'].toString()) ?? 0;
+                  if (owner == player) {
+                    myLands.add(val['index']);
+                  }
+                }
+              });
+
+              // 2. 내 땅이 없으면 알림 띄우고 종료
+              if (myLands.isEmpty) {
+                await showDialog(
+                  context: context,
+                  builder: (BuildContext dialogContext) {
+                    // 🕒 2초 뒤에 자동으로 닫기
+                    Future.delayed(const Duration(seconds: 2), () {
+                      // 다이얼로그가 아직 화면에 있다면 닫기
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                    });
+
+                    return Dialog(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDF5E6),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFC0A060), width: 4),
+                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+                            const SizedBox(height: 10),
+                            Text(
+                              "통행료를 할인할 내 땅이 없습니다!",
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+                // 아무 일도 없이 턴 종료 로직으로 넘어감 (return 하지 않음)
+              }
+              // 3. 내 땅이 있으면 하이라이트 켜기 (선택 유도)
+              else {
+                _triggerHighlight(player, "priceDown");
+                return; // 선택해야 하므로 함수 종료
+              }
             } else if (actionResult == "d_move") {
               Random ran = Random();
               int currentPos = players["user$player"]["position"];
@@ -1502,24 +1596,26 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     String type = playerData['type'] ?? "N";
     if (type == "N") return const SizedBox();
 
-    String displayName = (type == "B" || type == "BD") ? "bot" : name;
-    if (type == "D" || type == "BD") {
-      displayName += " (파산)";
-    }
+    // 파산 여부 확인
+    bool isBankrupt = (type == "D" || type == "BD");
 
-    bool isTop = alignment.y < 0;
-    bool isLeft = alignment.x < 0;
-    Color bgColor = color;
+    String displayName = (type == "B" || type == "BD") ? "BOT" : "PLAYER${name.replaceAll('user', '')}";
+    if (isBankrupt) displayName = "파산";
+
+    // 위치 판단 변수
+    bool isTop = alignment.y < 0; // P2, P4
+    bool isLeft = alignment.x < 0; // P2, P3
 
     String money = _formatMoney(playerData['money']);
     String totalMoney = _formatMoney(playerData['totalMoney']);
-
     int rank = playerData['rank'];
 
     String card = playerData['card'] ?? "";
-    IconData? cardIcon;
-    Color cardColor = Colors.grey;
+    bool isDoubleToll = playerData['isDoubleToll'] ?? false;
+    String? effectText = _moneyEffects[name];
 
+    IconData? cardIcon;
+    Color cardColor = Colors.transparent;
     if (card == "shield") {
       cardIcon = Icons.shield;
       cardColor = Colors.blueAccent;
@@ -1528,115 +1624,221 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       cardColor = Colors.orangeAccent;
     }
 
-    // 💰 [추가] 통행료 2배 상태 확인
-    bool isDoubleToll = playerData['isDoubleToll'] ?? false;
+    // 이펙트 텍스트 위치
+    double? effectTopPos = isTop ? 90 : -45;
 
-    String? effectText = _moneyEffects[name];
+    // 패널 모양 (오버레이와 공유)
+    var panelBorderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(15),
+      topRight: const Radius.circular(15),
+      bottomLeft: isLeft ? const Radius.circular(5) : const Radius.circular(15),
+      bottomRight: isLeft ? const Radius.circular(15) : const Radius.circular(5),
+    );
 
     return Positioned(
-      top: isTop ? 0 : null, bottom: isTop ? null : 0,
-      left: isLeft ? 0 : null, right: isLeft ? null : 0,
-      child: SafeArea(
-        minimum: const EdgeInsets.all(10),
-        child: SizedBox(
-          width: 160, height: 80,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 140, height: 70,
-                margin: EdgeInsets.only(top: isTop ? 0 : 10, bottom: isTop ? 10 : 0, left: isLeft ? 0 : 20, right: isLeft ? 20 : 0),
-                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
+      top: isTop ? 20 : null,
+      bottom: isTop ? null : 20,
+      left: isLeft ? 10 : null,
+      right: isLeft ? null : 10,
+      child: SizedBox(
+        width: 170,
+        height: 85,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // 1. 카드 아이콘 (파산 시 숨김)
+            if (cardIcon != null && !isBankrupt)
+              Positioned(
+                top: isTop ? null : -12,
+                bottom: isTop ? -22 : null,
+                left: isLeft ? 10 : null,
+                right: isLeft ? null : 10,
+                child: Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 2))
+                    ],
+                  ),
+                  child: Icon(cardIcon, size: 18, color: Colors.white),
+                ),
+              ),
+
+            // 2. 메인 정보 박스
+            Positioned(
+              top: 10, bottom: 0,
+              left: isLeft ? 0 : 25,
+              right: isLeft ? 25 : 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: bgColor, borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(2,2))],
+                  gradient: LinearGradient(
+                    // 파산 시: 아주 어두운 회색/검정 그라데이션
+                    colors: isBankrupt
+                        ? [Colors.grey.shade800, Colors.black]
+                        : [color.withOpacity(0.9), color.withOpacity(0.6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: panelBorderRadius,
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
+                  border: Border.all(
+                    // 파산 시 테두리도 어둡게
+                      color: isBankrupt ? Colors.grey.withOpacity(0.3) : Colors.white.withOpacity(0.6),
+                      width: 1.5
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: isLeft ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (!isLeft && isDoubleToll) const SizedBox(width: 1),
+                        if (!isLeft && isDoubleToll) _buildDoubleBadge(),
+                        if (!isLeft && !isDoubleToll) const SizedBox(width: 1),
+                        Text(
+                          displayName,
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              // 파산 시 텍스트를 어두운 회색으로 처리
+                              color: isBankrupt ? Colors.grey.shade600 : Colors.white,
+                              fontSize: 12
+                          ),
+                        ),
+                        if (isLeft && isDoubleToll) _buildDoubleBadge(),
+                        if (isLeft && isDoubleToll) const SizedBox(width: 1)
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    _moneyText("현금", money, isLeft),
+                    _moneyText("자산", totalMoney, isLeft),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. 랭킹 배지 (파산 시에도 표시는 하되 색상을 죽임)
+            Positioned(
+              top: 0,
+              left: isLeft ? 125 : 0,
+              child: Container(
+                width: 45, height: 45,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isBankrupt ? Colors.grey.shade400 : Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: isBankrupt ? Colors.grey.shade600 : color, width: 3),
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
-                    const SizedBox(height: 2),
-                    Text("소지금 : $money", style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    Text("총 자산 : $totalMoney", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                    const Text("RANK", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+                    Text("$rank", style: TextStyle(fontSize: 18, color: isBankrupt ? Colors.grey.shade600 : color, fontWeight: FontWeight.w900, height: 1.0)),
                   ],
                 ),
               ),
+            ),
+
+            // 4. 돈 변화 이펙트 (파산 시 미표시)
+            if (effectText != null && !isBankrupt)
               Positioned(
-                top: isTop ? 40 : 0,
-                left: isLeft ? 110 : 0,
-                child: Container(
-                  width: 40, height: 40, alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white, shape: BoxShape.circle,
-                    border: Border.all(color: Colors.grey, width: 2),
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                top: effectTopPos,
+                left: 0, right: 0,
+                child: Center(
+                  child: Stack(
+                    children: [
+                      Text(
+                        effectText,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          foreground: Paint()
+                            ..style = PaintingStyle.stroke
+                            ..strokeWidth = 4
+                            ..color = Colors.black,
+                        ),
+                      ),
+                      Text(
+                        effectText,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: effectText.startsWith("-")
+                              ? const Color(0xFFFF5252)
+                              : const Color(0xFF69F0AE),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text("$rank등", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
                 ),
               ),
 
-              if (cardIcon != null)
-                Positioned(
-                  top: isTop ? 40 : 0,
-                  left: isLeft ? 0 : 110,
-                  child: Container(
-                    width: 35, height: 35,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
-                    ),
-                    child: Icon(cardIcon, size: 20, color: Colors.white),
+            // 💡 [수정] 파산 시 아주 어두운 오버레이만 씌움 (X 제거)
+            if (isBankrupt)
+              Positioned(
+                top: 10, bottom: 0,
+                left: isLeft ? 0 : 25,
+                right: isLeft ? 25 : 0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    // 투명도 0.75의 검은색 막을 씌워 '죽은' 상태 표현
+                    color: Colors.black.withOpacity(0.05),
+                    borderRadius: panelBorderRadius,
                   ),
                 ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // 🔴 [추가] 통행료 2배 배지 (카드 아이콘 옆이나 위쪽에 배치)
-              if (isDoubleToll)
-                Positioned(
-                  top: isTop ? 0 : 50, // 위치는 상황에 맞게 조정 (위쪽 패널이면 0, 아래쪽이면 50)
-                  left: isLeft ? 120 : 10, // 좌측 패널이면 120, 우측이면 10 (카드와 반대편)
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white, width: 1.5),
-                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
-                    ),
-                    child: const Text(
-                      "X2",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
-                    ),
-                  ),
-                ),
+  // 💰 작은 돈 텍스트 위젯 (정렬 방향 반영)
+  Widget _moneyText(String label, String value, bool isLeftPanel) {
+    return Row(
+      // 왼쪽 패널(P2,3)은 오른쪽 정렬(End), 오른쪽 패널(P1,4)은 왼쪽 정렬(Start)
+      mainAxisAlignment: isLeftPanel ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: [
+        // 오른쪽 패널: [라벨 : 값]
+        if (!isLeftPanel) ...[
+          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10)),
+          const SizedBox(width: 8),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
 
-              if (effectText != null)
-                Positioned(
-                  top: isTop ? -20 : -30,
-                  left: isLeft ? 20 : 0,
-                  right: isLeft ? 0 : 20,
-                  child: Center(
-                    child: Text(
-                      effectText,
-                      style: TextStyle(
-                        color: effectText.startsWith("-") ? Colors.redAccent : Colors.greenAccent,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        shadows: const [
-                          Shadow(offset: Offset(-1, -1), color: Colors.black),
-                          Shadow(offset: Offset(1, -1), color: Colors.black),
-                          Shadow(offset: Offset(1, 1), color: Colors.black),
-                          Shadow(offset: Offset(-1, 1), color: Colors.black),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+        // 왼쪽 패널: [값 : 라벨] (대칭 효과)
+        if (isLeftPanel) ...[
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10)),
+        ],
+      ],
+    );
+  }
+
+  // 🔴 2배 배지 위젯
+  Widget _buildDoubleBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white, // 배경: 흰색
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.red, width: 1.5), // 테두리: 빨간색
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+      ),
+      child: const Text(
+        "x2",
+        style: TextStyle(
+            color: Colors.red, // 글씨: 빨간색
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            height: 1.0 // 텍스트 높이 정렬
         ),
       ),
     );
@@ -1863,7 +2065,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                     alignment: Alignment.center,
                     children: [
                       Opacity(
-                        opacity: isFestival ? 0.15 : 0,
+                        opacity: isFestival ? 0.5 : 0,
                         child: const Icon(Icons.celebration, size: 30, color: Colors.purple),
                       ),
                       Column(
@@ -2041,15 +2243,17 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
+                      // 💡 [수정 3] 여기서 _isMoving을 체크해서 DiceApp을 숨김
                       child: _highlightOwner == null
-                          ? DiceApp(
+                          ? (_isMoving
+                          ? const SizedBox() // 이동 중이면 빈 화면(안 보임)
+                          : DiceApp(
                         key: diceAppKey,
                         turn: currentTurn,
                         totalTurn: totalTurn,
-                        // 💡 [추가] 현재 플레이어의 타입을 확인해서 전달
                         isBot: (players["user$currentTurn"]?["type"] == "B"),
                         onRoll: (int v1, int v2) => _onDiceRoll(v1, v2),
-                      )
+                      ))
                           : _showEventDialog(),
                     ),
                   ),
