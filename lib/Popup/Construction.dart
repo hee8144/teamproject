@@ -208,7 +208,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
             _header(),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(10),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -216,7 +216,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                     Expanded(
                       flex: 6,
                       child: Container(
-                        padding: const EdgeInsets.only(top: 60),
+                        padding: const EdgeInsets.only(top: 40),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.4),
                           borderRadius: BorderRadius.circular(12),
