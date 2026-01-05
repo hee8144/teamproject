@@ -46,5 +46,3 @@ app.*.map.json
 .env
 /lib/firebase_options.dart
 pubspec.yaml
-/lib/network
-/lib/online
