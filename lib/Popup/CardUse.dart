@@ -20,7 +20,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
 
   // 💡 타이머 관련 변수
   Timer? _autoTimer;
-  int _remainingTime = 60;
+  int _remainingTime = 10;
 
   @override
   void initState() {
@@ -168,7 +168,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
                       // 카드 제목 바
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
                         decoration: const BoxDecoration(
                           color: Color(0xFF5D4037),
                           borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
