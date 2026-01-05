@@ -151,14 +151,60 @@ class _LoginDialogState extends State<LoginDialog> {
                       child: Text(isLoginMode ? "로그인하기" : "가입하기", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                     ),
                   ),
-            const SizedBox(height: 0),
-            TextButton(
-              onPressed: () => setState(() { isLoginMode = !isLoginMode; }),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
-              child: Text(isLoginMode ? "아직 회원이 아니신가요? 가입하기" : "이미 계정이 있으신가요? 로그인",
-                style: const TextStyle(color: Colors.brown, fontSize: 11)),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => setState(() { isLoginMode = !isLoginMode; }),
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                  child: Text(isLoginMode ? "아직 회원이 아니신가요? 가입하기" : "이미 계정이 있으신가요? 로그인",
+                    style: const TextStyle(color: Colors.brown, fontSize: 11)),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text("|", style: TextStyle(color: Colors.grey, fontSize: 10)),
+                ),
+                _socialBtn(
+                  img: "assets/google_logo.png", 
+                  onTap: () async {
+                    try {
+                      await AuthService.instance.signInWithGoogle();
+                      if (mounted) context.go('/onlinemain');
+                    } catch (e) {
+                      Fluttertoast.showToast(msg: "구글 로그인 실패");
+                    }
+                  }
+                ),
+                const SizedBox(width: 8),
+                _socialBtn(img: "assets/kakao_logo.png", onTap: () {}),
+                const SizedBox(width: 8),
+                _socialBtn(img: "assets/naver_logo.png", onTap: () {}),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _socialBtn({required String img, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: CircleAvatar(
+        radius: 15,
+        backgroundColor: Colors.transparent,
+        child: ClipOval(
+          child: Image.asset(
+            img,
+            width: 30,
+            height: 30,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              color: Colors.grey,
+              child: const Icon(Icons.person, size: 10, color: Colors.white),
+            ),
+          ),
         ),
       ),
     );
