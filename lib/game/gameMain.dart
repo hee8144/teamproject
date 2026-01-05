@@ -201,7 +201,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(24, currentTurn, isDouble);
+    movePlayer(total, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
@@ -997,6 +997,45 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if(hasMyLand) {
           _triggerHighlight(player, "festival");
           return;
+        } else {
+            await showDialog(
+              context: context,
+              barrierDismissible: false, // 2초 동안은 바깥 터치로 안 꺼지게 설정 (선택사항)
+              builder: (BuildContext dialogContext) {
+                // 🕒 2초 뒤 자동 닫기
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                });
+
+                return Dialog(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDF5E6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFC0A060), width: 4),
+                      boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "축제를 열 땅이 없습니다!",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
         }
       }
     }
@@ -1084,8 +1123,61 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             if (actionResult == "c_trip") {
               _movePlayerTo(21, player); return;
             } else if (actionResult == "c_festival") {
-              // ...
-              _triggerHighlight(player, "festival"); return;
+              // 1. 내 땅이 있는지 먼저 확인
+              bool hasMyLand = false;
+              boardList.forEach((key, val) {
+                if (val is Map && val['type'] == 'land') {
+                  int owner = int.tryParse(val['owner'].toString()) ?? 0;
+                  if (owner == player) {
+                    hasMyLand = true;
+                  }
+                }
+              });
+
+              // 2. 내 땅이 있을 때만 하이라이트(이벤트) 실행
+              if (hasMyLand) {
+                _triggerHighlight(player, "festival");
+                return; // 선택해야 하므로 여기서 함수 종료 (return)
+              } else {
+                await showDialog(
+                  context: context,
+                  barrierDismissible: false, // 2초 동안은 바깥 터치로 안 꺼지게 설정 (선택사항)
+                  builder: (BuildContext dialogContext) {
+                    // 🕒 2초 뒤 자동 닫기
+                    Future.delayed(const Duration(seconds: 2), () {
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                    });
+
+                    return Dialog(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDF5E6),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFC0A060), width: 4),
+                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(2, 2))],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.info_outline, size: 40, color: Colors.brown),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "축제를 열 땅이 없습니다!",
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }
             } else if (actionResult == "c_start") {
               _movePlayerTo(0, player); return;
             } else if (actionResult == "c_earthquake") {
