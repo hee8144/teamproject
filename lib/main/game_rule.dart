@@ -14,34 +14,215 @@ class _GameRulePageState extends State<GameRulePage> {
   final CarouselSliderController _controller = CarouselSliderController();
   int _currentIndex = 0;
 
-  // 현재 열려있는 툴팁 인덱스
   int? _openedTooltipIndex;
 
   final List<_RuleData> rules = [
     _RuleData(
-      imagePath: 'assets/rules/game_rule.png',
-      tooltip: '기본 게임 진행 규칙을 설명합니다',
-      iconTop: 16.0,
-      iconRight: 16.0,
-      tooltipTopRatio: 0.1,
-      tooltipLeftRatio: 0.05,
+      title: '기본 진행 방법',
+      imagePath: 'assets/rules/game_start_rule.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '주사위 굴리기',
+            '주사위 두 개의 합만큼 이동합니다.',
+            '더블이 나오면 한 번 더 주사위를 굴립니다.',
+            '단, 3회 연속 더블 시 무인도로 갇힙니다.',
+          ],
+          iconTopRatio: 0.7,
+          iconRightRatio: 0.57,
+          tooltipTopRatio: 0.00,
+          tooltipLeftRatio: 0.00,
+        ),
+        _TooltipData(
+          tooltipLines: [
+            '플레이어 정보',
+            '소지금: 현재 보유하고 있는 소지금',
+            '총 자산: 소지금 + 소유 건물 가격',
+            '순위: 총 자산 기준'
+          ],
+          iconTopRatio: 0.2,
+          iconRightRatio: 0.1,
+          tooltipTopRatio: 0.00,
+          tooltipLeftRatio: 0.00,
+        ),
+      ],
     ),
     _RuleData(
-      imagePath: 'assets/rules/game_rule2.png',
-      tooltip: '승리 조건과 특수 상황을 확인하세요',
-      iconTop: 100.0,
-      iconRight: 50.0,
-      tooltipTopRatio: 0.7,
-      tooltipLeftRatio: 0.5,
+      title: '건설',
+      imagePath: 'assets/rules/game_build.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '건설',
+            '빈 땅에 도착하면 건물을 짓습니다.',
+            '처음에는 건물을 1단만 지을수 있습니다.',
+            '한바퀴를 돌때마다 내가 한번에 지을수 있는 건물의 개수가 늘어납니다. 1단 -> 2단 -> 3단 순',
+          ],
+          iconTopRatio: 0.18,
+          iconRightRatio: 0.33,
+          tooltipTopRatio: 0.0,
+          tooltipLeftRatio: 0.0,
+        ),
+        _TooltipData(
+          tooltipLines: [
+            '랜드마크',
+            '내가 3단으로 건물을 지은 땅에 도착하면 랜드마크를 건설할 수 있습니다.',
+            '랜드마크는 상대방이 인수(뺏기)할 수 없는 절대적인 땅이 됩니다.',
+          ],
+          iconTopRatio: 0.5,
+          iconRightRatio: 0.4,
+          tooltipTopRatio: 0.00,
+          tooltipLeftRatio: 0.00,
+        ),
+      ],
     ),
     _RuleData(
-      imagePath: 'assets/rules/take_over.png',
-      tooltip: '상대 땅을 인수하는 핵심 전략',
-      iconTop: 60.0,
-      iconRight: 30.0,
-      tooltipTopRatio: 0.4,
-      tooltipLeftRatio: 0.1,
+      title: '퀴즈',
+      imagePath: 'assets/rules/quiz.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '퀴즈',
+            '퀴즈',
+            '퀴즈',
+          ],
+          iconTopRatio: 0.9,
+          iconRightRatio: 0.23,
+          tooltipTopRatio: 0.4,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
     ),
+    _RuleData(
+      title: '통행료 & 건물 인수',
+      imagePath: 'assets/rules/toll.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '통행료',
+            '상대방 땅에 도착하면 통행료를 내야 합니다.',
+            '건물이 많고 비쌀수록, 랜드마크일수록 통행료가 비쌉니다.',
+            '상대 땅을 밟았을때 50% 확률로 퀴즈가 발동합니다. 퀴즈를 맞추면 통행료가 50% 할인됩니다.',
+          ],
+          iconTopRatio: 0.2,
+          iconRightRatio: 0.8,
+          tooltipTopRatio: 0.2,
+          tooltipLeftRatio: 0.2,
+        ),
+        _TooltipData(
+          tooltipLines: [
+            '건물 인수',
+            '인수란? 상대방의 땅에 도착했을 때, 통행료를 내고 추가 비용(건설비의 2배)을 지불하면 그 땅을 내 것으로 뺏을 수 있습니다.',
+            '인수 후에는 건물을 더 높게 올릴 수 있어 랜드마크 건설의 발판이 됩니다.',
+            '단, 상대방이 이미 랜드마크를 건설한 땅은 인수할 수 없습니다.',
+          ],
+          iconTopRatio: 0.1,
+          iconRightRatio: 0.32,
+          tooltipTopRatio: 0.0,
+          tooltipLeftRatio: 0.2,
+        ),
+
+      ],
+    ),
+    _RuleData(
+      title: '출발지',
+      imagePath: 'assets/rules/origin.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '출발지',
+            '도착하거나 지나갈 때마다 월급을 받습니다.',
+            '출발지에 도착할 경우, 내 땅에 건물을 추가로 건설할 수도 있습니다.',
+          ],
+          iconTopRatio: 0.9,
+          iconRightRatio: 0.23,
+          tooltipTopRatio: 0.4,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '찬스',
+      imagePath: 'assets/rules/chance.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '찬스',
+            '좋은 효과(월급 보너스, 통행료 면제 등)나 나쁜 효과(건물 파괴, 통행료 반값 등)가 랜덤으로 발동됩니다',
+            '퀴즈를 풀면 좋은 효과가 발동할 확률이 기본 50% 대신 70%로 바뀝니다.',
+          ],
+          iconTopRatio: 0.05,
+          iconRightRatio: 0.35,
+          tooltipTopRatio: 0.2,
+          tooltipLeftRatio: 0.2,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '무인도',
+      imagePath: 'assets/rules/uninhabited.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '무인도',
+            '3턴 동안 갇힙니다. (더블이 나오거나, 비용을 지불하거나, 탈출 카드를 쓰면 즉시 탈출)',
+          ],
+          iconTopRatio: 0.15,
+          iconRightRatio: 0.35,
+          tooltipTopRatio: 0.3,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '지역 축제',
+      imagePath: 'assets/rules/festival.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '지역 축제',
+            '내 땅의 통행료를 배로 늘릴 수 있습니다.',
+          ],
+          iconTopRatio: 0.75,
+          iconRightRatio: 0.5,
+          tooltipTopRatio: 0.3,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '국내 여행',
+      imagePath: 'assets/rules/domestic_trip.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '국내 여행',
+            '다음 턴에 원하는 곳으로 즉시 이동할 수 있습니다. (전략적으로 가장 중요한 블록)',
+          ],
+          iconTopRatio: 0.7,
+          iconRightRatio: 0.47,
+          tooltipTopRatio: 0.0,
+          tooltipLeftRatio: 0.3,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '국세청',
+      imagePath: 'assets/rules/tax.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '국세청',
+            '가지고 있는 땅 기본 통행료의 10퍼센트를 세금으로 냅니다. 만약 땅이 없으면 아무 효과 없습니다.',
+          ],
+          iconTopRatio: 0.78,
+          iconRightRatio: 0.47,
+          tooltipTopRatio: 0.0,
+          tooltipLeftRatio: 0.3,
+        ),
+      ],
+    ),
+
   ];
 
   @override
@@ -49,7 +230,6 @@ class _GameRulePageState extends State<GameRulePage> {
     return Scaffold(
       body: Stack(
         children: [
-          // 배경 + 오버레이
           Container(
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.1),
@@ -59,7 +239,6 @@ class _GameRulePageState extends State<GameRulePage> {
               ),
             ),
           ),
-
           SafeArea(
             child: Container(
               decoration: BoxDecoration(
@@ -81,8 +260,6 @@ class _GameRulePageState extends State<GameRulePage> {
                       ],
                     ),
                   ),
-
-                  // ===== Carousel =====
                   Expanded(
                     child: CarouselSlider(
                       carouselController: _controller,
@@ -98,7 +275,7 @@ class _GameRulePageState extends State<GameRulePage> {
                         },
                       ),
                       items: rules.asMap().entries.map((entry) {
-                        final index = entry.key;
+                        final ruleIndex = entry.key;
                         final rule = entry.value;
 
                         return Padding(
@@ -106,95 +283,95 @@ class _GameRulePageState extends State<GameRulePage> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(20),
                             child: AspectRatio(
-                              aspectRatio: 36 / 16,
+                              aspectRatio: 18 / 8,
                               child: LayoutBuilder(
                                 builder: (context, constraints) {
                                   return Stack(
                                     children: [
-                                      // ===== 이미지 =====
                                       Positioned.fill(
                                         child: Image.asset(
                                           rule.imagePath,
                                           fit: BoxFit.cover,
                                         ),
                                       ),
-
-                                      // ===== i 아이콘 =====
                                       Positioned(
-                                        top: rule.iconTop,
-                                        right: rule.iconRight,
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              _openedTooltipIndex =
-                                              _openedTooltipIndex == index
-                                                  ? null
-                                                  : index;
-                                            });
-                                          },
-                                          child: Container(
-                                            width: 42,
-                                            height: 42,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: Colors.black,
-                                              border: Border.all(
-                                                color: Colors.white,
-                                                width: 2,
-                                              ),
-                                            ),
-                                            child: const Icon(
-                                              Icons.info_outline,
-                                              size: 24,
+                                        top: 16,
+                                        left: 20,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.55),
+                                            borderRadius:
+                                            BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            rule.title,
+                                            style: const TextStyle(
                                               color: Colors.white,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
                                       ),
+                                      ...rule.tooltips.asMap().entries.map((t) {
+                                        final tooltipIndex = t.key;
+                                        final tooltip = t.value;
+                                        final uniqueIndex =
+                                            ruleIndex * 10 + tooltipIndex;
 
-                                      // ===== 툴팁 =====
-                                      if (_openedTooltipIndex == index)
-                                        Positioned(
-                                          top: constraints.maxHeight *
-                                              rule.tooltipTopRatio,
-                                          left: constraints.maxWidth *
-                                              rule.tooltipLeftRatio,
-                                          child: Container(
-                                            constraints: const BoxConstraints(
-                                              maxWidth: 300,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 24,
-                                              vertical: 18,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF2E3A59),
-                                              borderRadius:
-                                              BorderRadius.circular(16),
-                                              border: Border.all(
-                                                color: const Color(0xFFE6AD5C),
-                                                width: 3,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.35),
-                                                  blurRadius: 12,
-                                                  offset: const Offset(0, 6),
+                                        return Stack(
+                                          children: [
+                                            Positioned(
+                                              top: constraints.maxHeight *
+                                                  tooltip.iconTopRatio,
+                                              right: constraints.maxWidth *
+                                                  tooltip.iconRightRatio,
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  setState(() {
+                                                    _openedTooltipIndex =
+                                                    _openedTooltipIndex ==
+                                                        uniqueIndex
+                                                        ? null
+                                                        : uniqueIndex;
+                                                  });
+                                                },
+                                                child: Container(
+                                                  width: 42,
+                                                  height: 42,
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    color: Colors.black,
+                                                    border: Border.all(
+                                                      color: Colors.white,
+                                                      width: 2,
+                                                    ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.info_outline,
+                                                    size: 24,
+                                                    color: Colors.white,
+                                                  ),
                                                 ),
-                                              ],
-                                            ),
-                                            child: Text(
-                                              rule.tooltip,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w600,
-                                                height: 1.4,
                                               ),
                                             ),
-                                          ),
-                                        ),
+                                            if (_openedTooltipIndex ==
+                                                uniqueIndex)
+                                              Positioned(
+                                                top: constraints.maxHeight *
+                                                    tooltip.tooltipTopRatio,
+                                                left: constraints.maxWidth *
+                                                    tooltip.tooltipLeftRatio,
+                                                child: _buildTooltipBox(
+                                                    tooltip.tooltipLines),
+                                              ),
+                                          ],
+                                        );
+                                      }),
                                     ],
                                   );
                                 },
@@ -214,25 +391,51 @@ class _GameRulePageState extends State<GameRulePage> {
     );
   }
 
+  /// ✅ UI 변경 없이 두 번째 줄부터 글머리 기호만 추가
+  Widget _buildTooltipBox(List<String> lines) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 300),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2E3A59),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE6AD5C),
+          width: 3,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(lines.length, (index) {
+          final text = index == 0 ? lines[index] : '• ${lines[index]}';
+          return Text(
+            text,
+            style: const TextStyle(color: Colors.white, fontSize: 18),
+          );
+        }),
+      ),
+    );
+  }
+
   Widget _buildDotIndicator() {
     return Row(
       children: List.generate(rules.length, (index) {
         final isActive = _currentIndex == index;
-        return GestureDetector(
-          onTap: () => _controller.animateToPage(index),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color:
-              isActive ? const Color(0xFFE6AD5C) : Colors.transparent,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isActive ? const Color(0xFFE6AD5C) : Colors.black,
-                width: 2,
-              ),
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: isActive
+                ? const Color(0xFFE6AD5C)
+                : Colors.transparent,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isActive
+                  ? const Color(0xFFE6AD5C)
+                  : Colors.black,
+              width: 2,
             ),
           ),
         );
@@ -242,22 +445,28 @@ class _GameRulePageState extends State<GameRulePage> {
 }
 
 class _RuleData {
+  final String title;
   final String imagePath;
-  final String tooltip;
+  final List<_TooltipData> tooltips;
 
-  // i 아이콘 위치
-  final double iconTop;
-  final double iconRight;
+  _RuleData({
+    required this.title,
+    required this.imagePath,
+    required this.tooltips,
+  });
+}
 
-  // 툴팁 위치 (비율로 저장: 0.0 ~ 1.0)
+class _TooltipData {
+  final List<String> tooltipLines;
+  final double iconTopRatio;
+  final double iconRightRatio;
   final double tooltipTopRatio;
   final double tooltipLeftRatio;
 
-  _RuleData({
-    required this.imagePath,
-    required this.tooltip,
-    required this.iconTop,
-    required this.iconRight,
+  _TooltipData({
+    required this.tooltipLines,
+    required this.iconTopRatio,
+    required this.iconRightRatio,
     required this.tooltipTopRatio,
     required this.tooltipLeftRatio,
   });

@@ -90,6 +90,7 @@ class GameInitializer {
         updates['user$i.double'] = 0;
         updates['user$i.islandCount'] = 0;
         updates['user$i.isTraveling'] = false;
+        updates['user$i.isDoubleToll'] = false;
       }
     }
 

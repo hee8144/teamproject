@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ 가로모드 고정용
 import 'package:go_router/go_router.dart';
 import '../auth/login_dialog.dart';
 
@@ -8,7 +7,6 @@ class Login extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // MaterialApp 제거, GoRouter가 최상위에서 관리
     return const LoginScreen();
   }
 }
