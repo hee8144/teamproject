@@ -179,6 +179,7 @@ class _DetailPopupPopupState extends State<DetailPopup> {
     final Map<String, dynamic> resultData = {
       "img": detail["img"],
       "name": detail["name"],
+      "fullName": detail["fullName"],
       "times": detail["times"], // 추가 정보가 필요할 경우
     };
     // 1. onNext 콜백이 전달된 경우 -> 화살표 버튼 표시
@@ -238,7 +239,7 @@ class _DetailPopupPopupState extends State<DetailPopup> {
                   text: TextSpan(
                     children: [
                       TextSpan(
-                        text: detail["name"] ?? "",
+                        text: detail["fullName"] ?? detail["name"] ?? "",
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

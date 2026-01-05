@@ -339,6 +339,17 @@ class _BankruptDialogState extends State<BankruptDialog> {
     );
   }
 
+  Color _getTileColor(int index) {
+    if (index < 3) return const Color(0xFFCFFFE5);
+    if (index < 7) return const Color(0xFF66BB6A);
+    if (index < 10) return const Color(0xFF42A5F5);
+    if (index < 14) return const Color(0xFFAB47BC);
+    if (index < 17) return const Color(0xFFFFEB00);
+    if (index < 21) return const Color(0xFF808080);
+    if (index < 24) return const Color(0xFFFF69B4);
+    return const Color(0xFFEF5350);
+  }
+
   /// 자산 정리 화면 (그리드 뷰)
   Widget _assetSellingView() {
     return Row(
@@ -398,6 +409,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
               itemBuilder: (context, index) {
                 final asset = assets[index];
                 final isSelected = selectedIndexes.contains(index);
+                final tileColor = _getTileColor(asset['index'] ?? 0); // 💡 색상 가져오기
 
                 return GestureDetector(
                   onTap: () {
@@ -413,6 +425,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
+                    clipBehavior: Clip.hardEdge, // 💡 자식 위젯이 둥근 모서리를 넘지 않도록
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -425,22 +438,36 @@ class _BankruptDialogState extends State<BankruptDialog> {
                           : [],
                     ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          asset['name'],
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          textAlign: TextAlign.center,
+                        // 💡 상단 색상 띠 추가
+                        Container(
+                          height: 12,
+                          width: double.infinity,
+                          color: tileColor,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${asset['level']}단계",
-                          style: TextStyle(fontSize: 11, color: Colors.blue[700], fontWeight: FontWeight.bold),
-                        ),
-                        const Divider(indent: 15, endIndent: 15),
-                        Text(
-                          "${formatMoney(asset['sellPrice'])}원",
-                          style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.bold),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                asset['name'],
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "${asset['level']}단계",
+                                style: TextStyle(fontSize: 11, color: Colors.blue[700], fontWeight: FontWeight.bold),
+                              ),
+                              const Divider(indent: 15, endIndent: 15, height: 10),
+                              Text(
+                                "${formatMoney(asset['sellPrice'])}원",
+                                style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

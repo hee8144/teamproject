@@ -86,16 +86,16 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     if (result == null) return; // 🔥 조건 불충족 → 아무 것도 안 함
 
     if(result != null){
-     if(WarningDialog.canShow(result.players,result.type)){
-       showDialog(
-         context: context,
-         barrierColor: Colors.transparent,
-         builder: (_) => WarningDialog(
-           players: result.players,
-           type: result.type,
-         ),
-       );
-     }
+      if(WarningDialog.canShow(result.players,result.type)){
+        showDialog(
+          context: context,
+          barrierColor: Colors.transparent,
+          builder: (_) => WarningDialog(
+            players: result.players,
+            type: result.type,
+          ),
+        );
+      }
     }
   }
 
@@ -300,7 +300,11 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       // 👤 사람일 경우: 탈출 시도 (카드 사용 or 돈 지불)
       if (type != 'B') {
         if(players["user$currentTurn"]["card"] == "escape"){
-          final result = await showDialog(context: context, builder: (context)=>CardUseDialog(user: currentTurn));
+          final result = await showDialog(
+            context: context, 
+            useSafeArea: false,
+            builder: (context)=>CardUseDialog(user: currentTurn)
+          );
           if(result) {
             fs.collection("games").doc("users").update({
               "user$currentTurn.card" : "N"
@@ -611,46 +615,59 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     String playerType = players["user$player"]["type"] ?? "P";
 
     int currentPos = players["user$player"]["position"];
-    int nextPos = currentPos + steps;
-    int changePosition = nextPos > 27 ? nextPos % 28 : nextPos;
+    int nextPos = currentPos + steps; // 최종 목표 값 (28 이상일 수도 있음)
+    
+    // 💡 [한 칸씩 이동 애니메이션]
+    for (int i = 1; i <= steps; i++) {
+      await Future.delayed(const Duration(milliseconds: 300)); // 이동 속도 조절
+      if (!mounted) return;
 
-    // 출발지 경유/도착 시 월급 및 레벨업 로직
-    if(nextPos > 27){
-      int level = players["user$player"]["level"];
-      int currentMoney = players["user$player"]["money"];
-      int currentTotalMoney = players["user$player"]["totalMoney"];
+      int tempPos = currentPos + i;
+      
+      // 출발지 통과 시(28 이상) 월급 지급 (화면상에는 지나가는 것만 보여줌)
+      if (tempPos == 28) {
+        // 27 -> 28(0번)으로 넘어가는 순간
+        int level = players["user$player"]["level"];
+        int currentMoney = players["user$player"]["money"];
+        int currentTotalMoney = players["user$player"]["totalMoney"];
+        int salary = 1000000;
 
-      int salary = 1000000;
-
-      if(level < 4){
-        await fs.collection("games").doc("users").update({
-          "user$player.level": level + 1,
-          "user$player.money": currentMoney + salary,
-          "user$player.totalMoney": currentTotalMoney + salary
-        });
-
-        setState(() {
-          players["user$player"]["level"] = level + 1;
-          players["user$player"]["money"] = currentMoney + salary;
-          players["user$player"]["totalMoney"] = currentTotalMoney + salary;
-        });
-      } else {
-        await fs.collection("games").doc("users").update({
-          "user$player.money": currentMoney + salary,
-          "user$player.totalMoney": currentTotalMoney + salary
-        });
-
-        setState(() {
-          players["user$player"]["money"] = currentMoney + salary;
-          players["user$player"]["totalMoney"] = currentTotalMoney + salary;
-        });
+        // 월급/레벨업 로직은 DB에 즉시 반영 (혹은 도착 후 일괄 처리도 가능하지만, 지나가면서 받는 느낌을 위해)
+        if(level < 4){
+          await fs.collection("games").doc("users").update({
+            "user$player.level": level + 1,
+            "user$player.money": currentMoney + salary,
+            "user$player.totalMoney": currentTotalMoney + salary
+          });
+          setState(() {
+            players["user$player"]["level"] = level + 1;
+            players["user$player"]["money"] = currentMoney + salary;
+            players["user$player"]["totalMoney"] = currentTotalMoney + salary;
+          });
+        } else {
+          await fs.collection("games").doc("users").update({
+            "user$player.money": currentMoney + salary,
+            "user$player.totalMoney": currentTotalMoney + salary
+          });
+          setState(() {
+            players["user$player"]["money"] = currentMoney + salary;
+            players["user$player"]["totalMoney"] = currentTotalMoney + salary;
+          });
+        }
+        _triggerMoneyEffect("user$player", salary); // 월급 이펙트
       }
+
+      // 화면상 위치 갱신 (0~27 범위로 순환)
+      int displayPos = tempPos % 28;
+      setState(() {
+        players["user$player"]["position"] = displayPos;
+      });
     }
 
-    setState(() {
-      players["user$player"]["position"] = changePosition;
-    });
-
+    // --- 이동 완료 후 최종 처리 ---
+    int changePosition = nextPos % 28; // 최종 도착 위치 (0~27)
+    
+    // DB에 최종 위치 저장
     await fs.collection("games").doc("users").update({"user$player.position": changePosition});
 
     String tileKey = "b$changePosition";
@@ -697,6 +714,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if(playerType != 'B' && players["user$player"]["card"] == "shield"){
           final bool? useShield = await showDialog(
               context: context,
+              useSafeArea: false,
               barrierDismissible: false,
               builder: (context) => CardUseDialog(user: player)
           );
@@ -1320,6 +1338,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       if(i-1 < heritageList.length) {
         await fs.collection("games").doc("quiz").update({
           "q$i.name" : heritageList[i-1]["이름"],
+          "q$i.fullName" : heritageList[i-1]["원래이름"],
           "q$i.description" : heritageList[i-1]["상세설명"],
           "q$i.times" : heritageList[i-1]["시대"],
           "q$i.img" : heritageList[i-1]["이미지링크"]
@@ -1338,6 +1357,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if (boardData[key] != null && boardData[key]['type'] == 'land') {
           if (heritageIndex < heritageList.length) {
             updates["$key.name"] = heritageList[heritageIndex]["이름"];
+            updates["$key.fullName"] = heritageList[heritageIndex]["원래이름"];
             heritageIndex++;
           }
         }
@@ -1377,18 +1397,60 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Future<List<Map<String, String>>> _loadHeritage() async {
-    final String url = "https://www.khs.go.kr/cha/SearchKindOpenapiList.do?ccbaCtcd=$localcode&pageIndex=1&pageUnit=24";
+    // 💡 1. 중복을 걸러내야 하므로 데이터를 넉넉하게 40개 요청합니다.
+    final String url = "https://www.khs.go.kr/cha/SearchKindOpenapiList.do?ccbaCtcd=$localcode&pageIndex=1&pageUnit=40";
     final response = await http.get(Uri.parse(url));
+
     if (response.statusCode == 200) {
       final document = xml.XmlDocument.parse(response.body);
       final items = document.findAllElements('item');
-      return items.map((node) => {
-        '이름': getXmlText(node, 'ccbaMnm1'),
-        '종목코드': getXmlText(node, 'ccbaKdcd'),
-        '관리번호': getXmlText(node, 'ccbaAsno'),
-        '시도코드': getXmlText(node, 'ccbaCtcd'),
-        '시군구명': getXmlText(node, 'ccsiName'),
-      }).toList();
+
+      List<Map<String, String>> resultList = [];
+      Set<String> duplicateCheckSet = {}; // 중복 체크용 (이미 등록된 이름 기억)
+
+      for (var node in items) {
+        // 목표 개수 24개를 채웠으면 그만 가져옵니다.
+        if (resultList.length >= 24) break;
+
+        String rawName = getXmlText(node, 'ccbaMnm1');
+        String ccsiName = getXmlText(node, 'ccsiName');
+
+        // --- [지역명 제거 로직] ---
+        String cleanName = rawName;
+        cleanName = cleanName.replaceAll(localName, "").trim();
+        cleanName = cleanName.replaceAll(ccsiName, "").trim();
+
+        String simpleCcsi = ccsiName.replaceAll(RegExp(r'(시|군|구)$'), "");
+        if (simpleCcsi.length >= 2) {
+          cleanName = cleanName.replaceAll(simpleCcsi, "").trim();
+        }
+
+        cleanName = cleanName.replaceAll(RegExp(r'^[\(\)\s\-\_\.\,]+'), "").trim();
+        if (cleanName.isEmpty) cleanName = rawName;
+
+        // 💡 2. [중복 필터링 핵심]
+        // 이름에서 괄호, 숫자, 특수문자를 다 뺀 '순수 한글 이름'을 추출합니다.
+        // 예: "금동여래입상(1976-1)" -> "금동여래입상"
+        String baseName = cleanName.replaceAll(RegExp(r'\(.*\)|\d+|[-_]'), "").trim();
+        if (baseName.isEmpty) baseName = cleanName;
+
+        // 이미 등록된 '순수 이름'이라면 리스트에 추가하지 않고 건너뜁니다.
+        if (duplicateCheckSet.contains(baseName)) {
+          continue;
+        }
+
+        // 새로운 이름이면 등록
+        duplicateCheckSet.add(baseName);
+        resultList.add({
+          '이름': cleanName,
+          '원래이름': rawName,
+          '종목코드': getXmlText(node, 'ccbaKdcd'),
+          '관리번호': getXmlText(node, 'ccbaAsno'),
+          '시도코드': getXmlText(node, 'ccbaCtcd'),
+          '시군구명': ccsiName,
+        });
+      }
+      return resultList;
     }
     return [];
   }
@@ -1692,7 +1754,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 return DetailPopup(boardNum: index,onNext: (){},);
               });
               if(result != null){
-                showDialog(context: context, builder: (context)=>BoardDetail(boardNum: index,data: result));
+                // 💡 DB에서 실시간으로 가져온 해당 타일의 모든 데이터(fullName 포함)를 가져옴
+                Map<String, dynamic> fullData = Map<String, dynamic>.from(boardList["b$index"] ?? {});
+
+                fullData.addAll(result);
+
+                showDialog(
+                    context: context,
+                    builder: (context) => BoardDetail(boardNum: index, data: fullData)
+                );
               }
 
               print("땅 상세정보 클릭: $index, $tileName");
@@ -1737,6 +1807,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
   }
 
   Widget _buildLandContent(Color color, String name, int price, int index) {
+    String displayName = name.replaceAll(" ", "\n");
+
     var tileData = boardList["b$index"] ?? {};
     bool isFestival = itsFestival == index;
     double multiply = (tileData["multiply"] as num? ?? 0).toDouble();
@@ -1797,16 +1869,33 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                       Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            name,
-                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                            child: Text(
+                              displayName,
+                              style: const TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                height: 1,
+                                color: Colors.black,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                           if (price > 0)
-                          // 💡 [수정] 콤마 함수 적용
-                            Text(_formatMoney(tollPrice), style: TextStyle(fontSize: 6, color: Colors.grey[600])),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2.0),
+                              child: Text(
+                                  _formatMoney(tollPrice),
+                                  style: TextStyle(
+                                    fontSize: 6,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey[700],
+                                  )
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -1924,7 +2013,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       );
     }
     final double screenHeight = MediaQuery.of(context).size.height;
-    final double boardSize = screenHeight * 0.8;
+    final double boardSize = screenHeight * 0.9;
     final double tileSize = boardSize / 8;
 
     return Scaffold(

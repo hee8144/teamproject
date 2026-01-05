@@ -4,7 +4,11 @@ import 'Bankruptcy.dart';
 
 class TaxDialog extends StatefulWidget {
   final int user;
-  const TaxDialog({super.key, required this.user});
+
+  const TaxDialog({
+    super.key, 
+    required this.user,
+  });
 
   @override
   State<TaxDialog> createState() => _TaxDialogState();
@@ -24,24 +28,27 @@ class _TaxDialogState extends State<TaxDialog> {
   /// 데이터 불러오기
   Future<void> _readUser() async {
     totalTollPrice = 0;
+    try {
+      final userSnap = await fs.collection("games").doc("users").get();
+      final boardSnap = await fs.collection("games").doc("board").get();
 
-    final userSnap = await fs.collection("games").doc("users").get();
-    final boardSnap = await fs.collection("games").doc("board").get();
+      if (boardSnap.exists) {
+        boardData = boardSnap.data()!;
+        boardData.forEach((key, value) {
+          if (value is Map && value["owner"] == widget.user) {
+            totalTollPrice += (value["tollPrice"] as int? ?? 0);
+          }
+        });
+      }
 
-    if (boardSnap.exists) {
-      boardData = boardSnap.data()!;
-      boardData.forEach((key, value) {
-        if (value is Map && value["owner"] == widget.user) {
-          totalTollPrice += (value["tollPrice"] as int? ?? 0);
-        }
-      });
-    }
-
-    if (userSnap.exists) {
-      final user = userSnap.data()!["user${widget.user}"];
-      userMoney = user["money"];
-      tax = (totalTollPrice * 0.1).toInt();
-      remainMoney = userMoney - tax;
+      if (userSnap.exists) {
+        final user = userSnap.data()!["user${widget.user}"];
+        userMoney = user["money"] ?? 0;
+        tax = (totalTollPrice * 0.1).toInt();
+        remainMoney = userMoney - tax;
+      }
+    } catch (e) {
+      print("User load error: $e");
     }
   }
 
@@ -66,6 +73,10 @@ class _TaxDialogState extends State<TaxDialog> {
     return FutureBuilder(
       future: _readUser(),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Colors.brown));
+        }
+
         final size = MediaQuery.of(context).size;
         final dialogWidth = size.width * 0.85;
         final dialogHeight = size.height * 0.85;
@@ -126,7 +137,7 @@ class _TaxDialogState extends State<TaxDialog> {
                           ),
                         ),
                         
-                        const SizedBox(width: 20), 
+                        const SizedBox(width: 20),
                         
                         // [우측] 정보 및 버튼
                         Expanded(

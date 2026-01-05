@@ -5,22 +5,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
 
-/// ================= 앱 단독 실행용 main =================
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const GameResult(
-        victoryType: 'bankruptcy',
-        winnerName: '0',
-      ),
-    ),
-  );
-}
+// Future<void> main() async {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   await Firebase.initializeApp();
+//
+//   runApp(
+//     MaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       home: const GameResult(
+//         victoryType: 'line_monopoly',
+//         winnerName: 'user1',
+//       ),
+//     ),
+//   );
+// }
 
 class GameResult extends StatelessWidget {
   final String victoryType;
@@ -62,7 +60,7 @@ class GameResult extends StatelessWidget {
       }
     });
 
-    /// 🔴 결과 화면 전용 순위 계산
+    /// 🔴 결과 화면 전용 정렬
     if (victoryType == 'line_monopoly' ||
         victoryType == 'triple_monopoly') {
       final winner = players.firstWhere(
@@ -90,7 +88,7 @@ class GameResult extends StatelessWidget {
       );
     }
 
-    /// 로컬 rank 부여
+    /// rank 부여
     for (int i = 0; i < players.length; i++) {
       players[i]['rank'] = i + 1;
     }
@@ -164,11 +162,11 @@ class GameResult extends StatelessWidget {
                 future: _fetchPlayers(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const CircularProgressIndicator();
                   }
 
                   final players = snapshot.data!;
-                  final String winner = _determineWinner(players);
+                  final winner = _determineWinner(players);
 
                   return Container(
                     padding: const EdgeInsets.symmetric(
@@ -196,10 +194,7 @@ class GameResult extends StatelessWidget {
                               const SizedBox(height: 4),
                               Text(
                                 "${_victoryTypeText()} 🏆 전국을 여행하며 문화재를 지켜낸 $winner 이 바로 최후의 승자입니다!",
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                ),
+                                style: const TextStyle(fontSize: 14),
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),
@@ -215,12 +210,8 @@ class GameResult extends StatelessWidget {
                               _buildActionButton(
                                 text: "다시 시작",
                                 onTap: () {
-                                  try {
-                                    GoRouter.of(context)
-                                        .go('/gameWaitingRoom');
-                                  } catch (e) {
-                                    print('GoRouter 없음. 단독 실행 중');
-                                  }
+                                  GoRouter.of(context)
+                                      .go('/gameWaitingRoom');
                                 },
                               ),
                               const SizedBox(height: 16),
@@ -243,7 +234,7 @@ class GameResult extends StatelessWidget {
     );
   }
 
-  /// ================= 🔥 여기만 핵심 수정 =================
+  /// ================= 🔥 수정된 핵심 로직 =================
   Widget _buildRankTable(List<Map<String, dynamic>> players) {
     return Table(
       border: TableBorder.all(color: Colors.black26),
@@ -251,18 +242,33 @@ class GameResult extends StatelessWidget {
         _buildRankRow(rank: "순위", name: "이름", money: "잔액", isHeader: true),
         for (final p in players)
           _buildRankRow(
-            rank: (p['rank'] == 1 &&
-                (victoryType == 'bankruptcy' ||
-                    p['name'] == winnerName))
-                ? "1위 (승자)"
-                : p['isBankrupt']
-                ? "${p['rank']}위 (파산)"
-                : "${p['rank']}위",
+            rank: _rankText(p),
             name: p['name'],
             money: "₩${_formatMoney(p['totalMoney'])}",
           ),
       ],
     );
+  }
+
+  /// 🔥 승자 표기 로직 분리 (가독성 + 규칙 명확화)
+  String _rankText(Map<String, dynamic> p) {
+    final bool isWinnerByMonopoly =
+        (victoryType == 'line_monopoly' ||
+            victoryType == 'triple_monopoly') &&
+            p['name'] == winnerName;
+
+    final bool isWinnerByBankruptcy =
+        victoryType == 'bankruptcy' && p['rank'] == 1;
+
+    if (isWinnerByMonopoly || isWinnerByBankruptcy) {
+      return "1위 (승자)";
+    }
+
+    if (p['isBankrupt']) {
+      return "${p['rank']}위 (파산)";
+    }
+
+    return "${p['rank']}위";
   }
 
   TableRow _buildRankRow({

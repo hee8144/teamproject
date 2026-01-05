@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'Detail.dart';
+
 class ConstructionDialog extends StatefulWidget {
   final int buildingId;
   final int user;
@@ -43,7 +44,6 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     _loadData();
   }
 
-  /// ================= 데이터 로드 =================//
   bool hasAnySelectable() {
     for (int i = builtLevel; i < 4; i++) {
       if (canSelect(i)) return true;
@@ -57,7 +57,6 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
 
     if (!hasAnySelectable()) {
       setState(() => loading = false);
-
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pop(context);
       });
@@ -68,61 +67,59 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
   }
 
   Future<void> _loadBoard() async {
-    final snap = await fs.collection("games").doc("board").get();
-    if (!snap.exists) return;
+    try {
+      final snap = await fs.collection("games").doc("board").get();
+      if (!snap.exists) return;
 
-    final data = snap.data()!;
-    data.forEach((key, value) {
-      if (value is Map && value["index"] == widget.buildingId) {
-        totalTollPrice = value["tollPrice"] ?? 0;
-        builtLevel = value["level"] ?? 0;
-      }
-    });
-
-    if (builtLevel >= 4) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pop(context);
+      final data = snap.data()!;
+      data.forEach((key, value) {
+        if (value is Map && value["index"] == widget.buildingId) {
+          totalTollPrice = value["tollPrice"] ?? 0;
+          builtLevel = value["level"] ?? 0;
+        }
       });
-      return;
-    }
 
-    costs = [
-      totalTollPrice,
-      totalTollPrice * 2,
-      totalTollPrice * 3,
-      totalTollPrice * 4,
-    ];
+      if (builtLevel >= 4) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pop(context);
+        });
+        return;
+      }
+
+      costs = [
+        totalTollPrice,
+        totalTollPrice * 2,
+        totalTollPrice * 3,
+        totalTollPrice * 4,
+      ];
+    } catch (e) {
+      print("Board load error: $e");
+    }
   }
 
   Future<void> _loadUser() async {
-    final snap = await fs.collection("games").doc("users").get();
-    if (!snap.exists) return;
+    try {
+      final snap = await fs.collection("games").doc("users").get();
+      if (!snap.exists) return;
 
-    final user = snap.data()!["user${widget.user}"];
-    userLevel = user["level"] ?? 0;
-    userMoney = user["money"] ?? 0;
+      final user = snap.data()!["user${widget.user}"];
+      userLevel = user["level"] ?? 0;
+      userMoney = user["money"] ?? 0;
+    } catch (e) {
+      print("User load error: $e");
+    }
   }
 
-  /// ================= 선택 로직 =================
   bool canSelect(int index) {
     final targetLevel = index + 1;
-
-    // 이미 지어진 단계는 선택 불가
     if (targetLevel <= builtLevel) return false;
-
-
-    // 랜드마크는 반드시 3단계가 지어져 있어야 가능
     if (targetLevel == 4 && builtLevel < 3) return false;
-
-    // 유저 레벨 제한
     if (targetLevel > userLevel) return false;
 
-    // 돈 계산 (연속 단계 비용 합)
     int requiredCost = 0;
     for (int i = builtLevel; i <= index; i++) {
       requiredCost += costs[i];
     }
-
     if (userMoney < requiredCost) return false;
 
     return true;
@@ -146,12 +143,10 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     for (int i = builtLevel; i <= index; i++) {
       requiredCost += costs[i];
     }
-
     if (userMoney < requiredCost) return "돈 부족";
     return "선택 가능";
   }
 
-  /// ================= 비용 =================
   void _calculateTotal() {
     int sum = 0;
     for (int i = 0; i < selectedItems.length; i++) {
@@ -169,11 +164,9 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
 
   Future<void> _payment() async {
     final targetLevel = getTargetLevel();
-
     await fs.collection("games").doc("users").update({
       "user${widget.user}.money": FieldValue.increment(-totalCost),
     });
-
     await fs.collection("games").doc("board").update({
       "b${widget.buildingId}.level": targetLevel,
       "b${widget.buildingId}.owner": widget.user,
@@ -183,10 +176,10 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
   String formatMoney(int value) {
     return value.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (m) => ',',
+      (m) => ',',
     );
   }
-  /// ================= UI =================
+
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -213,18 +206,17 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
         child: Column(
           children: [
             _header(),
-            
-            // 본문 영역
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // [좌측] 건물 선택 아이템
                     Expanded(
                       flex: 6,
                       child: Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.only(top: 60),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.4),
                           borderRadius: BorderRadius.circular(12),
@@ -233,25 +225,22 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: List.generate(4, (index) => Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
                               child: _buildItem(index),
                             )),
                           ),
                         ),
                       ),
                     ),
-                    
-                    const SizedBox(width: 16),
-                    
-                    // [우측] 정보 및 버튼
+                    const SizedBox(width: 14),
                     Expanded(
                       flex: 4,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // 정보 박스
                           Container(
                             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                             decoration: BoxDecoration(
@@ -265,15 +254,12 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                             child: Column(
                               children: [
                                 _infoRow("보유 금액", userMoney),
-                                const Divider(height: 14, color: Color(0xFF8D6E63)),
+                                const Divider(height: 16, color: Color(0xFF8D6E63)),
                                 _infoRow("건설 비용", totalCost, isHighlight: true),
                               ],
                             ),
                           ),
-                          
                           const Spacer(),
-                          
-                          // 버튼들 (세로 배치)
                           SizedBox(
                             width: double.infinity,
                             child: _actionButton(
@@ -293,14 +279,13 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                               },
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           SizedBox(
                             width: double.infinity,
                             child: _actionButton(
                               label: "취소",
                               color: Colors.grey[600]!,
                               onTap: () => Navigator.pop(context),
-                              isOutline: true,
                             ),
                           ),
                         ],
@@ -319,7 +304,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
   Widget _header() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: const BoxDecoration(
         color: Color(0xFF5D4037),
         borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
@@ -346,7 +331,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
         Text(
           "${formatMoney(value)} 원",
           style: TextStyle(
-            fontSize: isHighlight ? 20 : 16,
+            fontSize: isHighlight ? 18 : 16,
             fontWeight: FontWeight.bold,
             color: isHighlight ? const Color(0xFFD84315) : Colors.black,
           ),
@@ -361,7 +346,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     required VoidCallback? onTap,
     bool isOutline = false,
   }) {
-    if (onTap == null) { // 비활성화 상태
+    if (onTap == null) {
       return ElevatedButton(
         onPressed: null,
         style: ElevatedButton.styleFrom(
@@ -373,7 +358,6 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
         child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
       );
     }
-
     if (isOutline) {
       return OutlinedButton(
         onPressed: onTap,
@@ -385,7 +369,6 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
         child: Text(label, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
       );
     }
-
     return ElevatedButton(
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
@@ -409,9 +392,8 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
         opacity: built ? 0.5 : selectable ? 1 : 0.4,
         child: Column(
           children: [
-            // 상태 뱃지
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
                 color: built ? Colors.grey : (selectable ? const Color(0xFF8D6E63) : Colors.red[300]),
@@ -422,8 +404,6 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                 style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
-            
-            // 아이템 박스
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: 90,
@@ -432,9 +412,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: selected 
-                      ? const Color(0xFFD84315)
-                      : const Color(0xFF8D6E63).withOpacity(0.3),
+                  color: selected ? const Color(0xFFD84315) : const Color(0xFF8D6E63).withOpacity(0.3),
                   width: selected ? 3 : 1.5,
                 ),
                 boxShadow: selected ? [
