@@ -11,14 +11,25 @@ import 'main/game_rule.dart';
 import 'main/game_waiting_room.dart';
 import 'main/game_result.dart';
 import 'online/onlineRoomList.dart';
+import 'package:flutter/services.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ 가로모드 강제 고정
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+
   await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform
+    options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(MyApp());
 }
+
 
 final GoRouter router = GoRouter(
   routes: [
