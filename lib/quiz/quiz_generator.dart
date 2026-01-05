@@ -149,18 +149,37 @@ class QuizGenerator {
         .toList();
 
     // 4개가 될 때까지 오답 추가
-    while (choicesSet.length < 4 && cleanWrongPool.isNotEmpty) {
+    int safetyCount = 0;
+    while (choicesSet.length < 4 && cleanWrongPool.isNotEmpty && safetyCount < 100) {
+      safetyCount++;
       final wrong = cleanWrongPool[random.nextInt(cleanWrongPool.length)];
-      choicesSet.add(wrong);
-      cleanWrongPool.remove(wrong); // 중복 방지를 위해 사용한 값은 제거
+      
+      // 💡 [유사도 검사] 이미 있는 선택지와 너무 비슷하면 제외
+      bool isSimilar = false;
+      for (var existing in choicesSet) {
+        // 공백과 '시대'를 제거하고 비교 (예: "통일 신라" == "통일신라시대")
+        String a = existing.replaceAll(" ", "").replaceAll("시대", "");
+        String b = wrong.replaceAll(" ", "").replaceAll("시대", "");
+        
+        if (a == b || a.contains(b) || b.contains(a)) {
+          isSimilar = true;
+          break;
+        }
+      }
+
+      if (!isSimilar) {
+        choicesSet.add(wrong);
+      }
+      
+      cleanWrongPool.remove(wrong); 
     }
     
-    // 그래도 부족하면(데이터가 정말 없을 때) 더미 데이터 추가
+    // 그래도 부족하면 더미 데이터 추가
     if (choicesSet.length < 4) {
        final dummies = ['경복궁', '불국사', '석굴암', '첨성대', '다보탑'];
        for (var d in dummies) {
          if (choicesSet.length >= 4) break;
-         choicesSet.add(d);
+         if (!choicesSet.contains(d)) choicesSet.add(d);
        }
     }
 

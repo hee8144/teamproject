@@ -71,12 +71,6 @@ class _QuizDialogState extends State<QuizDialog>
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(color: Colors.black.withOpacity(0.7)),
-            ),
-          ),
           Center(
             child: AnimatedBuilder(
               animation: _unrollAnimation,

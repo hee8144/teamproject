@@ -20,7 +20,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
 
   // 💡 타이머 관련 변수
   Timer? _autoTimer;
-  int _remainingTime = 8;
+  int _remainingTime = 60;
 
   @override
   void initState() {
@@ -261,7 +261,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
       return GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1),
             borderRadius: BorderRadius.circular(15),
@@ -278,7 +278,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,

@@ -46,12 +46,6 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(color: Colors.black.withOpacity(0.7)),
-            ),
-          ),
           Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
