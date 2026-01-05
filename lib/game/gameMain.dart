@@ -1974,6 +1974,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 ],
               ),
             ),
+            // 💡 [쿼터뷰 효과 적용 끝]
             _buildPlayerInfoPanel(alignment: Alignment.bottomRight, playerData: players['user1'], color: Colors.red, name : "user1"),
             _buildPlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'], color : Colors.blue, name : "user2"),
             _buildPlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'], color: Colors.green, name : "user3"),
