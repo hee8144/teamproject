@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ 가로모드 고정용
 import 'package:go_router/go_router.dart';
+import '../auth/login_dialog.dart';
 
 class Login extends StatelessWidget {
   const Login({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // MaterialApp 제거, GoRouter가 최상위에서 관리
     return const LoginScreen();
   }
 }
@@ -45,6 +44,28 @@ class LoginScreen extends StatelessWidget {
                   child: isLandscape
                       ? _buildLandscapeLayout(context, size)
                       : _buildPortraitLayout(context, size),
+                ),
+              ),
+            ),
+          ),
+
+          // 3. 회원가입 유도 버튼
+          Positioned(
+            bottom: 23,
+            left: 20,
+            child: TextButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const LoginDialog(isSignUpMode: true),
+                );
+              },
+              icon: const Icon(Icons.person_add, color: Colors.black, size: 20),
+              label: const Text(
+                "아직 회원이 아니신가요?",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -131,13 +152,16 @@ class LoginScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _buildCustomButton(
-            text: "로그인 (추후 제작 예정...)",
+            text: "로그인",
             textColor: const Color(0xFF5D4037),
             startColor: const Color(0xFFFFE0B2),
             endColor: const Color(0xFFFFCC80),
             borderColor: const Color(0xFFA1887F),
-            onTap: (){
-              context.go('/onlinemain');
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => const LoginDialog(),
+              );
             },
           ),
           const SizedBox(height: 10),

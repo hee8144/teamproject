@@ -126,7 +126,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
       backgroundColor: Colors.transparent,
       child: Container(
         width: dialogWidth,
-        height: dialogHeight,
+        constraints: BoxConstraints(maxHeight: dialogHeight),
         decoration: BoxDecoration(
           color: const Color(0xFFFDF5E6),
           borderRadius: BorderRadius.circular(20),
@@ -136,64 +136,67 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
           ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _header(),
 
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF8D6E63)),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(2, 2))
-                        ],
+            Flexible(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF8D6E63)),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(2, 2))
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            _infoRow("보유 금액", userMoney),
+                            const Divider(height: 18, color: Color(0xFF8D6E63)),
+                            _infoRow("인수 비용", takeoverCost, isHighlight: true),
+                            const Divider(height: 18, color: Color(0xFF8D6E63)),
+                            _infoRow("인수 후 잔액", userMoney - takeoverCost,
+                                isWarning: (userMoney - takeoverCost) < 0),
+                          ],
+                        ),
                       ),
-                      child: Column(
+
+                      const SizedBox(height: 24),
+
+                      // 버튼 영역
+                      Row(
                         children: [
-                          _infoRow("보유 금액", userMoney),
-                          const Divider(height: 20, color: Color(0xFF8D6E63)),
-                          _infoRow("인수 비용", takeoverCost, isHighlight: true),
-                          const Divider(height: 20, color: Color(0xFF8D6E63)),
-                          _infoRow("인수 후 잔액", userMoney - takeoverCost,
-                              isWarning: (userMoney - takeoverCost) < 0),
+                          Expanded(
+                            child: _actionButton(
+                              label: "인수하기",
+                              color: const Color(0xFF5D4037),
+                              onTap: canBuy ? () async {
+                                await _payment();
+                                if (context.mounted) Navigator.pop(context, true);
+                              } : null,
+                            ),
+                          ),
+                          const SizedBox(width: 18),
+                          Expanded(
+                            child: _actionButton(
+                              label: "포기",
+                              color: Colors.grey[700]!,
+                              onTap: () => Navigator.pop(context),
+                              isOutline: true,
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-
-                    const Spacer(),
-
-                    // 버튼 영역
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _actionButton(
-                            label: "인수하기",
-                            color: const Color(0xFF5D4037),
-                            onTap: canBuy ? () async {
-                              await _payment();
-                              if (context.mounted) Navigator.pop(context, true);
-                            } : null,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _actionButton(
-                            label: "포기",
-                            color: Colors.grey[700]!,
-                            onTap: () => Navigator.pop(context),
-                            isOutline: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -206,7 +209,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
   Widget _header() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: const BoxDecoration(
         color: Color(0xFF5D4037),
         borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
@@ -270,7 +273,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: color, width: 2),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: Text(label, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
@@ -281,7 +284,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

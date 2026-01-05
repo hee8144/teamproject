@@ -46,12 +46,6 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(color: Colors.black.withOpacity(0.7)),
-            ),
-          ),
           Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -191,9 +185,8 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
     );
   }
 
-  // 좌측 하단: 오답일 때만 내가 선택한 답을 보여줌
+
   Widget _buildMySelectionBox(bool isTimeout) {
-    // 정답인 경우에는 박스를 보여주지 않음
     if (widget.isCorrect) return const SizedBox.shrink();
 
     return Container(
@@ -231,9 +224,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
     );
   }
 
-  // 우측: 해설 내용 파싱 및 카드 UI 구성
   Widget _buildExplanationContent() {
-    // 1. 해설 텍스트 가져오기
     String rawExplanation = "";
     if (widget.isCorrect) {
       rawExplanation = widget.question.explanations[widget.question.correctIndex];

@@ -19,7 +19,7 @@ class QuizDialog extends StatefulWidget {
 
 class _QuizDialogState extends State<QuizDialog>
     with TickerProviderStateMixin {
-  int remainingSeconds = 60;
+  int remainingSeconds = 40;
   Timer? _timer;
 
   late AnimationController _unrollController;
@@ -71,12 +71,6 @@ class _QuizDialogState extends State<QuizDialog>
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(color: Colors.black.withOpacity(0.7)),
-            ),
-          ),
           Center(
             child: AnimatedBuilder(
               animation: _unrollAnimation,

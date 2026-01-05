@@ -46,6 +46,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     _loadData();
   }
 
+  /// ================= 데이터 로드 =================//
   bool hasAnySelectable() {
     if (costs.isEmpty) return false;
     for (int i = builtLevel; i < 4; i++) {
@@ -128,6 +129,7 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     userMoney = int.tryParse(user["money"]?.toString() ?? '0') ?? 0;
   }
 
+  /// ================= 선택 로직 =================
   bool canSelect(int index) {
     if (costs.isEmpty) return false;
     final targetLevel = index + 1;

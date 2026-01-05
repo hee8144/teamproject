@@ -1,3 +1,4 @@
+import 'dart:async'; // 💡 타이머 추가
 import 'package:flutter/material.dart';
 import 'chance_card.dart';
 import 'chance_card_repository.dart';
@@ -37,6 +38,11 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
   late final Future<ChanceCard> _cardFuture;
   ChanceCard? _loadedCard; 
 
+  // 💡 타이머 관련 변수
+  Timer? _autoTimer;
+  int _remainingTime = 5;
+  bool _isRotationFinished = false;
+
   @override
   void initState() {
     super.initState();
@@ -56,15 +62,63 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
         : ChanceCardRepository.fetchRandom(quizCorrect: widget.quizEffect);
 
     _rotateController.forward().then((_) {
+      if (!mounted) return;
+      setState(() => _isRotationFinished = true);
+      
       if (_loadedCard != null && _loadedCard!.type == 'benefit') {
         _leftConfettiController.play();
         _rightConfettiController.play();
       }
+      
+      // 💡 회전 애니메이션이 끝나면 타이머 시작
+      _startAutoTimer();
     });
+  }
+
+  // 💡 자동 진행 타이머 시작 함수
+  void _startAutoTimer() {
+    _autoTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        if (_remainingTime > 0) {
+          _remainingTime--;
+        } else {
+          _autoTimer?.cancel();
+          _handleAutoAction();
+        }
+      });
+    });
+  }
+
+  // 💡 타이머 종료 시 자동 실행 로직
+  void _handleAutoAction() {
+    if (!mounted || _loadedCard == null) return;
+    
+    final bool isStorage = _loadedCard!.action == "c_shield" || _loadedCard!.action == "c_escape";
+    final bool hasStored = widget.storedCard != "N";
+
+    if (isStorage && hasStored) {
+      // 교체/버리기 상황이면 안전하게 '버리기' (기존 카드 유지)
+      Navigator.pop(context, "discard");
+    } else {
+      // 일반 카드면 '확인' 처리
+      _confirmSingleMode(_loadedCard!, isStorage);
+    }
+  }
+
+  // 💡 공통 확인 로직 분리
+  Future<void> _confirmSingleMode(ChanceCard card, bool isStorage) async {
+    if (isStorage) {
+      await _updateCard(card.action);
+      if (mounted) Navigator.pop(context, "refresh");
+    } else {
+      Navigator.pop(context, card.action);
+    }
   }
 
   @override
   void dispose() {
+    _autoTimer?.cancel(); // 타이머 해제 필수
     _rotateController.dispose();
     _glowController.dispose();
     _leftConfettiController.dispose();
@@ -92,6 +146,32 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
       color: Colors.black.withOpacity(0.6),
       child: Stack(
         children: [
+          // 💡 [타이머 표시 - 우측 상단]
+          if (_isRotationFinished)
+            Positioned(
+              top: 40,
+              right: 40,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.amber, width: 2),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.timer, color: Colors.amber, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      "$_remainingTime초 후 자동 진행",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           Align(
             alignment: const Alignment(0.0, -0.4),
             child: FutureBuilder<ChanceCard>(
@@ -189,12 +269,8 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
         Positioned(
           bottom: -15, 
           child: _actionButton("확 인", () async {
-            if (isStorage) {
-              await _updateCard(card.action);
-              if (mounted) Navigator.pop(context, "refresh"); 
-            } else {
-              Navigator.pop(context, card.action);
-            }
+            _autoTimer?.cancel(); // 수동 클릭 시 타이머 해제
+            _confirmSingleMode(card, isStorage);
           }),
         ),
       ],
@@ -239,11 +315,15 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
           mainAxisSize: MainAxisSize.min,
           children: [
             _actionButton("교체하기", () async {
+              _autoTimer?.cancel();
               await _updateCard(newCard.action);
               if (mounted) Navigator.pop(context, "refresh");
             }),
             const SizedBox(width: 180),
-            _actionButton("버리기", () => Navigator.pop(context, "discard"), isGrey: true),
+            _actionButton("버리기", () {
+              _autoTimer?.cancel();
+              Navigator.pop(context, "discard");
+            }, isGrey: true),
           ],
         ),
       ],
@@ -413,7 +493,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,

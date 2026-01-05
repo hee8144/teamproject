@@ -13,7 +13,7 @@ import 'package:intl/intl.dart';
 //     MaterialApp(
 //       debugShowCheckedModeBanner: false,
 //       home: const GameResult(
-//         victoryType: 'line_monopoly',
+//         victoryType: 'triple_monopoly',
 //         winnerName: 'user1',
 //       ),
 //     ),
