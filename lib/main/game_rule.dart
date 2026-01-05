@@ -28,7 +28,7 @@ class _GameRulePageState extends State<GameRulePage> {
             '더블이 나오면 한 번 더 주사위를 굴립니다.',
             '단, 3회 연속 더블 시 무인도로 갇힙니다.',
           ],
-          iconTopRatio: 0.65,
+          iconTopRatio: 0.7,
           iconRightRatio: 0.55,
           tooltipTopRatio: 0.00,
           tooltipLeftRatio: 0.50,
@@ -40,7 +40,7 @@ class _GameRulePageState extends State<GameRulePage> {
             '총 자산: 소지금 + 소유 건물 가격',
             '순위: 총 자산 기준'
           ],
-          iconTopRatio: 0.27,
+          iconTopRatio: 0.2,
           iconRightRatio: 0.1,
           tooltipTopRatio: 0.00,
           tooltipLeftRatio: 0.00,
