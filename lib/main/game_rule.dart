@@ -18,8 +18,8 @@ class _GameRulePageState extends State<GameRulePage> {
 
   final List<_RuleData> rules = [
     _RuleData(
-      title: '1. 기본 진행 방법',
-      imagePath: 'assets/rules/game_rule.png',
+      title: '기본 진행 방법',
+      imagePath: 'assets/rules/game_start_rule.png',
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -29,9 +29,9 @@ class _GameRulePageState extends State<GameRulePage> {
             '단, 3회 연속 더블 시 무인도로 갇힙니다.',
           ],
           iconTopRatio: 0.7,
-          iconRightRatio: 0.55,
+          iconRightRatio: 0.57,
           tooltipTopRatio: 0.00,
-          tooltipLeftRatio: 0.50,
+          tooltipLeftRatio: 0.00,
         ),
         _TooltipData(
           tooltipLines: [
@@ -48,8 +48,8 @@ class _GameRulePageState extends State<GameRulePage> {
       ],
     ),
     _RuleData(
-      title: '1. 기본 진행 방법',
-      imagePath: 'assets/rules/build.png',
+      title: '건설',
+      imagePath: 'assets/rules/game_build.png',
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -58,8 +58,8 @@ class _GameRulePageState extends State<GameRulePage> {
             '처음에는 건물을 1단만 지을수 있습니다.',
             '한바퀴를 돌때마다 내가 한번에 지을수 있는 건물의 개수가 늘어납니다. 1단 -> 2단 -> 3단 순',
           ],
-          iconTopRatio: 0.2,
-          iconRightRatio: 0.35,
+          iconTopRatio: 0.18,
+          iconRightRatio: 0.33,
           tooltipTopRatio: 0.0,
           tooltipLeftRatio: 0.0,
         ),
@@ -77,21 +77,119 @@ class _GameRulePageState extends State<GameRulePage> {
       ],
     ),
     _RuleData(
-      title: '3. 특수 블록 설명',
-      imagePath: 'assets/rules/domestic_travel.png',
+      title: '통행료 & 건물 인수',
+      imagePath: 'assets/rules/toll.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '통행료',
+            '상대방 땅에 도착하면 통행료를 내야 합니다.',
+            '건물이 많고 비쌀수록, 랜드마크일수록 통행료가 비쌉니다.',
+            '상대 땅을 밟았을때 50% 확률로 퀴즈가 발동합니다. 퀴즈를 맞추면 통행료가 50% 할인됩니다.',
+          ],
+          iconTopRatio: 0.2,
+          iconRightRatio: 0.8,
+          tooltipTopRatio: 0.2,
+          tooltipLeftRatio: 0.2,
+        ),
+        _TooltipData(
+          tooltipLines: [
+            '건물 인수',
+            '인수란? 상대방의 땅에 도착했을 때, 통행료를 내고 추가 비용(건설비의 2배)을 지불하면 그 땅을 내 것으로 뺏을 수 있습니다.',
+            '인수 후에는 건물을 더 높게 올릴 수 있어 랜드마크 건설의 발판이 됩니다.',
+            '단, 상대방이 이미 랜드마크를 건설한 땅은 인수할 수 없습니다.',
+          ],
+          iconTopRatio: 0.1,
+          iconRightRatio: 0.32,
+          tooltipTopRatio: 0.0,
+          tooltipLeftRatio: 0.2,
+        ),
+
+      ],
+    ),
+    _RuleData(
+      title: '출발지',
+      imagePath: 'assets/rules/origin.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '출발지',
+            '도착하거나 지나갈 때마다 월급을 받습니다.',
+            '출발지에 도착할 경우, 내 땅에 건물을 추가로 건설할 수도 있습니다.',
+          ],
+          iconTopRatio: 0.9,
+          iconRightRatio: 0.23,
+          tooltipTopRatio: 0.4,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '찬스',
+      imagePath: 'assets/rules/chance.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '찬스',
+            '좋은 효과(월급 보너스, 통행료 면제 등)나 나쁜 효과(건물 파괴, 통행료 반값 등)가 랜덤으로 발동됩니다',
+            '퀴즈를 풀면 좋은 효과가 발동할 확률이 기본 50% 대신 70%로 바뀝니다.',
+          ],
+          iconTopRatio: 0.05,
+          iconRightRatio: 0.35,
+          tooltipTopRatio: 0.2,
+          tooltipLeftRatio: 0.2,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '무인도',
+      imagePath: 'assets/rules/uninhabited.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '무인도',
+            '3턴 동안 갇힙니다. (더블이 나오거나, 비용을 지불하거나, 탈출 카드를 쓰면 즉시 탈출)',
+          ],
+          iconTopRatio: 0.15,
+          iconRightRatio: 0.35,
+          tooltipTopRatio: 0.3,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '지역 축제',
+      imagePath: 'assets/rules/festival.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '지역 축제',
+            '내 땅의 통행료를 배로 늘릴 수 있습니다.',
+          ],
+          iconTopRatio: 0.75,
+          iconRightRatio: 0.5,
+          tooltipTopRatio: 0.3,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '국내 여행',
+      imagePath: 'assets/rules/domestic_trip.png',
       tooltips: [
         _TooltipData(
           tooltipLines: [
             '국내 여행',
             '다음 턴에 원하는 곳으로 즉시 이동할 수 있습니다. (전략적으로 가장 중요한 블록)',
           ],
-          iconTopRatio: 0.1,
-          iconRightRatio: 0.25,
-          tooltipTopRatio: 0.4,
-          tooltipLeftRatio: 0.1,
+          iconTopRatio: 0.7,
+          iconRightRatio: 0.47,
+          tooltipTopRatio: 0.0,
+          tooltipLeftRatio: 0.3,
         ),
       ],
     ),
+
   ];
 
   @override
