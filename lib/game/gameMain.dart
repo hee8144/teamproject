@@ -201,7 +201,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     // 일반 이동
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
-    movePlayer(23, currentTurn, isDouble);
+    movePlayer(24, currentTurn, isDouble);
   }
 
   Future<void> _checkAndStartTurn() async {
@@ -1596,12 +1596,15 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     String type = playerData['type'] ?? "N";
     if (type == "N") return const SizedBox();
 
+    // 파산 여부 확인
+    bool isBankrupt = (type == "D" || type == "BD");
+
     String displayName = (type == "B" || type == "BD") ? "BOT" : "PLAYER${name.replaceAll('user', '')}";
-    if (type == "D" || type == "BD") displayName = "파산";
+    if (isBankrupt) displayName = "파산";
 
     // 위치 판단 변수
-    bool isTop = alignment.y < 0; // P2(TopLeft), P4(TopRight)가 true
-    bool isLeft = alignment.x < 0; // P2(TopLeft), P3(BottomLeft)가 true
+    bool isTop = alignment.y < 0; // P2, P4
+    bool isLeft = alignment.x < 0; // P2, P3
 
     String money = _formatMoney(playerData['money']);
     String totalMoney = _formatMoney(playerData['totalMoney']);
@@ -1621,9 +1624,16 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       cardColor = Colors.orangeAccent;
     }
 
-    // 💡 [수정] 이펙트 텍스트 위치 계산
-    // isTop(P2, P4)이면 판넬 아래쪽(90)에, 아니면(P1, P3) 판넬 위쪽(-45)에 표시
+    // 이펙트 텍스트 위치
     double? effectTopPos = isTop ? 90 : -45;
+
+    // 패널 모양 (오버레이와 공유)
+    var panelBorderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(15),
+      topRight: const Radius.circular(15),
+      bottomLeft: isLeft ? const Radius.circular(5) : const Radius.circular(15),
+      bottomRight: isLeft ? const Radius.circular(15) : const Radius.circular(5),
+    );
 
     return Positioned(
       top: isTop ? 20 : null,
@@ -1636,8 +1646,8 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // 1. 카드 아이콘
-            if (cardIcon != null)
+            // 1. 카드 아이콘 (파산 시 숨김)
+            if (cardIcon != null && !isBankrupt)
               Positioned(
                 top: isTop ? null : -12,
                 bottom: isTop ? -22 : null,
@@ -1666,18 +1676,20 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [color.withOpacity(0.9), color.withOpacity(0.6)],
+                    // 파산 시: 아주 어두운 회색/검정 그라데이션
+                    colors: isBankrupt
+                        ? [Colors.grey.shade800, Colors.black]
+                        : [color.withOpacity(0.9), color.withOpacity(0.6)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(15),
-                    topRight: const Radius.circular(15),
-                    bottomLeft: isLeft ? const Radius.circular(5) : const Radius.circular(15),
-                    bottomRight: isLeft ? const Radius.circular(15) : const Radius.circular(5),
-                  ),
+                  borderRadius: panelBorderRadius,
                   boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
-                  border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+                  border: Border.all(
+                    // 파산 시 테두리도 어둡게
+                      color: isBankrupt ? Colors.grey.withOpacity(0.3) : Colors.white.withOpacity(0.6),
+                      width: 1.5
+                  ),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1691,7 +1703,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                         if (!isLeft && !isDoubleToll) const SizedBox(width: 1),
                         Text(
                           displayName,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              // 파산 시 텍스트를 어두운 회색으로 처리
+                              color: isBankrupt ? Colors.grey.shade600 : Colors.white,
+                              fontSize: 12
+                          ),
                         ),
                         if (isLeft && isDoubleToll) _buildDoubleBadge(),
                         if (isLeft && isDoubleToll) const SizedBox(width: 1)
@@ -1705,7 +1722,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               ),
             ),
 
-            // 3. 랭킹 배지
+            // 3. 랭킹 배지 (파산 시에도 표시는 하되 색상을 죽임)
             Positioned(
               top: 0,
               left: isLeft ? 125 : 0,
@@ -1713,54 +1730,66 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
                 width: 45, height: 45,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isBankrupt ? Colors.grey.shade400 : Colors.white,
                   shape: BoxShape.circle,
-                  border: Border.all(color: color, width: 3),
+                  border: Border.all(color: isBankrupt ? Colors.grey.shade600 : color, width: 3),
                   boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("RANK", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
-                    Text("$rank", style: TextStyle(fontSize: 18, color: color, fontWeight: FontWeight.w900, height: 1.0)),
+                    Text("$rank", style: TextStyle(fontSize: 18, color: isBankrupt ? Colors.grey.shade600 : color, fontWeight: FontWeight.w900, height: 1.0)),
                   ],
                 ),
               ),
             ),
 
-            // 4. [수정됨] 돈 변화 이펙트 (위치 조정 및 디자인 개선)
-            if (effectText != null)
+            // 4. 돈 변화 이펙트 (파산 시 미표시)
+            if (effectText != null && !isBankrupt)
               Positioned(
-                top: effectTopPos, // 위/아래 위치 동적 적용
+                top: effectTopPos,
                 left: 0, right: 0,
                 child: Center(
-                  // 💡 Stack을 사용하여 외곽선(Stroke) 텍스트 구현
                   child: Stack(
                     children: [
-                      // 외곽선 (검은색 테두리)
                       Text(
                         effectText,
                         style: TextStyle(
-                          fontSize: 24, // 크기 키움
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           foreground: Paint()
                             ..style = PaintingStyle.stroke
-                            ..strokeWidth = 4 // 테두리 두께
+                            ..strokeWidth = 4
                             ..color = Colors.black,
                         ),
                       ),
-                      // 내부 색상 (플러스는 초록/골드, 마이너스는 빨강)
                       Text(
                         effectText,
                         style: TextStyle(
-                          fontSize: 24, // 크기 키움
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           color: effectText.startsWith("-")
-                              ? const Color(0xFFFF5252) // 빨강 (지출)
-                              : const Color(0xFF69F0AE), // 밝은 초록 (수입)
+                              ? const Color(0xFFFF5252)
+                              : const Color(0xFF69F0AE),
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+
+            // 💡 [수정] 파산 시 아주 어두운 오버레이만 씌움 (X 제거)
+            if (isBankrupt)
+              Positioned(
+                top: 10, bottom: 0,
+                left: isLeft ? 0 : 25,
+                right: isLeft ? 25 : 0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    // 투명도 0.75의 검은색 막을 씌워 '죽은' 상태 표현
+                    color: Colors.black.withOpacity(0.05),
+                    borderRadius: panelBorderRadius,
                   ),
                 ),
               ),
