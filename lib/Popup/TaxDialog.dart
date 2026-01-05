@@ -199,15 +199,7 @@ class _TaxDialogState extends State<TaxDialog> {
                                       },
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _actionButton(
-                                      label: "닫기",
-                                      color: Colors.grey[700]!,
-                                      onTap: () => Navigator.pop(context),
-                                      isOutline: true,
-                                    ),
-                                  ),
+                                  const SizedBox(width: 12)
                                 ],
                               ),
                             ],
