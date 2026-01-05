@@ -77,6 +77,23 @@ class _GameRulePageState extends State<GameRulePage> {
       ],
     ),
     _RuleData(
+      title: '퀴즈',
+      imagePath: 'assets/rules/quiz.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '퀴즈',
+            '퀴즈',
+            '퀴즈',
+          ],
+          iconTopRatio: 0.9,
+          iconRightRatio: 0.23,
+          tooltipTopRatio: 0.4,
+          tooltipLeftRatio: 0.1,
+        ),
+      ],
+    ),
+    _RuleData(
       title: '통행료 & 건물 인수',
       imagePath: 'assets/rules/toll.png',
       tooltips: [
@@ -183,6 +200,22 @@ class _GameRulePageState extends State<GameRulePage> {
             '다음 턴에 원하는 곳으로 즉시 이동할 수 있습니다. (전략적으로 가장 중요한 블록)',
           ],
           iconTopRatio: 0.7,
+          iconRightRatio: 0.47,
+          tooltipTopRatio: 0.0,
+          tooltipLeftRatio: 0.3,
+        ),
+      ],
+    ),
+    _RuleData(
+      title: '국세청',
+      imagePath: 'assets/rules/tax.png',
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '국세청',
+            '가지고 있는 땅 기본 통행료의 10퍼센트를 세금으로 냅니다. 만약 땅이 없으면 아무 효과 없습니다.',
+          ],
+          iconTopRatio: 0.78,
           iconRightRatio: 0.47,
           tooltipTopRatio: 0.0,
           tooltipLeftRatio: 0.3,
