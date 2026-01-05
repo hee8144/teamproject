@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:teamproject/main/onlineWatingRoom.dart';
+import 'package:teamproject/online/onlineGameMain.dart';
+import 'package:teamproject/online/onlineWatingRoom.dart';
 import 'package:teamproject/online/onlineMain.dart';
 import '../firebase_options.dart';
 import 'game/gameMain.dart';
@@ -61,7 +62,24 @@ final GoRouter router = GoRouter(
 
 
     // 게임 시작 페이지
-    GoRoute(path: '/gameMain', builder: (context, state) => GameMain())
+    GoRoute(path: '/gameMain', builder: (context, state) => GameMain()),
+    GoRoute(
+      path: '/onlinegameMain',
+      builder: (context, state) {
+        // state.extra가 null일 경우를 대비해 빈 맵을 기본값으로 사용
+        final data = (state.extra as Map<String, dynamic>?) ?? {};
+
+        // null일 경우 기본값을 설정 (roomId는 빈 문자열, myPlayer는 0)
+        final String roomId = data['roomId'] ?? '';
+        final int myPlayer = data['myPlayer'] ?? 0; // 여기서 int 에러 해결!
+
+        return OnlineGamePage(
+          roomId: roomId,
+          // myPlayer: myPlayer, // 만약 OnlineGamePage에서 이 값이 필요하다면 주석 해제
+        );
+      },
+    ),
+
 
     // // case1 : 기본 페이지
     // GoRoute(path: '/', builder: (context, state) => RootPage()),
