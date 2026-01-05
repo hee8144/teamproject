@@ -728,7 +728,14 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
             else if (actionResult == "d_tax") { _movePlayerTo(26, player); }
             else if (actionResult == "d_rest") { await fs.collection("games").doc("users").update({"user$player.restCount": 1}); }
             else if (actionResult == "d_priceUp") { await fs.collection("games").doc("users").update({"user$player.isDoubleToll": true}); }
-            else if (actionResult == "d_storm") { _triggerHighlight(player, "storm"); return; }
+            else if (actionResult == "d_storm") {
+              bool hasMyLand = false;
+              boardList.forEach((key, val) { if (val is Map && val['type'] == 'land') { int owner = int.tryParse(val['owner'].toString()) ?? 0; if (owner == player) hasMyLand = true; } });
+              if (hasMyLand) { _triggerHighlight(player, "storm"); return;  }
+              else {
+                await showDialog(context: context, barrierDismissible: false, builder: (ctx) { Future.delayed(const Duration(seconds: 2), () { if (ctx.mounted) Navigator.of(ctx).pop(); }); return const Dialog(backgroundColor: Colors.transparent, elevation: 0, child: Text("태풍을 일으킬 땅이 없습니다!", textAlign: TextAlign.center)); });
+              }
+            }
             else if (actionResult == "d_priceDown") {
               List<int> myLands = [];
               boardList.forEach((key, val) { if (val['type'] == 'land') { int owner = int.tryParse(val['owner'].toString()) ?? 0; if (owner == player) myLands.add(val['index']); } });
