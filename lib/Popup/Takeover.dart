@@ -161,7 +161,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
               child: Column(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -178,7 +178,7 @@ class _TakeoverDialogState extends State<TakeoverDialog> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(

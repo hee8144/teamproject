@@ -254,6 +254,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         if (paidToEscape == true) {
           await fs.collection("games").doc("users").update({ "user$currentTurn.islandCount": 0 });
           setState(() { players["user$currentTurn"]["islandCount"] = 0; });
+          _triggerMoneyEffect("user$currentTurn", -1000000);
           await _readPlayer();
         }
       } else {
@@ -349,7 +350,17 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
     // 🔥 [수정됨] GameRules 사용
     int newLevel = GameRules.getLevelAfterAttack(currentLevel);
-
+    int price = boardList[tileKey]["tollPrice"];
+    String userNum = boardList[tileKey]["owner"];
+    int userMoney = players["user$userNum"]["money"];
+    int levelMult = 0;
+    switch (newLevel) {
+      case 0: levelMult = 1; break;
+      case 1: levelMult = 2; break;
+      case 2: levelMult = 4; break;
+      case 3: levelMult = 8; break;
+    }
+    price = price * levelMult;
     if (newLevel == 0) {
       batch.update(fs.collection("games").doc("board"), {
         "$tileKey.level": 0, "$tileKey.owner": "N", "$tileKey.multiply": 1, "$tileKey.isFestival": false,
@@ -361,8 +372,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       batch.update(fs.collection("games").doc("board"), { "$tileKey.level": newLevel });
       setState(() { boardList[tileKey]["level"] = newLevel; });
     }
+    await fs.collection("games").doc("users").update({"user$userNum.money" : userMoney - price});
     await batch.commit();
-    await _readLocal();
+    await _readLocal(); await _readPlayer();
+    _triggerMoneyEffect("user$userNum", price);
     print("지진/태풍 발생! $targetIndex번 땅 공격 완료.");
   }
 
@@ -507,14 +520,6 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
       else if(owner != 0 && owner != player) {
         bool isShieldUsed = false;
-        if(playerType != 'B' && players["user$player"]["card"] == "shield"){
-          final bool? useShield = await showDialog(context: context, useSafeArea: false, barrierDismissible: false, builder: (context) => CardUseDialog(user: player));
-          if(useShield == true){
-            isShieldUsed = true;
-            await fs.collection("games").doc("users").update({ "user$player.card" : "N" });
-            setState(() { players["user$player"]["card"] = "N"; });
-          }
-        }
 
         // 🔥 [수정됨] GameRules.calculateToll 사용
         int finalToll = GameRules.calculateToll(
@@ -525,14 +530,22 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           isDoubleTollItem: players["user$player"]["isDoubleToll"] ?? false,
         );
 
+        if(playerType != 'B' && players["user$player"]["card"] == "shield"){
+          final bool? useShield = await showDialog(context: context, useSafeArea: false, barrierDismissible: false, builder: (context) => CardUseDialog(user: player, tollPrice: finalToll));
+          if(useShield == true){
+            isShieldUsed = true;
+            await fs.collection("games").doc("users").update({ "user$player.card" : "N" });
+            setState(() { players["user$player"]["card"] = "N"; });
+          }
+        }
         if (playerType != 'B' && !isShieldUsed) {
           bool quizResult = await DiscountQuizManager.startDiscountQuiz(context, "통행료");
           if (quizResult) {
             finalToll = (finalToll / 2).round();
           }
         }
-        if (isShieldUsed) finalToll = 0;
 
+        if (isShieldUsed) finalToll = 0;
         int myMoney = players["user$player"]["money"];
 
         if(finalToll > 0) {
@@ -559,12 +572,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               batch.update(fs.collection("games").doc("users"), { "user$owner.money": FieldValue.increment(remainingMoney), "user$owner.totalMoney": FieldValue.increment(remainingMoney), });
               final boardSnap = await fs.collection("games").doc("board").get();
               if (boardSnap.exists) {
-                boardSnap.data()!.forEach((key, val) { if (val is Map && val["owner"] == player) { batch.update(fs.collection("games").doc("board"), { "$key.owner": "N", "$key.level": 0, "$key.multiply": 1, "$key.isFestival": false }); } });
+                boardSnap.data()!.forEach((key, val) { if (val is Map && val["owner"].toString() == player.toString()) { batch.update(fs.collection("games").doc("board"), { "$key.owner": "N", "$key.level": 0, "$key.multiply": 1, "$key.isFestival": false }); } });
               }
               await batch.commit();
               _triggerMoneyEffect("user$owner", remainingMoney);
               _triggerMoneyEffect("user$player", -remainingMoney);
-              await _readPlayer(); await _readLocal();
+              await _readPlayer(); await _readLocal(); await rankChange();
               _nextTurn();
               return;
             }
@@ -610,9 +623,18 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           } else {
             final bool? takeoverSuccess = await showDialog(context: context, barrierDismissible: false, builder: (context) { return TakeoverDialog(buildingId: changePosition, user: player); });
             if (takeoverSuccess == true) {
+              int levelMult = 0;
+              switch (buildLevel) {
+                case 1: levelMult = 2; break;
+                case 2: levelMult = 6; break;
+                case 3: levelMult = 14; break;
+                case 4: levelMult = 30; break;
+              }
               await _checkWinCondition(player);
               setState(() { if (boardList[tileKey] == null) boardList[tileKey] = {}; boardList[tileKey]["owner"] = player; });
               await _readPlayer(); await _readLocal();
+              _triggerMoneyEffect("user$player", -(levelMult*tollPrice));
+              _triggerMoneyEffect("user$owner", (levelMult*tollPrice));
               if (!mounted) return;
               int myLevel = players["user$player"]["level"] ?? 1;
               int currentBuildingLevel = (boardList[tileKey] != null) ? (boardList[tileKey]["level"] ?? 0) : 0;
@@ -655,7 +677,10 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
         await fs.collection("games").doc("users").update({ "user$player.money": FieldValue.increment(-tax), "user$player.totalMoney": FieldValue.increment(-tax), });
         _triggerMoneyEffect("user$player", -tax);
       } else {
-        await showDialog(context: context, builder: (context)=> TaxDialog(user: player));
+        int tax = await showDialog(context: context, builder: (context)=> TaxDialog(user: player));
+        if(tax > 0){
+          _triggerMoneyEffect("user$player", -tax);
+        }
       }
       await _readPlayer();
     }
