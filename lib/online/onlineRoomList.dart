@@ -165,56 +165,65 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
   }
 
   Future<void> _insertLocal(String roomId) async {
-    if (heritageList.isEmpty) return;
+    try {
+      if (heritageList.isEmpty) return;
 
-    final roomRef = FirebaseFirestore.instance.collection("online").doc(roomId);
+      final roomRef = FirebaseFirestore.instance.collection("online").doc(roomId);
 
-    // 1. 퀴즈 데이터 업데이트
-    Map<String, dynamic> quizUpdates = {};
-    for (int i = 1; i <= 24; i++) {
-      if (i - 1 < heritageList.length) {
-        quizUpdates["q$i"] = {
-          "name": heritageList[i - 1]["이름"],
-          "description": heritageList[i - 1]["상세설명"],
-          "times": heritageList[i - 1]["시대"],
-          "img": heritageList[i - 1]["이미지링크"]
-        };
+      // 1. 퀴즈 데이터 준비
+      Map<String, dynamic> quizUpdates = {};
+      for (int i = 1; i <= 24; i++) {
+        if (i - 1 < heritageList.length) {
+          quizUpdates["q$i"] = {
+            "name": heritageList[i - 1]["이름"],
+            "description": heritageList[i - 1]["상세설명"],
+            "times": heritageList[i - 1]["시대"],
+            "img": heritageList[i - 1]["이미지링크"]
+          };
+        }
       }
-    }
-    await roomRef.update({"quiz": quizUpdates});
 
-    // 2. 보드 데이터 업데이트 (지역명 제거 로직 포함)
-    DocumentSnapshot boardSnap = await FirebaseFirestore.instance.collection("games").doc("board").get();
+      // 2. 보드 데이터 준비 (생략되지 않도록 주의)
+      DocumentSnapshot boardSnap = await FirebaseFirestore.instance.collection("games").doc("board").get();
+      Map<String, dynamic> boardData = {};
 
-    if (boardSnap.exists) {
-      Map<String, dynamic> boardData = boardSnap.data() as Map<String, dynamic>;
-      int heritageIndex = 0;
+      if (boardSnap.exists) {
+        boardData = boardSnap.data() as Map<String, dynamic>;
+        int heritageIndex = 0;
 
-      for (int i = 1; i <= 27; i++) {
-        String key = "b$i";
-        if (boardData[key] != null && boardData[key]['type'] == 'land') {
-          if (heritageIndex < heritageList.length) {
-            String fullName = heritageList[heritageIndex]["이름"]!;
-            String shortName = fullName;
+        for (int i = 1; i <= 27; i++) {
+          String key = "b$i";
+          if (boardData[key] != null && boardData[key]['type'] == 'land') {
+            if (heritageIndex < heritageList.length) {
+              String fullName = heritageList[heritageIndex]["이름"]!;
+              String shortName = fullName;
 
-            // 💡 [수정됨] 지역 이름 제거 로직
-            for (var map in localList) {
-              String region = map.keys.first; // '서울', '인천' 등
-              if (shortName.startsWith(region)) {
-                // 지역명 길이만큼 자르고 공백 제거 (예: "서울 숭례문" -> "숭례문")
-                shortName = shortName.substring(region.length).trim();
-                break;
+              // 💡 [수정됨] 지역 이름 제거 로직
+              for (var map in localList) {
+                String region = map.keys.first; // '서울', '인천' 등
+                if (shortName.startsWith(region)) {
+                  // 지역명 길이만큼 자르고 공백 제거 (예: "서울 숭례문" -> "숭례문")
+                  shortName = shortName.substring(region.length).trim();
+                  break;
+                }
               }
-            }
 
-            boardData[key]["fullName"] = fullName; // 원래 이름
-            boardData[key]["name"] = shortName;    // 줄임 이름
-            heritageIndex++;
+              boardData[key]["fullName"] = fullName; // 원래 이름
+              boardData[key]["name"] = shortName; // 줄임 이름
+              heritageIndex++;
+            }
           }
         }
       }
       // 수정된 보드 데이터를 해당 방 문서에 저장
-      await roomRef.update({"board": boardData});
+        await roomRef.set({
+          "quiz": quizUpdates,
+          "board": boardData,
+        }, SetOptions(merge: true));
+
+        debugPrint("✅ Firestore에 퀴즈 및 보드 데이터 주입 완료");
+      } catch (e) {
+      debugPrint("❌ _insertLocal 에러: $e");
     }
   }
 
@@ -263,7 +272,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     heritageList = await _loadHeritageDetail();
 
     // 2. 서버 방 생성 요청
-    socket.emit(" create_room", {
+    socket.emit("create_room", {
       "roomId": newId,
       "localName": selectedLocalName,
       "localCode": localcode.toString(),

@@ -7,6 +7,10 @@ import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Bankruptcy.dart';
 import '../quiz/chance_card_quiz_after.dart';
+import '../quiz/quiz_dialog.dart';
+import '../quiz/quiz_question.dart';
+import '../quiz/quiz_repository.dart';
+import '../quiz/quiz_result_popup.dart';
 import 'onlinedice.dart';
 
 class OnlineGamePage extends StatefulWidget {
@@ -22,12 +26,21 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   Map<String, dynamic>? gameState;
   int myIndex = 0;
   bool isMyTurn = false;
-
+  int? _highlightOwner;
+  late AnimationController _glowController;
+  String eventNow = ""; // 현재 진행 중인 하이라이트 이벤트 종류
+  int _eventPlayer = 0; // 이벤트를 발생시킨 플레이어 번호
+  late Animation<double> _glowAnimation;
   final GlobalKey<onlineDiceAppState> diceAppKey = GlobalKey<onlineDiceAppState>();
 
   @override
   void initState() {
     super.initState();
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _glowAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(_glowController);
     _initSocket();
   }
 
@@ -94,7 +107,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       await _handleLandEvent(pos);
     } else if (data['type'] == 'toll_event') {
       await _handleTollAndTakeover(data);
-    }else if (data['type'] == 'island_event') {
+    }else if (data['type' ] == 'island_event') {
       await _handleIslandEvent(data);
     }else if (data['type'] == "chance") {
       // 💡 찬스 카드 이벤트 발송
@@ -105,16 +118,91 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     }
   }
 
+  void _handleHighlightAction(String type) async {
+    bool hasTarget = false;
+
+    // 1. 타겟이 있는지 사전 체크
+    gameState!['board'].forEach((key, val) {
+      int owner = int.tryParse(val['owner'].toString()) ?? 0;
+      if (type == "festival") {
+        if (owner == myIndex) hasTarget = true;
+      } else { // 지진, 태풍, 가격하락
+        if (owner != 0 && owner != myIndex) hasTarget = true;
+      }
+    });
+
+    if (!hasTarget) {
+      // 타겟이 없으면 안내 팝업 후 종료
+      await _showSimpleDialog(type == "festival" ? "축제를 열 땅이 없습니다!" : "공격할 대상이 없습니다!");
+      _completeAction({});
+      return;
+    }
+
+    // 2. 하이라이트 모드 활성화 (보드가 반짝거리게 됨)
+    setState(() {
+      eventNow = type;
+      _highlightOwner = (type == "festival") ? myIndex : -1; // -1은 내 땅 제외 모두
+    });
+
+    _glowController.repeat(reverse: true);
+
+    // 사용자에게 안내 메시지 (Snackback 혹은 Overlay)
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(type == "festival" ? "축제를 열 내 땅을 선택하세요!" : "효과를 적용할 상대 땅을 선택하세요!"))
+    );
+  }
+
+  Future<void> _showSimpleDialog(String message) async {
+    await showDialog(
+        context: context,
+        builder: (ctx) {
+          Future.delayed(const Duration(seconds: 2), () => Navigator.pop(ctx));
+          return AlertDialog(content: Text(message, textAlign: TextAlign.center));
+        }
+    );
+  }
+
   Future<void> _handleChanceEvent(Map<String, dynamic> data) async {
-    // 1. 찬스 퀴즈 팝업 띄우기 (기존 위젯 사용)
-    // 💡 isCorrect는 팝업 내부 로직에 따라 결정되므로, 예시로 true를 넣거나 팝업 결과를 기다립니다.
+    if (gameState == null) return;
+
+    // 1. 퀴즈 로직 (로컬 코드 이식)
+    QuizQuestion? question = await QuizRepository.getRandomQuiz();
+    bool isCorrect = false;
+    int? selectedIndex;
+
+    if (question != null && mounted) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => QuizDialog(
+          question: question,
+          onQuizFinished: (index, correct) {
+            selectedIndex = index;
+            isCorrect = correct;
+          },
+        ),
+      );
+      if (mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => QuizResultPopup(
+            isCorrect: isCorrect,
+            question: question,
+            selectedIndex: selectedIndex ?? -1,
+          ),
+        );
+      }
+    }
+
+    // 2. 찬스 카드 결과 팝업 (isCorrect에 따라 좋은카드/나쁜카드 결정)
     final String? actionResult = await showDialog<String>(
       useSafeArea: false,
       context: context,
       barrierDismissible: false,
       builder: (context) => ChanceCardQuizAfter(
-        quizEffect: true, // 로직에 맞게 수정 가능
-        storedCard: gameState!['users']['user$myIndex']['card'],
+        quizEffect: isCorrect,
+        storedCard: gameState!['users']['user$myIndex']['card'] ?? "",
         userIndex: myIndex,
       ),
     );
@@ -124,45 +212,56 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       return;
     }
 
-    // 2. 결과에 따라 서버에 보낼 데이터 구성
-    Map<String, dynamic> updateData = {};
+    // 3. 결과에 따른 서버 업데이트 데이터 구성
+    Map<String, dynamic> updateData = {'users': {'user$myIndex': {}}};
+    var myUpdate = updateData['users']['user$myIndex'];
 
     switch (actionResult) {
-      case "c_trip": // 국내여행 이동
-        updateData = {'users': {'user$myIndex': {'position': 21}}};
+      case "c_trip": // 국내여행
+        myUpdate['position'] = 21;
         break;
-      case "c_start": // 출발지 이동
-        updateData = {'users': {'user$myIndex': {'position': 0}}};
+      case "c_start": // 출발지
+        myUpdate['position'] = 0;
         break;
       case "c_bonus": // 보너스 300만
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
-        updateData = {'users': {'user$myIndex': {'money': currentMoney + 3000000}}};
+        myUpdate['money'] = currentMoney + 3000000;
         break;
-      case "d_island": // 무인도행
-        updateData = {'users': {'user$myIndex': {'position': 7, 'islandCount': 3}}};
+      case "d_island": // 무인도
+        myUpdate['position'] = 7;
+        myUpdate['islandCount'] = 3;
         break;
-      case "d_tax": // 국세청행
-        updateData = {'users': {'user$myIndex': {'position': 26}}};
+      case "d_tax": // 국세청
+        myUpdate['position'] = 26;
         break;
       case "d_rest": // 한 턴 쉬기
-        updateData = {'users': {'user$myIndex': {'restCount': 1}}};
+        myUpdate['restCount'] = 1;
         break;
       case "d_priceUp": // 통행료 2배
-        updateData = {'users': {'user$myIndex': {'isDoubleToll': true}}};
+        myUpdate['isDoubleToll'] = true;
         break;
       case "d_move": // 랜덤 이동
         int randomPos = (myIndex + (DateTime.now().millisecond % 27)) % 28;
-        updateData = {'users': {'user$myIndex': {'position': randomPos}}};
+        myUpdate['position'] = randomPos;
         break;
-
-    // 💡 타일 선택이 필요한 하이라이트 액션 (지진, 태풍, 축제 등)
+      case "c_shield":
+        myUpdate['card'] = "shield";
+        break;
+      case "c_escape":
+        myUpdate['card'] = "escape";
+        break;
+    // 💡 하이라이트 액션 (지진, 태풍 등)
       case "c_festival":
+        _handleHighlightAction("festival");
+        return;
       case "c_earthquake":
+        _handleHighlightAction("earthquake");
+        return;
       case "d_storm":
+        _handleHighlightAction("storm");
+        return;
       case "d_priceDown":
-      // 이 부분은 별도의 '타일 클릭 대기 로직'이 필요하므로 우선 알림만 띄우고 종료 처리
-        print("특수 액션($actionResult)은 추가 구현이 필요합니다.");
-        _completeAction({});
+        _handleHighlightAction("priceDown");
         return;
 
       default:
@@ -170,9 +269,68 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         return;
     }
 
-    // 3. 서버에 액션 완료 알림
+    // 4. 서버로 최종 전송
     _completeAction(updateData);
   }
+
+  Future<void> _stopHighlight(int index, String event) async {
+    setState(() { _highlightOwner = null; });
+    _glowController.stop();
+    _glowController.reset();
+
+    // 서버로 보낼 전체 데이터 객체
+    Map<String, dynamic> updateData = {
+      'board': {},
+      'users': {}
+    };
+
+    if (event == "festival") {
+      // 이전 축제 정보 제거 (기존에 축제가 있었다면)
+      int oldFestivalIndex = -1;
+      gameState!['board'].forEach((key, val) {
+        if (val['isFestival'] == true) oldFestivalIndex = int.tryParse(key.replaceAll('b', '')) ?? -1;
+      });
+
+      if (oldFestivalIndex != -1) {
+        updateData['board']['b$oldFestivalIndex'] = {'isFestival': false};
+      }
+      // 새로운 땅에 축제 설정
+      updateData['board']['b$index'] = {'isFestival': true};
+
+    } else if (event == "trip") {
+      // 여행 이동은 단순히 위치만 변경 (서버가 위치 변경을 감지함)
+      updateData['users']['user$myIndex'] = {'position': index};
+
+    } else if (event == "earthquake" || event == "storm") {
+      // 지진/태풍: 타겟 땅의 레벨을 깎고 소유주의 돈을 차감
+      String tileKey = "b$index";
+      var tileData = gameState!['board'][tileKey];
+      int currentLevel = tileData['level'] ?? 0;
+      String ownerNum = tileData['owner'].toString(); // 예: "1"
+
+      // 💡 새로운 레벨 계산 (로컬 로직 이식)
+      int newLevel = (currentLevel > 0) ? currentLevel - 1 : 0;
+
+      updateData['board'][tileKey] = {
+        'level': newLevel,
+        'owner': newLevel == 0 ? "0" : ownerNum, // 레벨 0이면 소유주 없음
+        'isFestival': false
+      };
+
+      // 소유주 돈 차감 (필요 시)
+      int price = (tileData['tollPrice'] ?? 0) as int;
+      int ownerMoney = (gameState!['users']['user$ownerNum']['money'] ?? 0) as int;
+      updateData['users']['user$ownerNum'] = {'money': ownerMoney - (price ~/ 2)};
+
+    } else if (event == "priceDown") {
+      updateData['board']['b$index'] = {'multiply': 0.5};
+    }
+
+    // 🔥 핵심: 모든 변경사항을 한 번에 서버로 전송
+    _completeAction(updateData);
+  }
+
+
 
   Future<void> _handleIslandEvent(Map<String, dynamic> data) async {
     // IslandDialog로부터 결과 받기 (true: 결제, false: 대기)
@@ -304,7 +462,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           'level': currentLevel // 인수한 시점의 레벨 유지
         };
 
-        // 2. 🔥 매우 중요: Deep Copy (깊은 복사) 수행
         // ConstructionDialog가 "내 땅"이라고 인식하게 만들기 위해 데이터를 완전히 새로 조립합니다.
         Map<String, dynamic> tempGameState = Map<String, dynamic>.from(gameState!);
         Map<String, dynamic> tempBoard = Map<String, dynamic>.from(tempGameState['board'] ?? {});
@@ -552,6 +709,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   @override
   void dispose() {
+    _glowController.dispose();
     socket.dispose();
     super.dispose();
   }
