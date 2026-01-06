@@ -131,7 +131,7 @@ class TaxPage extends StatelessWidget {
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (_) => const IslandDialog(user: 1,turn: 3,),
+                          builder: (_) => const IslandDialog(user: 1,),
                         );
                       },
                       style: ElevatedButton.styleFrom(
