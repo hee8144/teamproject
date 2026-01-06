@@ -263,7 +263,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     heritageList = await _loadHeritageDetail();
 
     // 2. 서버 방 생성 요청
-    socket.emit(" create_room", {
+    socket.emit("create_room", {
       "roomId": newId,
       "localName": selectedLocalName,
       "localCode": localcode.toString(),
