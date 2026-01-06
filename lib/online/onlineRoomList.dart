@@ -87,7 +87,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
         int playerNum = 0;
 
         for (int i = 1; i <= 4; i++) {
-          String docId = 'user0$i';
+          String docId = 'user$i';
           DocumentSnapshot userSnap = await transaction.get(usersCol.doc(docId));
 
           if (userSnap.exists) {
