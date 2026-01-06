@@ -15,10 +15,12 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final socket = SocketService().socket;
 
+  bool _hasNavigated = false; // ✅ 한 번만 이동하도록 플래그
+
   DocumentReference get _roomDoc => _firestore.collection('online').doc(widget.roomId);
   CollectionReference get _usersCol => _roomDoc.collection('users');
 
-  /// 방 나가기 로직 (방 삭제 포함)
+  /// 방 나가기 로직
   Future<void> _exitRoom() async {
     if (socket == null) return;
 
@@ -26,18 +28,14 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
       final snapshot = await _usersCol.get();
       final activePlayers = snapshot.docs.where((d) => (d.data() as Map)['type'] == 'P').toList();
 
-      // 내가 마지막 인원이거나, 방장(user01)인 경우 방 전체 삭제 시도
       if (activePlayers.length <= 1) {
+        // 방 전체 삭제
         WriteBatch batch = _firestore.batch();
-        // 하위 유저 문서 삭제
-        for (var doc in snapshot.docs) {
-          batch.delete(doc.reference);
-        }
-        // 방 문서 삭제
+        for (var doc in snapshot.docs) batch.delete(doc.reference);
         batch.delete(_roomDoc);
         await batch.commit();
       } else {
-        // 남은 인원이 있으면 내 자리만 비움
+        // 내 자리만 비우기
         await _firestore.runTransaction((transaction) async {
           for (var doc in snapshot.docs) {
             final data = doc.data() as Map<String, dynamic>;
@@ -54,34 +52,41 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
         });
       }
 
-      // 서버에도 신호 전송
+      // 서버 신호
       socket!.emit("leave_room", widget.roomId);
 
-      if (mounted) {
-        context.go('/onlineRoom');
-      }
+      if (mounted) context.go('/onlineRoom');
     } catch (e) {
       debugPrint("퇴장 처리 중 오류: $e");
       if (mounted) context.go('/onlineRoom');
     }
   }
 
-  /// 게임 시작 로직
+  /// 게임 시작
   Future<void> _startGame() async {
+    if (socket == null) return;
+
+    socket!.emit("start_game", widget.roomId);
+
     final usersSnapshot = await _usersCol.get();
     WriteBatch batch = _firestore.batch();
 
     for (var doc in usersSnapshot.docs) {
       final userData = doc.data() as Map<String, dynamic>;
       if (userData['type'] == 'P') {
-        batch.update(doc.reference, {
-          'money': 7000000, 'totalMoney': 7000000, 'position': 0,
-          'level': 1, 'turn': 0, 'rank': 4, 'isOnline': true,
-        });
+        batch.set(doc.reference, {
+          'money': 7000000,
+          'totalMoney': 7000000,
+          'position': 0,
+          'level': 1,
+          'turn': 0,
+          'rank': 4,
+          'isOnline': true,
+        }, SetOptions(merge: true)); // ✅ merge 적용
       }
     }
 
-    batch.update(_roomDoc, {'status': 'playing'});
+    batch.set(_roomDoc, {'status': 'playing'}, SetOptions(merge: true)); // ✅ merge 적용
     await batch.commit();
   }
 
@@ -98,13 +103,15 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
           leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _exitRoom),
         ),
         body: StreamBuilder<DocumentSnapshot>(
-          stream: _roomDoc.snapshots(), // 방 상태 감시
+          stream: _roomDoc.snapshots(),
           builder: (context, roomSnap) {
             if (roomSnap.hasData && roomSnap.data!.exists) {
               final status = (roomSnap.data!.data() as Map)['status'];
-              if (status == 'playing') {
+              if (!_hasNavigated && status == 'playing') {
+                _hasNavigated = true; // ✅ 상태 변수 사용
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) context.go('/gameMain', extra: widget.roomId);
+                  if (!mounted) return;
+                  context.go('/onlinegameMain', extra: {'roomId': widget.roomId});
                 });
               }
             }
@@ -124,7 +131,10 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
                       child: GridView.builder(
                         padding: const EdgeInsets.all(20),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2, childAspectRatio: 1.5, mainAxisSpacing: 10, crossAxisSpacing: 10,
+                          crossAxisCount: 2,
+                          childAspectRatio: 1.5,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
                         ),
                         itemCount: 4,
                         itemBuilder: (context, index) {
@@ -139,7 +149,10 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
                     Padding(
                       padding: const EdgeInsets.all(20.0),
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: Colors.orange),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 60),
+                          backgroundColor: Colors.orange,
+                        ),
                         onPressed: activeCount >= 2 ? _startGame : null,
                         child: Text("게임 시작 ($activeCount/4)"),
                       ),
@@ -155,12 +168,23 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
   }
 
   Widget _buildActiveSlot(String name) => Container(
-    decoration: BoxDecoration(color: Colors.orange[100], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange)),
-    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.person, color: Colors.orange), Text(name)]),
+    decoration: BoxDecoration(
+      color: Colors.orange[100],
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.orange),
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [const Icon(Icons.person, color: Colors.orange), Text(name)],
+    ),
   );
 
   Widget _buildEmptySlot() => Container(
-    decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey)),
+    decoration: BoxDecoration(
+      color: Colors.grey[200],
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey),
+    ),
     child: const Center(child: Text("대기 중...")),
   );
 }
