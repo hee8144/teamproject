@@ -168,18 +168,54 @@ class _LoginDialogState extends State<LoginDialog> {
                 _socialBtn(
                   img: "assets/google_logo.png", 
                   onTap: () async {
+                    if (isLoading) return;
+                    setState(() => isLoading = true);
                     try {
                       await AuthService.instance.signInWithGoogle();
                       if (mounted) context.go('/onlinemain');
                     } catch (e) {
                       Fluttertoast.showToast(msg: "구글 로그인 실패");
+                    } finally {
+                      if (mounted) setState(() => isLoading = false);
                     }
                   }
                 ),
                 const SizedBox(width: 8),
-                _socialBtn(img: "assets/kakao_logo.png", onTap: () {}),
+                _socialBtn(
+                  img: "assets/kakao_logo.png", 
+                  onTap: () async {
+                    if (isLoading) return;
+                    setState(() => isLoading = true);
+                    try {
+                      final success = await AuthService.instance.signInWithKakao();
+                      if (success && mounted) {
+                        context.go('/onlinemain');
+                      }
+                    } catch (e) {
+                      Fluttertoast.showToast(msg: "카카오 로그인 실패");
+                    } finally {
+                      if (mounted) setState(() => isLoading = false);
+                    }
+                  }
+                ),
                 const SizedBox(width: 8),
-                _socialBtn(img: "assets/naver_logo.png", onTap: () {}),
+                _socialBtn(
+                  img: "assets/naver_logo.png", 
+                  onTap: () async {
+                    if (isLoading) return;
+                    setState(() => isLoading = true);
+                    try {
+                      final success = await AuthService.instance.signInWithNaver();
+                      if (success && mounted) {
+                        context.go('/onlinemain');
+                      }
+                    } catch (e) {
+                      Fluttertoast.showToast(msg: "네이버 로그인 실패");
+                    } finally {
+                      if (mounted) setState(() => isLoading = false);
+                    }
+                  }
+                ),
               ],
             ),
           ],
