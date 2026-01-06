@@ -3,9 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class IslandDialog extends StatefulWidget {
   final int user;
-  final Map<String, dynamic>? gameState; // 부모로부터 최신 상태를 받음
+  final Map<String, dynamic>? gameState; // null이면 로컬, 있으면 온라인
 
-  const IslandDialog({super.key, required this.user, this.gameState});
+  const IslandDialog({
+    super.key,
+    required this.user,
+    this.gameState,
+  });
 
   @override
   State<IslandDialog> createState() => _IslandDialogState();
@@ -13,39 +17,73 @@ class IslandDialog extends StatefulWidget {
 
 class _IslandDialogState extends State<IslandDialog> {
   final FirebaseFirestore fs = FirebaseFirestore.instance;
-  bool _isProcessing = false; // 중복 클릭 방지용
+
+  int turn = 0;
+  int money = 0;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.gameState != null) {
+      /// 🌐 온라인 → gameState 사용
+      final userData =
+      widget.gameState!['users']['user${widget.user}'];
+
+      turn = userData['islandCount'] ?? 0;
+      money = userData['money'] ?? 0;
+    } else {
+      /// 🧍 로컬 → Firebase에서 직접 읽기
+      _fetchFromFirebase();
+    }
+  }
+
+  Future<void> _fetchFromFirebase() async {
+    final snap =
+    await fs.collection("games").doc("users").get();
+
+    if (!mounted || !snap.exists) return;
+
+    final data = snap.data()!;
+    final userData = data['user${widget.user}'];
+
+    setState(() {
+      turn = userData['islandCount'] ?? 0;
+      money = userData['money'] ?? 0;
+    });
+  }
+
+  /// 💰 100만원 지불
+  Future<void> _payment() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+
+    try {
+      /// 🧍 로컬만 Firebase 직접 수정
+      if (widget.gameState == null) {
+        await fs.collection("games").doc("users").update({
+          "user${widget.user}.money":
+          FieldValue.increment(-1000000),
+          "user${widget.user}.totalMoney":
+          FieldValue.increment(-1000000),
+          "user${widget.user}.islandCount": 0,
+        });
+      }
+
+      /// 🌐 온라인 / 로컬 공통 → 부모에게 결과 전달
+      if (mounted) {
+        Navigator.pop(context, true); // true = 돈 냈다
+      }
+    } catch (e) {
+      debugPrint("무인도 결제 오류: $e");
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 💡 여기서 gameState가 null이 아니면 바로 데이터를 뽑아 씁니다.
-    final userData = widget.gameState?['users']?['user${widget.user}'] ?? {};
-    final int turn = userData['islandCount'] ?? 0;
-    final int currentMoney = userData['money'] ?? 0;
-
     final size = MediaQuery.of(context).size;
-
-    /// 💰 결제 로직 (gameState 데이터를 기반으로 실행)
-    Future<void> payment() async {
-      if (_isProcessing) return; // 이미 처리 중이면 무시
-      setState(() => _isProcessing = true);
-
-      try {
-        // 로컬/온라인 공용 Firestore 경로 업데이트
-        await fs.collection("games").doc("users").update({
-          "user${widget.user}.money": FieldValue.increment(-1000000),
-          "user${widget.user}.totalMoney": FieldValue.increment(-1000000),
-          "user${widget.user}.islandCount": 0
-        });
-
-        // 💡 Navigator 에러 방지: 위젯이 아직 화면에 있을 때만 닫기
-        if (mounted) {
-          Navigator.of(context).pop(true);
-        }
-      } catch (e) {
-        print("결제 오류: $e");
-        if (mounted) setState(() => _isProcessing = false);
-      }
-    }
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -65,10 +103,18 @@ class _IslandDialogState extends State<IslandDialog> {
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: Color(0xFF3E4A59),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius:
+                BorderRadius.vertical(top: Radius.circular(20)),
               ),
               alignment: Alignment.center,
-              child: const Text("🏝 무인도", style: TextStyle(fontSize: 22, color: Color(0xFFFFE082), fontWeight: FontWeight.bold)),
+              child: const Text(
+                "🏝 무인도",
+                style: TextStyle(
+                  fontSize: 22,
+                  color: Color(0xFFFFE082),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
 
             /// 본문
@@ -78,9 +124,21 @@ class _IslandDialogState extends State<IslandDialog> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("무인도 탈출 비용: 100만 원\n(현재 잔액: ${currentMoney ~/ 10000}만 원)", textAlign: TextAlign.center),
-                    const SizedBox(height: 10),
-                    Text("$turn 턴 동안 대기해야 합니다.", style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      "무인도에 도착했습니다.\n"
+                          "$turn 턴 동안 이동할 수 없습니다.",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "💰 구조 비용 100만원\n"
+                          "현재 자산: ${money ~/ 10000}만원",
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               ),
@@ -93,17 +151,33 @@ class _IslandDialogState extends State<IslandDialog> {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: (_isProcessing || currentMoney < 1000000) ? null : payment,
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8D6E63)),
+                      onPressed: (_isProcessing || money < 1000000)
+                          ? null
+                          : _payment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8D6E63),
+                      ),
                       child: _isProcessing
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text("100만 지불", style: TextStyle(color: Colors.white)),
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                          : const Text(
+                        "100만원 지불",
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _isProcessing ? null : () => Navigator.pop(context, false),
+                      onPressed: _isProcessing
+                          ? null
+                          : () => Navigator.pop(context, false),
                       child: const Text("주사위 굴리기"),
                     ),
                   ),

@@ -55,6 +55,19 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     return false;
   }
 
+
+  Future<void> _payment() async {
+    final targetLevel = getTargetLevel();
+
+    await fs.collection("games").doc("users").update({
+      "user${widget.user}.money": FieldValue.increment(-totalCost),
+    });
+
+    await fs.collection("games").doc("board").update({
+      "b${widget.buildingId}.level": targetLevel,
+      "b${widget.buildingId}.owner": widget.user,
+    });
+  }
   Future<void> _loadData() async {
     try {
       if (widget.gameState != null) {
@@ -285,10 +298,20 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                                       context: context,
                                       builder: (context) => DetailPopup(boardNum: widget.buildingId));
                                 }
-                                Navigator.pop(context, {
-                                  "level": targetLevel,
-                                  "totalCost": totalCost,
-                                });
+
+                                if(widget.gameState != null){
+                                  Navigator.pop(context, {
+                                    "level": targetLevel,
+                                    "totalCost": totalCost,
+                                  });
+                                }else{
+                                  await _payment();
+                                  Navigator.pop(context, {
+                                    "user": widget.user,
+                                    "index": widget.buildingId,
+                                    "level": targetLevel
+                                  });
+                                }
                               },
                             ),
                           ),
