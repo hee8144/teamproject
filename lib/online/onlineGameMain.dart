@@ -31,7 +31,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   void _initSocket() {
-    socket = IO.io('http://localhost:3000',
+    socket = IO.io('http://localhost:3000 ',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -402,7 +402,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         width: tileSize, height: tileSize,
         padding: const EdgeInsets.all(0.5),
         decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade300, width: 0.5)),
-        child: type == 'land' ? _buildLandContent(tileData, index) : Center(child: Text(type, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
+        child: type == 'land' ? _buildLandContent(tileData, index) : Center(child: Text(tileData['name'], style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
       ),
     );
   }
