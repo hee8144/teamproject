@@ -76,10 +76,10 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
         DocumentSnapshot roomSnap = await transaction.get(roomRef);
         if (!roomSnap.exists) {
           transaction.set(roomRef, {'status': 'waiting', 'createdAt': FieldValue.serverTimestamp()});
-          transaction.set(usersCol.doc('user01'), {'type': 'P', 'name': '플레이어 1(방장)', 'id': socket.id});
-          transaction.set(usersCol.doc('user02'), {'type': 'N'});
-          transaction.set(usersCol.doc('user03'), {'type': 'N'});
-          transaction.set(usersCol.doc('user04'), {'type': 'N'});
+          transaction.set(usersCol.doc('user1'), {'type': 'P', 'name': '플레이어 1(방장)', 'id': socket.id});
+          transaction.set(usersCol.doc('user2'), {'type': 'N'});
+          transaction.set(usersCol.doc('user3'), {'type': 'N'});
+          transaction.set(usersCol.doc('user4'), {'type': 'N'});
           return;
         }
 
