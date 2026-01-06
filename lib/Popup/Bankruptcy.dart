@@ -5,12 +5,14 @@ class BankruptDialog extends StatefulWidget {
   final int lackMoney; // 현재 부족한 금액 (양수값)
   final String reason; // "tax", "toll"
   final int user;
+  final Map<String, dynamic>? gameState; // OnlineGamePage에서 전달받음
 
   const BankruptDialog({
     super.key,
     required this.lackMoney,
     required this.reason,
     required this.user,
+    this.gameState,
   });
 
   @override
@@ -60,6 +62,14 @@ class _BankruptDialogState extends State<BankruptDialog> {
 
   /// 💀 완전 파산 처리
   Future<void> bankruptcy() async {
+    // [온라인 모드 처리]
+    if (widget.gameState != null) {
+      // 온라인일 경우 직접 DB를 수정하지 않고 상태를 반환하여 OnlineGamePage에서 소켓을 보내게 함
+      Navigator.pop(context, {"result": "BANKRUPT", "reason": widget.reason});
+      return;
+    }
+
+    // [로컬 모드 처리]
     final boardRef = fs.collection("games").doc("board");
     final usersRef = fs.collection("games").doc("users");
 
@@ -87,42 +97,29 @@ class _BankruptDialogState extends State<BankruptDialog> {
     });
 
     await batch.commit();
+    Navigator.pop(context, {"result": "BANKRUPT", "reason": widget.reason});
   }
 
   /// 🏠 내 땅 목록 불러오기
   Future<void> boardGet() async {
-    final boardSnap = await fs.collection("games").doc("board").get();
     final List<Map<String, dynamic>> temp = [];
 
-    if (boardSnap.exists) {
-      var boardData = boardSnap.data()!;
+    if (widget.gameState != null) {
+      // 🌐 [온라인 모드] 전달받은 gameState에서 추출
+      final boardData = widget.gameState!['board'] as Map<String, dynamic>? ?? {};
+
       boardData.forEach((key, value) {
-        if (value is Map && value["owner"] == widget.user) {
+        if (value is Map && value["owner"].toString() == widget.user.toString()) {
+          int toll = int.tryParse(value["tollPrice"]?.toString() ?? '0') ?? 0;
+          int level = int.tryParse(value["level"]?.toString() ?? '0') ?? 0;
 
-          // 1. Firebase에서 기본 tollPrice와 현재 레벨 가져오기
-          int toll = value["tollPrice"] ?? 0;
-          int level = value["level"] ?? 0;
-
-          // 💡 2. [요청하신 기준 적용] 판매 금액 계산
           int sellPrice = 0;
-
           switch (level) {
-            case 1:
-              sellPrice = toll;       // 1배
-              break;
-            case 2:
-              sellPrice = toll * 3;   // 3배
-              break;
-            case 3:
-              sellPrice = toll * 7;   // 7배
-              break;
-            case 4:
-              sellPrice = toll * 15;  // 15배
-              break;
-            default:
-            // 혹시 레벨이 0이거나 데이터가 이상할 경우 기본값(1배) 처리
-              sellPrice = toll;
-              break;
+            case 1: sellPrice = toll; break;
+            case 2: sellPrice = toll * 3; break;
+            case 3: sellPrice = toll * 7; break;
+            case 4: sellPrice = toll * 15; break;
+            default: sellPrice = toll; break;
           }
 
           temp.add({
@@ -130,10 +127,39 @@ class _BankruptDialogState extends State<BankruptDialog> {
             "index": value["index"],
             "name": value["name"],
             "level": level,
-            "sellPrice": sellPrice,   // 계산된 판매 금액 저장
+            "sellPrice": sellPrice,
           });
         }
       });
+    } else {
+      // 🏠 [로컬 모드] Firebase에서 직접 로드
+      final boardSnap = await fs.collection("games").doc("board").get();
+      if (boardSnap.exists) {
+        var boardData = boardSnap.data()!;
+        boardData.forEach((key, value) {
+          if (value is Map && value["owner"] == widget.user) {
+            int toll = value["tollPrice"] ?? 0;
+            int level = value["level"] ?? 0;
+
+            int sellPrice = 0;
+            switch (level) {
+              case 1: sellPrice = toll; break;
+              case 2: sellPrice = toll * 3; break;
+              case 3: sellPrice = toll * 7; break;
+              case 4: sellPrice = toll * 15; break;
+              default: sellPrice = toll; break;
+            }
+
+            temp.add({
+              "boardKey": key,
+              "index": value["index"],
+              "name": value["name"],
+              "level": level,
+              "sellPrice": sellPrice,
+            });
+          }
+        });
+      }
     }
 
     setState(() {
@@ -147,20 +173,35 @@ class _BankruptDialogState extends State<BankruptDialog> {
   Future<void> sellSelectedAssets() async {
     if (selectedIndexes.isEmpty) return;
 
-    Map<String, dynamic> boardUpdateData = {};
+    List<String> sellKeys = [];
     int totalSellPrice = 0;
 
-    // 1. 선택된 자산들 DB 업데이트 데이터 생성
+    for (int idx in selectedIndexes) {
+      final asset = assets[idx];
+      sellKeys.add(asset["boardKey"]);
+      totalSellPrice += (asset["sellPrice"] as int);
+    }
+
+    // 🌐 [온라인 모드 처리]
+    if (widget.gameState != null) {
+      // 온라인일 경우 결과를 들고 OnlineGamePage로 복귀
+      Navigator.pop(context, {
+        "result": "SELL",
+        "sellKeys": sellKeys,
+        "totalEarned": totalSellPrice,
+      });
+      return;
+    }
+
+    // 🏠 [로컬 모드 처리]
+    Map<String, dynamic> boardUpdateData = {};
     for (int idx in selectedIndexes) {
       final asset = assets[idx];
       boardUpdateData["${asset["boardKey"]}.owner"] = 'N';
       boardUpdateData["${asset["boardKey"]}.level"] = 0;
       boardUpdateData["${asset["boardKey"]}.isFestival"] = false;
-
-      totalSellPrice += (asset["sellPrice"] as int);
     }
 
-    // 2. DB 업데이트 (땅 초기화 및 유저 돈 증가)
     final batch = fs.batch();
     final boardRef = fs.collection("games").doc("board");
     final userRef = fs.collection("games").doc("users");
@@ -172,14 +213,12 @@ class _BankruptDialogState extends State<BankruptDialog> {
 
     await batch.commit();
 
-    // 3. 상태 업데이트 (부족 금액 차감)
+    // 상태 업데이트 및 생존 확인 로직 유지
     setState(() {
       remainingLack -= totalSellPrice;
     });
 
-    // 4. 생존 여부 확인
     if (remainingLack <= 0) {
-      // 빚을 다 갚음 -> 생존!
       if (mounted) {
         await showDialog(
           context: context,
@@ -194,10 +233,9 @@ class _BankruptDialogState extends State<BankruptDialog> {
             ],
           ),
         );
-        Navigator.pop(context, "SURVIVED"); // 파산 안하고 닫기
+        Navigator.pop(context, "SURVIVED");
       }
     } else {
-      // 아직도 빚이 남음 -> 목록 갱신해서 더 팔게 함
       await boardGet();
     }
   }
@@ -228,7 +266,6 @@ class _BankruptDialogState extends State<BankruptDialog> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                // 모드에 따라 화면 전환
                 child: isAssetMode ? _assetSellingView() : _bankruptChoiceView(),
               ),
             ),
@@ -260,11 +297,9 @@ class _BankruptDialogState extends State<BankruptDialog> {
     );
   }
 
-  /// 초기 선택 화면 (파산 vs 자산정리)
   Widget _bankruptChoiceView() {
     return Row(
       children: [
-        // 경고 비주얼
         Expanded(
           flex: 4,
           child: Column(
@@ -280,8 +315,6 @@ class _BankruptDialogState extends State<BankruptDialog> {
             ],
           ),
         ),
-        
-        // [우측] 정보 및 선택 버튼
         Expanded(
           flex: 6,
           child: Column(
@@ -326,7 +359,6 @@ class _BankruptDialogState extends State<BankruptDialog> {
                       color: const Color(0xFFC62828),
                       onTap: () async {
                         await bankruptcy();
-                        Navigator.pop(context, {"result": "BANKRUPT", "reason": widget.reason});
                       },
                     ),
                   ),
@@ -350,11 +382,9 @@ class _BankruptDialogState extends State<BankruptDialog> {
     return const Color(0xFFEF5350);
   }
 
-  /// 자산 정리 화면 (그리드 뷰)
   Widget _assetSellingView() {
     return Row(
       children: [
-        // [좌측] 요약 정보
         Expanded(
           flex: 3,
           child: Column(
@@ -383,10 +413,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
             ],
           ),
         ),
-        
         const SizedBox(width: 18),
-
-        // [우측] 자산 목록 그리드
         Expanded(
           flex: 7,
           child: Container(
@@ -409,7 +436,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
               itemBuilder: (context, index) {
                 final asset = assets[index];
                 final isSelected = selectedIndexes.contains(index);
-                final tileColor = _getTileColor(asset['index'] ?? 0); // 💡 색상 가져오기
+                final tileColor = _getTileColor(asset['index'] ?? 0);
 
                 return GestureDetector(
                   onTap: () {
@@ -425,7 +452,7 @@ class _BankruptDialogState extends State<BankruptDialog> {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    clipBehavior: Clip.hardEdge, // 💡 자식 위젯이 둥근 모서리를 넘지 않도록
+                    clipBehavior: Clip.hardEdge,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -439,7 +466,6 @@ class _BankruptDialogState extends State<BankruptDialog> {
                     ),
                     child: Column(
                       children: [
-                        // 💡 상단 색상 띠 추가
                         Container(
                           height: 12,
                           width: double.infinity,
