@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart'; // 카카오 SDK 추가
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // 환경변수 추가
 import 'package:teamproject/online/onlineGameMain.dart';
 import 'package:teamproject/online/onlineWatingRoom.dart';
 import 'package:teamproject/online/onlineMain.dart';
@@ -17,6 +19,10 @@ import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env"); // 환경변수 로드
+
+  // 카카오 SDK 초기화
+  KakaoSdk.init(nativeAppKey: dotenv.env['KAKAO_NATIVE_APP_KEY']);
 
   // ✅ 가로모드 강제 고정
   await SystemChrome.setPreferredOrientations([

@@ -6,6 +6,8 @@ import '../Popup/Construction.dart';
 import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Bankruptcy.dart';
+import '../Popup/Detail.dart';
+import '../Popup/BoardDetail.dart';
 import '../quiz/chance_card_quiz_after.dart';
 import '../quiz/quiz_dialog.dart';
 import '../quiz/quiz_question.dart';
@@ -462,6 +464,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           'level': currentLevel // 인수한 시점의 레벨 유지
         };
 
+        // 2. 🔥 매우 중요: Deep Copy (깊은 복사) 수행
         // ConstructionDialog가 "내 땅"이라고 인식하게 만들기 위해 데이터를 완전히 새로 조립합니다.
         Map<String, dynamic> tempGameState = Map<String, dynamic>.from(gameState!);
         Map<String, dynamic> tempBoard = Map<String, dynamic>.from(tempGameState['board'] ?? {});
@@ -643,41 +646,55 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     );
   }
 
+
+
   Widget _buildLandContent(Map<String, dynamic> tileData, int index) {
     final int buildLevel = int.tryParse(tileData['level']?.toString() ?? '0') ?? 0;
     final int owner = int.tryParse(tileData['owner']?.toString() ?? '0') ?? 0;
 
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Expanded(flex: 2, child: Container(color: _getAreaColor(index))),
-            Expanded(flex: 5, child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(tileData["name"] ?? "토지", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                Text(_formatMoney(tileData["tollPrice"] ?? 0), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
-              ],
-            )),
-          ],
-        ),
-        if (buildLevel > 0 && owner > 0)
-          Positioned(
-            top: 0, right: 0,
-            child: ClipPath(
-              clipper: _TopRightTriangleClipper(),
-              child: Container(
-                width: 32, height: 32,
-                color: _getColor(owner),
-                alignment: Alignment.topRight,
-                padding: const EdgeInsets.only(top: 2, right: 3),
-                child: buildLevel < 4
-                    ? Text("$buildLevel", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white))
-                    : const Icon(Icons.star, size: 9, color: Colors.white),
+    return GestureDetector(
+      onTap: () async{
+        if (tileData != null && tileData["type"] == "land") {
+          final result = await showDialog(context: context, builder: (context) { return DetailPopup(boardNum: index,onNext: (){},roomId: widget.roomId,); });
+          if(result != null){
+            Map<String, dynamic> fullData = Map<String, dynamic>.from(tileData ?? {});
+            fullData.addAll(result);
+            showDialog(context: context, builder: (context) => BoardDetail(boardNum: index, data: fullData, roomId: widget.roomId,));
+          }
+        }
+      },
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(flex: 2, child: Container(color: _getAreaColor(index))),
+              Expanded(flex: 5, child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(tileData["name"] ?? "토지", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  Text(_formatMoney(tileData["tollPrice"] ?? 0), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
+                ],
+              )),
+            ],
+          ),
+          if (buildLevel > 0 && owner > 0)
+            Positioned(
+              top: 0, right: 0,
+              child: ClipPath(
+                clipper: _TopRightTriangleClipper(),
+                child: Container(
+                  width: 32, height: 32,
+                  color: _getColor(owner),
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(top: 2, right: 3),
+                  child: buildLevel < 4
+                      ? Text("$buildLevel", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white))
+                      : const Icon(Icons.star, size: 9, color: Colors.white),
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 

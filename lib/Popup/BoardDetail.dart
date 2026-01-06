@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 class BoardDetail extends StatefulWidget {
   final int boardNum;
   final Map<String, dynamic>? data;
+  final String? roomId;
 
   const BoardDetail({
     super.key,
     required this.boardNum,
     this.data,
+    this.roomId
   });
 
   @override
@@ -39,12 +41,21 @@ class _BoardDetailPopupState extends State<BoardDetail> {
   }
 
   Future<void> PriceDetail() async {
-    final snap= await fs.collection("games").doc("board").get();
-    if (!snap.exists) return;
+    var data;
+    var key;
+    if(widget.roomId != null){
+      final snap = await fs.collection("online").doc(widget.roomId!).get();
+      if (!snap.exists) return;
+      data = snap.data()?['board'] ?? {};
+      key = "b${widget.boardNum}";
 
-    final data = snap.data();
-    final key = "b${widget.boardNum}";
-
+    }
+    else {
+      final snap= await fs.collection("games").doc("board").get();
+      if (!snap.exists) return;
+      data = snap.data();
+      key = "b${widget.boardNum}";
+    }
     if (data != null && data[key] != null) {
       setState(() {
         _BoardDetail= Map<String, dynamic>.from(data[key]);
