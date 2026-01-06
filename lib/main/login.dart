@@ -158,10 +158,11 @@ class LoginScreen extends StatelessWidget {
             endColor: const Color(0xFFFFCC80),
             borderColor: const Color(0xFFA1887F),
             onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => const LoginDialog(),
-              );
+              context.go('/onlinemain');
+              // showDialog(
+                // context: context,
+                // builder: (context) => const LoginDialog(),
+              // );
             },
           ),
           const SizedBox(height: 10),
