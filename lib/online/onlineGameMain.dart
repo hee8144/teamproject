@@ -47,7 +47,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   void _initSocket() {
-    socket = IO.io('http://localhost:3000 ',
+    // socket = IO.io('http://localhost:3000 ',
+    socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
