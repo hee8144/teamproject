@@ -3,6 +3,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
 
 import '../Popup/Construction.dart';
+import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Bankruptcy.dart';
 import 'onlinedice.dart';
@@ -92,7 +93,37 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       await _handleLandEvent(pos);
     } else if (data['type'] == 'toll_event') {
       await _handleTollAndTakeover(data);
+    }else if (data['type'] == 'island_event') {
+      await _handleIslandEvent(data);
     } else {
+      _completeAction({});
+    }
+  }
+
+  Future<void> _handleIslandEvent(Map<String, dynamic> data) async {
+    final int turnCount = data['islandCount'] ?? 3;
+
+    final String? result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => IslandDialog(user: myIndex, turn: turnCount),
+    );
+
+    if (result == "PAY") {
+      // 100만원 지불 처리 데이터를 서버로 전송
+      int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
+
+      _completeAction({
+        'users': {
+          'user$myIndex': {
+            'money': currentMoney - 1000000,
+            'islandCount': 0, // 즉시 탈출
+          }
+        }
+      });
+      print("💰 무인도 탈출 비용 지불 완료");
+    } else {
+      // 그냥 턴 종료 (다음 턴부터 무인도 갇힘 로직 작동)
       _completeAction({});
     }
   }

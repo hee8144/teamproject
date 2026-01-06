@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class IslandDialog extends StatefulWidget {
   final int user;
-  const IslandDialog({super.key, required this.user});
+  final int? turn;
+  const IslandDialog({super.key, required this.user,this.turn});
 
   @override
   State<IslandDialog> createState() => _IslandDialogState();
