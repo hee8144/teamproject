@@ -106,7 +106,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     final String? result = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => IslandDialog(user: myIndex, turn: turnCount),
+      builder: (context) => IslandDialog(user: myIndex,gameState:gameState,),
     );
 
     if (result == "PAY") {
