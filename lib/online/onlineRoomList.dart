@@ -21,6 +21,8 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
   List<Map<String, String>> heritageList = [];
   Map<String, dynamic> boardList = {};
   Map<String, dynamic> players = {};
+
+  // 지역 리스트
   List<Map<String, dynamic>> localList = [
     {'인천': {'ccbaCtcd': 23}},{'세종': {'ccbaCtcd': 45}},{'울산': {'ccbaCtcd': 26}},
     {'제주': {'ccbaCtcd': 50}},{'대구': {'ccbaCtcd': 22}},{'충북': {'ccbaCtcd': 33}},
@@ -30,7 +32,6 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     {'광주': {'ccbaCtcd': 24}},{'서울': {'ccbaCtcd': 11}}
   ];
 
-  // [수정] Map에서 List로 변경 (에러의 핵심 원인 해결)
   List<dynamic> rooms = [];
   bool isJoining = false;
 
@@ -43,7 +44,6 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     socket.on("room_list", (data) {
       if (mounted) {
         setState(() {
-          // [수정] 데이터가 리스트인지 확인 후 안전하게 할당
           if (data is List) {
             rooms = data;
           } else if (data is Map && data.containsKey('rooms')) {
@@ -66,7 +66,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     socket.emit("get_rooms");
   }
 
-  /// [기존 로직 유지] Firestore 업데이트 및 이동
+  /// Firestore 업데이트 및 이동
   Future<void> _updateFirestoreAndNavigate(String roomId) async {
     final roomRef = FirebaseFirestore.instance.collection('online').doc(roomId);
     final usersCol = roomRef.collection('users');
@@ -164,15 +164,12 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     return await Future.wait(detailList);
   }
 
-
   Future<void> _insertLocal(String roomId) async {
     if (heritageList.isEmpty) return;
 
-    // 1. 해당 방 전용 퀴즈 데이터 생성/업데이트
-    // (공용 'games/quiz'가 아니라 'online/roomId' 내부에 저장)
     final roomRef = FirebaseFirestore.instance.collection("online").doc(roomId);
 
-    // 퀴즈(유산) 데이터를 Map 형태로 정리
+    // 1. 퀴즈 데이터 업데이트
     Map<String, dynamic> quizUpdates = {};
     for (int i = 1; i <= 24; i++) {
       if (i - 1 < heritageList.length) {
@@ -184,44 +181,43 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
         };
       }
     }
-    // 방 문서에 heritageData 필드로 한꺼번에 저장
     await roomRef.update({"quiz": quizUpdates});
 
-    // 2. 보드 데이터 업데이트
-    // 서버에서 가져온 기본 보드판에 현재 지역의 유산 이름을 입힘
-    DocumentSnapshot boardSnap =
-    await FirebaseFirestore.instance.collection("online").doc(roomId).get();
+    // 2. 보드 데이터 업데이트 (지역명 제거 로직 포함)
+    DocumentSnapshot boardSnap = await FirebaseFirestore.instance.collection("games").doc("board").get();
 
     if (boardSnap.exists) {
-      final data = boardSnap.data() as Map<String, dynamic>;
-
-      // ✅ 핵심: board 필드를 분리
-      Map<String, dynamic> boardData =
-      Map<String, dynamic>.from(data["board"]);
-
+      Map<String, dynamic> boardData = boardSnap.data() as Map<String, dynamic>;
       int heritageIndex = 0;
 
       for (int i = 1; i <= 27; i++) {
         String key = "b$i";
-
-        if (boardData.containsKey(key) &&
-            boardData[key]["type"] == "land") {
+        if (boardData[key] != null && boardData[key]['type'] == 'land') {
           if (heritageIndex < heritageList.length) {
-            boardData[key]["name"] = heritageList[heritageIndex]["이름"];
+            String fullName = heritageList[heritageIndex]["이름"]!;
+            String shortName = fullName;
+
+            // 💡 [수정됨] 지역 이름 제거 로직
+            for (var map in localList) {
+              String region = map.keys.first; // '서울', '인천' 등
+              if (shortName.startsWith(region)) {
+                // 지역명 길이만큼 자르고 공백 제거 (예: "서울 숭례문" -> "숭례문")
+                shortName = shortName.substring(region.length).trim();
+                break;
+              }
+            }
+
+            boardData[key]["fullName"] = fullName; // 원래 이름
+            boardData[key]["name"] = shortName;    // 줄임 이름
             heritageIndex++;
           }
         }
       }
-
-      // ✅ board만 다시 업데이트
-      await FirebaseFirestore.instance
-          .collection("online")
-          .doc(roomId)
-          .update({"board": boardData});
-
-      print("✅ 보드 이름 업데이트 완료");
+      // 수정된 보드 데이터를 해당 방 문서에 저장
+      await roomRef.update({"board": boardData});
     }
   }
+
   Future<void> _readLocal() async{
     final snap = await FirebaseFirestore.instance.collection("games").doc("board").get();
     if(snap.exists && snap.data() != null){
@@ -240,7 +236,6 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
   Future<void> rankChange() async {
     List<Map<String, dynamic>> tempUsers = [];
     for (int i = 1; i <= 4; i++) {
-      // 💡 [수정] D와 BD 모두 랭킹 재산정 제외
       if (players["user$i"] != null && players["user$i"]["type"] != "N" &&
           players["user$i"]["type"] != "D" &&
           players["user$i"]["type"] != "BD") {
@@ -253,40 +248,37 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     }
   }
 
+  Future<void> createRoom() async {
+    if (isJoining) return;
+    setState(() => isJoining = true);
 
-    Future<void> createRoom() async {
-      if (isJoining) return;
-      setState(() => isJoining = true);
+    String newId = (Random().nextInt(9000) + 1000).toString();
 
-      String newId = (Random().nextInt(9000) + 1000).toString();
+    // 1. 데이터 준비
+    int random = Random().nextInt(localList.length);
+    String selectedLocalName = localList[random].keys.first.toString();
+    localcode = localList[random][selectedLocalName]['ccbaCtcd'];
 
-      // 1. 데이터 준비 (로컬에서 수행)
-      int random = Random().nextInt(localList.length);
-      String selectedLocalName = localList[random].keys.first.toString();
-      localcode = localList[random][selectedLocalName]['ccbaCtcd'];
+    heritageList = await _loadHeritage();
+    heritageList = await _loadHeritageDetail();
 
-      heritageList = await _loadHeritage();
-      heritageList = await _loadHeritageDetail();
+    // 2. 서버 방 생성 요청
+    socket.emit(" create_room", {
+      "roomId": newId,
+      "localName": selectedLocalName,
+      "localCode": localcode.toString(),
+      "creator": { "name": "플레이어 1(방장)", "id": socket.id }
+    });
 
-      // 2. 서버에 방 생성 요청 (방장 정보 포함)
-      socket.emit("create_room", {
-        "roomId": newId,
-        "localName": selectedLocalName,
-        "localCode": localcode.toString(),
-        "creator": { "name": "플레이어 1(방장)", "id": socket.id }
-      });
+    // 3. Firestore 데이터 주입 (지역명 제거 로직 포함됨)
+    await _insertLocal(newId);
 
-      // 💡 [중요] join_success 응답을 기다린 후에 Firestore에 쓰는 것이 안전하지만,
-      // 여기서는 구조상 즉시 실행하되 서버 응답 후에 화면을 넘깁니다.
-      await _insertLocal(newId); // Firestore online/roomId/board에 데이터 주입
+    await _readLocal();
+    await _readPlayer();
+    await rankChange();
 
-      // 로컬 초기화 로직
-      await _readLocal();
-      await _readPlayer();
-      await rankChange();
-
-      print("📡 방 생성 및 데이터 주입 완료: $newId");
-    }
+    print("📡 방 생성 및 데이터 주입 완료: $newId");
+  }
 
   void joinRoom(String roomId) {
     if (isJoining) return;
@@ -317,6 +309,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
             itemCount: roomDocs.length,
             itemBuilder: (context, index) {
               final roomId = roomDocs[index].id;
+              // 방 상태나 인원 등을 DB에서 추가로 읽어와 표시 가능
               return ListTile(
                 leading: const Icon(Icons.meeting_room, color: Colors.blue),
                 title: Text("방 번호: $roomId"),
