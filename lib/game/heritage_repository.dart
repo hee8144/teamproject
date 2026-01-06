@@ -25,7 +25,8 @@ class HeritageRepository {
           String ccsiName = _getXmlText(node, 'ccsiName');
 
           // 지역명 제거 로직
-          String cleanName = rawName.replaceAll(localName, "").trim();
+          final regionPattern = RegExp('^$localName(시|도|군|구|특별시|광역시|특별자치시|특별자치도)?\\s*');
+          String cleanName = rawName.replaceAll(regionPattern, "").trim();
           cleanName = cleanName.replaceAll(ccsiName, "").trim();
           String simpleCcsi = ccsiName.replaceAll(RegExp(r'(시|군|구)$'), "");
           if (simpleCcsi.length >= 2) {

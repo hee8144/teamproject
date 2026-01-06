@@ -4,10 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CardUseDialog extends StatefulWidget {
   final int user;
+  final int? tollPrice;
 
   const CardUseDialog({
     super.key,
     required this.user,
+    this.tollPrice
   });
 
   @override
@@ -83,7 +85,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
 
     // 카드 타입에 따른 상황 메시지 설정
     String statusMessage = cardType == "shield" 
-        ? "비싼 통행료를 내야 할 위기입니다!" 
+        ? "비싼 통행료를 내야 할 위기입니다! 통행료 ${widget.tollPrice}원"
         : "무인도에 갇혀버렸습니다!";
     
     IconData statusIcon = cardType == "shield" 

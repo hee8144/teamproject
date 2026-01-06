@@ -55,6 +55,19 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
     return false;
   }
 
+
+  Future<void> _payment() async {
+    final targetLevel = getTargetLevel();
+
+    await fs.collection("games").doc("users").update({
+      "user${widget.user}.money": FieldValue.increment(-totalCost),
+    });
+
+    await fs.collection("games").doc("board").update({
+      "b${widget.buildingId}.level": targetLevel,
+      "b${widget.buildingId}.owner": widget.user,
+    });
+  }
   Future<void> _loadData() async {
     try {
       if (widget.gameState != null) {
@@ -69,7 +82,11 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
         final String ownerValue = tileData['owner']?.toString() ?? 'N';
         final String myIndexStr = widget.user.toString();
 
-        if (ownerValue != "N" && ownerValue != "0" && ownerValue == myIndexStr) {
+        if (ownerValue == myIndexStr || ownerValue == "0" || ownerValue == "N") {
+          isMyProperty = true;
+        } else {
+          // 인수한 경우를 대비해, 그냥 true로 박아버리거나 부모로부터
+          // 'isTakeover' 같은 플래그를 받아 처리하는 것이 가장 확실합니다.
           isMyProperty = true;
         }
 
@@ -96,10 +113,10 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
       bool anySelectable = hasAnySelectable();
 
       // 내 땅이거나 지을 수 있는 건물이 있다면 팝업 유지
-      if (isMyProperty || anySelectable) {
+      if (builtLevel < 4) {
         setState(() => loading = false);
       } else {
-        // 남의 땅이고 지을 수도 없는 상황이면 자동 종료
+        // 이미 랜드마크라면 더 지을 게 없으니 닫음
         Navigator.pop(context);
       }
     } catch (e) {
@@ -281,10 +298,20 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                                       context: context,
                                       builder: (context) => DetailPopup(boardNum: widget.buildingId));
                                 }
-                                Navigator.pop(context, {
-                                  "level": targetLevel,
-                                  "totalCost": totalCost,
-                                });
+
+                                if(widget.gameState != null){
+                                  Navigator.pop(context, {
+                                    "level": targetLevel,
+                                    "totalCost": totalCost,
+                                  });
+                                }else{
+                                  await _payment();
+                                  Navigator.pop(context, {
+                                    "user": widget.user,
+                                    "index": widget.buildingId,
+                                    "level": targetLevel
+                                  });
+                                }
                               },
                             ),
                           ),

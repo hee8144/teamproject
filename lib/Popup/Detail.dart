@@ -10,11 +10,13 @@ enum DetailPopupActionType {
 class DetailPopup extends StatefulWidget {
   final int boardNum;
   final VoidCallback? onNext;
+  final String? roomId;
 
   const DetailPopup({
     super.key,
     required this.boardNum,
     this.onNext,
+    this.roomId
   });
 
   @override
@@ -29,28 +31,45 @@ class _DetailPopupPopupState extends State<DetailPopup> {
   List<int> nums = [3, 7, 10, 14, 17, 21, 24, 26];
 
   Future<void> getDetail() async {
-    final snap = await fs.collection("games").doc("quiz").get();
     int boardNum = widget.boardNum;
-    if (!snap.exists) return;
     int minusCount = nums.where((n) => n < boardNum).length;
-
     int quizNum = boardNum - minusCount;
 
-    final data = snap.data();
-    final key = "q${quizNum}";
+    if(widget.roomId != null){
+      final snap = await fs.collection("online").doc(widget.roomId!).get();
+      if (!snap.exists) return;
+      Map<String, dynamic> quizData = snap.data()?['quiz'] ?? {};
 
-    if (data != null && data[key] != null) {
-      setState(() {
-        detail = Map<String, dynamic>.from(data[key]);
-        isLoading = false;
-      });
+      final key = "q${quizNum}";
+
+      if (quizData != null && quizData[key] != null) {
+        setState(() {
+          detail = Map<String, dynamic>.from(quizData[key]);
+          isLoading = false;
+        });
+      }
     }
+    else{
+      final snap = await fs.collection("games").doc("quiz").get();
+      if (!snap.exists) return;
+
+      final data = snap.data();
+      final key = "q${quizNum}";
+
+      if (data != null && data[key] != null) {
+        setState(() {
+          detail = Map<String, dynamic>.from(data[key]);
+          isLoading = false;
+        });
+      }
+      }
   }
 
   @override
   void initState() {
     super.initState();
     getDetail();
+    print(detail);
   }
 
   @override

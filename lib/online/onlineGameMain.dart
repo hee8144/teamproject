@@ -3,8 +3,11 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
 
 import '../Popup/Construction.dart';
+import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Bankruptcy.dart';
+import '../Popup/Detail.dart';
+import '../Popup/BoardDetail.dart';
 import 'onlinedice.dart';
 
 class OnlineGamePage extends StatefulWidget {
@@ -30,7 +33,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   void _initSocket() {
-    socket = IO.io('http://localhost:3000',
+    socket = IO.io('http://localhost:3000 ',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -92,7 +95,37 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       await _handleLandEvent(pos);
     } else if (data['type'] == 'toll_event') {
       await _handleTollAndTakeover(data);
+    }else if (data['type'] == 'island_event') {
+      await _handleIslandEvent(data);
     } else {
+      _completeAction({});
+    }
+  }
+
+  Future<void> _handleIslandEvent(Map<String, dynamic> data) async {
+    final int turnCount = data['islandCount'] ?? 3;
+
+    final String? result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => IslandDialog(user: myIndex,gameState:gameState,),
+    );
+
+    if (result == "PAY") {
+      // 100만원 지불 처리 데이터를 서버로 전송
+      int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
+
+      _completeAction({
+        'users': {
+          'user$myIndex': {
+            'money': currentMoney - 1000000,
+            'islandCount': 0, // 즉시 탈출
+          }
+        }
+      });
+      print("💰 무인도 탈출 비용 지불 완료");
+    } else {
+      // 그냥 턴 종료 (다음 턴부터 무인도 갇힘 로직 작동)
       _completeAction({});
     }
   }
@@ -138,15 +171,13 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     int ownerIdx = int.tryParse(data['ownerIndex']?.toString() ?? '0') ?? 0;
     int myMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
 
-    // 👈 혹시 모를 이중 체크: 내 땅이면 여기서 중단
+    // 내 땅이면 건설창만 띄우고 종료
     if (ownerIdx == myIndex) {
       await _handleLandEvent(pos);
       return;
     }
 
-    print("DEBUG: 통행료 지불 시작 - 금액: $toll, 주인: $ownerIdx");
-
-    // 파산 체크
+    // 1. 통행료 지불 및 파산 체크
     if (myMoney < toll) {
       final bankruptResult = await showDialog(
         context: context,
@@ -159,28 +190,80 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       }
     }
 
-    // 통행료 지불 데이터 생성
+    // 통행료 지불 후 예상 잔액 업데이트 (인수 비용 계산을 위해)
+    int remainingMoney = myMoney - toll;
+
+    // 기본 업데이트 데이터 (통행료 지불 정보)
     Map<String, dynamic> updateData = {
       'users': {
-        'user$myIndex': { 'money': myMoney - toll },
+        'user$myIndex': { 'money': remainingMoney },
         'user$ownerIdx': { 'money': (int.tryParse(gameState!['users']['user$ownerIdx']['money']?.toString() ?? '0') ?? 0) + toll }
       }
     };
 
-    // 인수 팝업 (랜드마크가 아닐 때만)
+    // 2. 인수 처리
     int currentLevel = int.tryParse(gameState!['board']['b$pos']['level']?.toString() ?? '0') ?? 0;
+    bool takeoverSuccess = false;
+
     if (currentLevel < 4) {
-      final bool? takeover = await showDialog(
+      final bool? confirmTakeover = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => TakeoverDialog(buildingId: pos, user: myIndex),
+        builder: (context) => TakeoverDialog(
+          buildingId: pos,
+          user: myIndex,
+          gameState: gameState,
+        ),
       );
-      // 인수를 선택했다면 소유주 변경 데이터를 추가
-      if (takeover == true) {
-        updateData['board'] = { 'b$pos': { 'owner': myIndex.toString() } };
+
+      if (confirmTakeover == true) {
+        takeoverSuccess = true;
+
+        // 1. 서버로 보낼 업데이트 데이터에 소유권 변경 기록
+        // 만약 updateData['board']가 null일 수 있으니 안전하게 초기화하며 할당
+        updateData['board'] ??= {};
+        updateData['board']['b$pos'] = {
+          'owner': myIndex.toString(),
+          'level': currentLevel // 인수한 시점의 레벨 유지
+        };
+
+        // 2. 🔥 매우 중요: Deep Copy (깊은 복사) 수행
+        // ConstructionDialog가 "내 땅"이라고 인식하게 만들기 위해 데이터를 완전히 새로 조립합니다.
+        Map<String, dynamic> tempGameState = Map<String, dynamic>.from(gameState!);
+        Map<String, dynamic> tempBoard = Map<String, dynamic>.from(tempGameState['board'] ?? {});
+        Map<String, dynamic> tempTile = Map<String, dynamic>.from(tempBoard['b$pos'] ?? {});
+
+        // 임시 데이터에서 소유권을 나(myIndex)로 강제 변경
+        tempTile['owner'] = myIndex.toString();
+        tempBoard['b$pos'] = tempTile;
+        tempGameState['board'] = tempBoard;
+
+        // 3. 건설창 호출
+        final buildResult = await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => ConstructionDialog(
+            user: myIndex,
+            buildingId: pos,
+            gameState: tempGameState, // 완전히 '내 소유'로 바뀐 가공 데이터를 전달
+          ),
+        );
+
+        // 4. 건설 결과 반영
+        if (buildResult != null && buildResult is Map) {
+          // 서버 전송용 데이터 업데이트 (레벨 변경)
+          updateData['board']['b$pos']['level'] = buildResult['level'];
+
+          // 돈 계산: (통행료 지불 후 남은 돈) - (추가 건설비)
+          int constructionCost = int.tryParse(buildResult['totalCost']?.toString() ?? '0') ?? 0;
+          updateData['users']['user$myIndex']['money'] -= constructionCost;
+
+          print("✅ 인수 후 추가 건설 성공: 레벨 ${buildResult['level']}, 비용 $constructionCost");
+        }
       }
     }
 
+    // 최종 결과 서버 전송
     _completeAction(updateData);
   }
 
@@ -190,6 +273,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       'stateUpdate': stateUpdate,
     });
   }
+
 
   Offset _getTilePosition(int index, double tileSize) {
     double x = 0, y = 0;
@@ -320,46 +404,60 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         width: tileSize, height: tileSize,
         padding: const EdgeInsets.all(0.5),
         decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade300, width: 0.5)),
-        child: type == 'land' ? _buildLandContent(tileData, index) : Center(child: Text(type, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
+        child: type == 'land' ? _buildLandContent(tileData, index) : Center(child: Text(tileData['name'], style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
       ),
     );
   }
+
+
 
   Widget _buildLandContent(Map<String, dynamic> tileData, int index) {
     final int buildLevel = int.tryParse(tileData['level']?.toString() ?? '0') ?? 0;
     final int owner = int.tryParse(tileData['owner']?.toString() ?? '0') ?? 0;
 
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Expanded(flex: 2, child: Container(color: _getAreaColor(index))),
-            Expanded(flex: 5, child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(tileData["name"] ?? "토지", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                Text(_formatMoney(tileData["tollPrice"] ?? 0), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
-              ],
-            )),
-          ],
-        ),
-        if (buildLevel > 0 && owner > 0)
-          Positioned(
-            top: 0, right: 0,
-            child: ClipPath(
-              clipper: _TopRightTriangleClipper(),
-              child: Container(
-                width: 32, height: 32,
-                color: _getColor(owner),
-                alignment: Alignment.topRight,
-                padding: const EdgeInsets.only(top: 2, right: 3),
-                child: buildLevel < 4
-                    ? Text("$buildLevel", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white))
-                    : const Icon(Icons.star, size: 9, color: Colors.white),
+    return GestureDetector(
+      onTap: () async{
+        if (tileData != null && tileData["type"] == "land") {
+          final result = await showDialog(context: context, builder: (context) { return DetailPopup(boardNum: index,onNext: (){},roomId: widget.roomId,); });
+          if(result != null){
+            Map<String, dynamic> fullData = Map<String, dynamic>.from(tileData ?? {});
+            fullData.addAll(result);
+            showDialog(context: context, builder: (context) => BoardDetail(boardNum: index, data: fullData, roomId: widget.roomId,));
+          }
+        }
+      },
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(flex: 2, child: Container(color: _getAreaColor(index))),
+              Expanded(flex: 5, child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(tileData["name"] ?? "토지", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  Text(_formatMoney(tileData["tollPrice"] ?? 0), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
+                ],
+              )),
+            ],
+          ),
+          if (buildLevel > 0 && owner > 0)
+            Positioned(
+              top: 0, right: 0,
+              child: ClipPath(
+                clipper: _TopRightTriangleClipper(),
+                child: Container(
+                  width: 32, height: 32,
+                  color: _getColor(owner),
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(top: 2, right: 3),
+                  child: buildLevel < 4
+                      ? Text("$buildLevel", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white))
+                      : const Icon(Icons.star, size: 9, color: Colors.white),
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
