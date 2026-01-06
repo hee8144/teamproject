@@ -73,7 +73,11 @@ class _IslandDialogState extends State<IslandDialog> {
 
       /// 🌐 온라인 / 로컬 공통 → 부모에게 결과 전달
       if (mounted) {
-        Navigator.pop(context, true); // true = 돈 냈다
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(context).pop(true);
+          }
+        });
       }
     } catch (e) {
       debugPrint("무인도 결제 오류: $e");
@@ -134,10 +138,32 @@ class _IslandDialogState extends State<IslandDialog> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      "💰 구조 비용 100만원\n"
-                          "현재 자산: ${money ~/ 10000}만원",
-                      textAlign: TextAlign.center,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "💰 구조 비용 100만원을 지불하면\n즉시 탈출할 수 있습니다.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            "• 더블이 나오면 즉시 탈출\n"
+                                "• $turn턴 경과 시 자동 탈출",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              height: 1.5,
+                            ),
+                          ),
+                        )
+                      ],
                     ),
                   ],
                 ),
@@ -151,9 +177,7 @@ class _IslandDialogState extends State<IslandDialog> {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: (_isProcessing || money < 1000000)
-                          ? null
-                          : _payment,
+                      onPressed:  (money >= 1000000) ? _payment : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF8D6E63),
                       ),

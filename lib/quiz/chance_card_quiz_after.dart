@@ -11,6 +11,8 @@ class ChanceCardQuizAfter extends StatefulWidget {
   final String storedCard; // "N", "shield", "escape"
   final ChanceCard? debugCard;
   final int userIndex;
+  final Map<String, dynamic>? gameState; // null이면 로컬, 있으면 온라인
+
 
   const ChanceCardQuizAfter({
     super.key,
@@ -18,6 +20,7 @@ class ChanceCardQuizAfter extends StatefulWidget {
     required this.storedCard,
     required this.userIndex,
     this.debugCard,
+    this.gameState
   });
 
   @override
@@ -128,11 +131,13 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
 
   /// DB에 카드 저장하는 함수
   Future<void> _updateCard(String cardAction) async {
+    if (widget.gameState != null) return;
+
     String cardValue = "";
     if (cardAction == "c_shield") cardValue = "shield";
     else if (cardAction == "c_escape") cardValue = "escape";
 
-    if (cardValue.isNotEmpty) {
+    if (cardValue.isNotEmpty && widget.gameState == null) {
       await FirebaseFirestore.instance
           .collection("games")
           .doc("users")
