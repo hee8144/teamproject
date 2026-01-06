@@ -30,7 +30,7 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.7,
           iconRightRatio: 0.57,
-          tooltipTopRatio: 0.00,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.00,
         ),
         _TooltipData(
@@ -43,7 +43,7 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.2,
           iconRightRatio: 0.1,
-          tooltipTopRatio: 0.00,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.00,
         ),
       ],
@@ -61,7 +61,7 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.18,
           iconRightRatio: 0.33,
-          tooltipTopRatio: 0.0,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.0,
         ),
         _TooltipData(
@@ -72,7 +72,7 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.5,
           iconRightRatio: 0.4,
-          tooltipTopRatio: 0.00,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.00,
         ),
       ],
@@ -88,7 +88,7 @@ class _GameRulePageState extends State<GameRulePage> {
             '상대 땅을 밟았을 때 50% 확률로 퀴즈 발동 -> 맞추면 통행료 50% 할인',
           ],
           iconTopRatio: 0.3,
-          iconRightRatio: 0.45,
+          iconRightRatio: 0.5,
           tooltipTopRatio: 0.2,
           tooltipLeftRatio: 0.0,
         ),
@@ -99,7 +99,7 @@ class _GameRulePageState extends State<GameRulePage> {
             '제한 시간이 지나면 답을 제출하지 못한 걸로 간주합니다.',
           ],
           iconTopRatio: 0.1,
-          iconRightRatio: 0.05,
+          iconRightRatio: 0.1,
           tooltipTopRatio: 0.1,
           tooltipLeftRatio: 0.0,
         ),
@@ -130,8 +130,8 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.1,
           iconRightRatio: 0.32,
-          tooltipTopRatio: 0.0,
-          tooltipLeftRatio: 0.2,
+          tooltipTopRatio: 0.05,
+          tooltipLeftRatio: 0.0,
         ),
 
       ],
@@ -145,9 +145,9 @@ class _GameRulePageState extends State<GameRulePage> {
             '문화재 상세보기1',
             '블록을 누르면 그 블록만의 문화재 정보를 확인할 수 있습니다.',
           ],
-          iconTopRatio: 0.2,
-          iconRightRatio: 0.8,
-          tooltipTopRatio: 0.0,
+          iconTopRatio: 0.25,
+          iconRightRatio: 0.53,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.3,
         ),
         _TooltipData(
@@ -156,8 +156,8 @@ class _GameRulePageState extends State<GameRulePage> {
             '화살표를 누르면 게임 상의 정보(건설 비용, 인수 비용, 통행료)를 확인할 수 있습니다.',
           ],
           iconTopRatio: 0.75,
-          iconRightRatio: 0.05,
-          tooltipTopRatio: 0.0,
+          iconRightRatio: 0.08,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.3,
         ),
       ],
@@ -172,8 +172,8 @@ class _GameRulePageState extends State<GameRulePage> {
             '해당 블록의 단계별 건설비용, 통행료, 인수 비용을 확인할 수 있습니다.',
           ],
           iconTopRatio: 0.33,
-          iconRightRatio: 0.65,
-          tooltipTopRatio: 0.0,
+          iconRightRatio: 0.62,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.5,
         ),
       ],
@@ -188,9 +188,9 @@ class _GameRulePageState extends State<GameRulePage> {
             '도착하거나 지나갈 때마다 월급을 받습니다.',
             '출발지에 도착할 경우, 내 땅에 건물을 추가로 건설할 수도 있습니다.',
           ],
-          iconTopRatio: 0.88,
+          iconTopRatio: 0.8,
           iconRightRatio: 0.23,
-          tooltipTopRatio: 0.4,
+          tooltipTopRatio: 0.2,
           tooltipLeftRatio: 0.1,
         ),
         _TooltipData(
@@ -198,9 +198,9 @@ class _GameRulePageState extends State<GameRulePage> {
             '하이라이트',
             '출발지에 도착할 경우, 하이라이트된 자신의 땅을 선택하면 건물을 추가로 건설할 수 있습니다.',
           ],
-          iconTopRatio: 0.8,
-          iconRightRatio: 0.4,
-          tooltipTopRatio: 0.4,
+          iconTopRatio: 0.7,
+          iconRightRatio: 0.6,
+          tooltipTopRatio: 0.2,
           tooltipLeftRatio: 0.1,
         ),
       ],
@@ -218,8 +218,8 @@ class _GameRulePageState extends State<GameRulePage> {
 
           ],
           iconTopRatio: 0.05,
-          iconRightRatio: 0.35,
-          tooltipTopRatio: 0.0,
+          iconRightRatio: 0.5,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.15,
         ),
       ],
@@ -234,7 +234,7 @@ class _GameRulePageState extends State<GameRulePage> {
             '3턴 동안 갇힙니다. (더블이 나오거나, 비용을 지불하거나, 탈출 카드를 쓰면 즉시 탈출)',
           ],
           iconTopRatio: 0.15,
-          iconRightRatio: 0.35,
+          iconRightRatio: 0.37,
           tooltipTopRatio: 0.3,
           tooltipLeftRatio: 0.1,
         ),
@@ -248,21 +248,12 @@ class _GameRulePageState extends State<GameRulePage> {
           tooltipLines: [
             '지역 축제',
             '내 땅의 통행료를 배로 늘릴 수 있습니다.',
-          ],
-          iconTopRatio: 0.0,
-          iconRightRatio: 0.7,
-          tooltipTopRatio: 0.3,
-          tooltipLeftRatio: 0.1,
-        ),
-        _TooltipData(
-          tooltipLines: [
-            '하이라이트',
             '하이라이트된 자신의 땅을 선택하면 해당 지역의 지역 축제를 개최할 수 있습니다.',
           ],
-          iconTopRatio: 0.85,
+          iconTopRatio: 0.25,
           iconRightRatio: 0.55,
           tooltipTopRatio: 0.3,
-          tooltipLeftRatio: 0.1,
+          tooltipLeftRatio: 0.45,
         ),
       ],
     ),
@@ -275,10 +266,10 @@ class _GameRulePageState extends State<GameRulePage> {
             '국내 여행',
             '다음 턴에 원하는 곳으로 즉시 이동할 수 있습니다. (전략적으로 가장 중요한 블록)',
           ],
-          iconTopRatio: 0.7,
-          iconRightRatio: 0.47,
-          tooltipTopRatio: 0.0,
-          tooltipLeftRatio: 0.3,
+          iconTopRatio: 0.00,
+          iconRightRatio: 0.25,
+          tooltipTopRatio: 0.05,
+          tooltipLeftRatio: 0.2,
         ),
       ],
     ),
@@ -294,23 +285,23 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.78,
           iconRightRatio: 0.47,
-          tooltipTopRatio: 0.0,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.3,
         ),
       ],
     ),
     _RuleData(
       title: '승리 조건(파산 승리)',
-      imagePath: 'assets/rules/tax.png',
+      imagePath: 'assets/rules/bankruptcy_victory.png',
       tooltips: [
         _TooltipData(
           tooltipLines: [
             '파산 승리',
             '모든 상대방을 파산시키면 승리합니다.',
           ],
-          iconTopRatio: 0.78,
-          iconRightRatio: 0.47,
-          tooltipTopRatio: 0.0,
+          iconTopRatio: 0.05,
+          iconRightRatio: 0.65,
+          tooltipTopRatio: 0.3,
           tooltipLeftRatio: 0.3,
         ),
       ],
@@ -326,7 +317,7 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.18,
           iconRightRatio: 0.8,
-          tooltipTopRatio: 0.0,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.3,
         ),
       ],
@@ -342,7 +333,7 @@ class _GameRulePageState extends State<GameRulePage> {
           ],
           iconTopRatio: 0.18,
           iconRightRatio: 0.8,
-          tooltipTopRatio: 0.0,
+          tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.3,
         ),
       ],
@@ -368,7 +359,6 @@ class _GameRulePageState extends State<GameRulePage> {
           SafeArea(
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFFDF5E6).withOpacity(0.95),
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Column(
@@ -387,125 +377,191 @@ class _GameRulePageState extends State<GameRulePage> {
                     ),
                   ),
                   Expanded(
-                    child: CarouselSlider(
-                      carouselController: _controller,
-                      options: CarouselOptions(
-                        height: double.infinity,
-                        enableInfiniteScroll: false,
-                        viewportFraction: 1.0,
-                        onPageChanged: (index, _) {
-                          setState(() {
-                            _currentIndex = index;
-                            _openedTooltipIndex = null;
-                          });
-                        },
-                      ),
-                      items: rules.asMap().entries.map((entry) {
-                        final ruleIndex = entry.key;
-                        final rule = entry.value;
+                    child: Stack(
+                      children: [
+                        CarouselSlider(
+                          carouselController: _controller,
+                          options: CarouselOptions(
+                            height: double.infinity,
+                            enableInfiniteScroll: false,
+                            viewportFraction: 1.0,
+                            onPageChanged: (index, _) {
+                              setState(() {
+                                _currentIndex = index;
+                                _openedTooltipIndex = null;
+                              });
+                            },
+                          ),
+                          items: rules.asMap().entries.map((entry) {
+                            final ruleIndex = entry.key;
+                            final rule = entry.value;
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: AspectRatio(
-                              aspectRatio: 18 / 8,
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: Image.asset(
-                                          rule.imagePath,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 16,
-                                        left: 20,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 8,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(0.55),
-                                            borderRadius:
-                                            BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            rule.title,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: AspectRatio(
+                                  aspectRatio: 18 / 8,
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return Stack(
+                                        children: [
+                                          Positioned.fill(
+                                            child: Image.asset(
+                                              rule.imagePath,
+                                              fit: BoxFit.contain,
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                      ...rule.tooltips.asMap().entries.map((t) {
-                                        final tooltipIndex = t.key;
-                                        final tooltip = t.value;
-                                        final uniqueIndex =
-                                            ruleIndex * 10 + tooltipIndex;
-
-                                        return Stack(
-                                          children: [
-                                            Positioned(
-                                              top: constraints.maxHeight *
-                                                  tooltip.iconTopRatio,
-                                              right: constraints.maxWidth *
-                                                  tooltip.iconRightRatio,
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  setState(() {
-                                                    _openedTooltipIndex =
-                                                    _openedTooltipIndex ==
-                                                        uniqueIndex
-                                                        ? null
-                                                        : uniqueIndex;
-                                                  });
-                                                },
-                                                child: Container(
-                                                  width: 42,
-                                                  height: 42,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: Colors.black,
-                                                    border: Border.all(
-                                                      color: Colors.white,
-                                                      width: 2,
-                                                    ),
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.info_outline,
-                                                    size: 24,
-                                                    color: Colors.white,
-                                                  ),
+                                          Positioned(
+                                            top: 16,
+                                            left: 20,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 8,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withOpacity(0.55),
+                                                borderRadius:
+                                                BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                rule.title,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ),
-                                            if (_openedTooltipIndex ==
-                                                uniqueIndex)
-                                              Positioned(
-                                                top: constraints.maxHeight *
-                                                    tooltip.tooltipTopRatio,
-                                                left: constraints.maxWidth *
-                                                    tooltip.tooltipLeftRatio,
-                                                child: _buildTooltipBox(
-                                                    tooltip.tooltipLines),
-                                              ),
-                                          ],
-                                        );
-                                      }),
-                                    ],
+                                          ),
+                                          ...rule.tooltips.asMap().entries.map((t) {
+                                            final tooltipIndex = t.key;
+                                            final tooltip = t.value;
+                                            final uniqueIndex =
+                                                ruleIndex * 10 + tooltipIndex;
+
+                                            return Stack(
+                                              children: [
+                                                Positioned(
+                                                  top: constraints.maxHeight *
+                                                      tooltip.iconTopRatio,
+                                                  right: constraints.maxWidth *
+                                                      tooltip.iconRightRatio,
+                                                  child: GestureDetector(
+                                                    onTap: () {
+                                                      setState(() {
+                                                        _openedTooltipIndex =
+                                                        _openedTooltipIndex ==
+                                                            uniqueIndex
+                                                            ? null
+                                                            : uniqueIndex;
+                                                      });
+                                                    },
+                                                    child: Container(
+                                                      width: 42,
+                                                      height: 42,
+                                                      decoration: BoxDecoration(
+                                                        shape: BoxShape.circle,
+                                                        color: Colors.black,
+                                                        border: Border.all(
+                                                          color: Colors.white,
+                                                          width: 2,
+                                                        ),
+                                                      ),
+                                                      child: const Icon(
+                                                        Icons.info_outline,
+                                                        size: 24,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (_openedTooltipIndex ==
+                                                    uniqueIndex)
+                                                  Positioned(
+                                                    top: constraints.maxHeight *
+                                                        tooltip.tooltipTopRatio,
+                                                    left: constraints.maxWidth *
+                                                        tooltip.tooltipLeftRatio,
+                                                    child: _buildTooltipBox(
+                                                        tooltip.tooltipLines),
+                                                  ),
+                                              ],
+                                            );
+                                          }),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        // 왼쪽 화살표 버튼
+                        if (_currentIndex > 0)
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: () {
+                                  _controller.previousPage(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
                                   );
                                 },
+                                child: Container(
+                                  margin: const EdgeInsets.only(left: 10),
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.chevron_left,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        );
-                      }).toList(),
+                        // 오른쪽 화살표 버튼
+                        if (_currentIndex < rules.length - 1)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: () {
+                                  _controller.nextPage(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                  );
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 10),
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.chevron_right,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -517,29 +573,63 @@ class _GameRulePageState extends State<GameRulePage> {
     );
   }
 
-  /// ✅ UI 변경 없이 두 번째 줄부터 글머리 기호만 추가
   Widget _buildTooltipBox(List<String> lines) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2E3A59),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE6AD5C),
-          width: 3,
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          constraints: const BoxConstraints(maxWidth: 350, maxHeight: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2E3A59),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFE6AD5C),
+              width: 3,
+            ),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(lines.length, (index) {
+                final text = index == 0 ? lines[index] : '• ${lines[index]}';
+                return Text(
+                  text,
+                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                );
+              }),
+            ),
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(lines.length, (index) {
-          final text = index == 0 ? lines[index] : '• ${lines[index]}';
-          return Text(
-            text,
-            style: const TextStyle(color: Colors.white, fontSize: 18),
-          );
-        }),
-      ),
+        Positioned(
+          top: -10,
+          right: -10,
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _openedTooltipIndex = null;
+              });
+            },
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6AD5C),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF2E3A59),
+                  width: 2,
+                ),
+              ),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -547,27 +637,38 @@ class _GameRulePageState extends State<GameRulePage> {
     return Row(
       children: List.generate(rules.length, (index) {
         final isActive = _currentIndex == index;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: isActive
-                ? const Color(0xFFE6AD5C)
-                : Colors.transparent,
-            shape: BoxShape.circle,
-            border: Border.all(
+
+        return GestureDetector(
+          onTap: () {
+            _controller.animateToPage(
+              index,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
               color: isActive
                   ? const Color(0xFFE6AD5C)
-                  : Colors.black,
-              width: 2,
+                  : Colors.transparent,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isActive
+                    ? const Color(0xFFE6AD5C)
+                    : Colors.black,
+                width: 2,
+              ),
             ),
           ),
         );
       }),
     );
   }
+
 }
 
 class _RuleData {
