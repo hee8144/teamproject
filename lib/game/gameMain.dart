@@ -729,6 +729,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
           if (mounted) await showDialog(context: context, barrierDismissible: false, builder: (context) => QuizResultPopup(isCorrect: isCorrect, question: question, selectedIndex: selectedIndex ?? -1));
         }
         if (mounted) {
+          //찬스
           final String? actionResult = await showDialog<String>(useSafeArea: false, context: context, barrierDismissible: false, builder: (context) => ChanceCardQuizAfter(quizEffect: isCorrect, storedCard: players["user$player"]["card"], userIndex: player));
           if (actionResult != null) {
             if (actionResult == "c_trip") { _movePlayerTo(21, player); return; }

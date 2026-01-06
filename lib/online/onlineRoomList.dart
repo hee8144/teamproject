@@ -189,23 +189,37 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
 
     // 2. 보드 데이터 업데이트
     // 서버에서 가져온 기본 보드판에 현재 지역의 유산 이름을 입힘
-    DocumentSnapshot boardSnap = await FirebaseFirestore.instance.collection("games").doc("board").get();
+    DocumentSnapshot boardSnap =
+    await FirebaseFirestore.instance.collection("online").doc(roomId).get();
 
     if (boardSnap.exists) {
-      Map<String, dynamic> boardData = boardSnap.data() as Map<String, dynamic>;
+      final data = boardSnap.data() as Map<String, dynamic>;
+
+      // ✅ 핵심: board 필드를 분리
+      Map<String, dynamic> boardData =
+      Map<String, dynamic>.from(data["board"]);
+
       int heritageIndex = 0;
 
       for (int i = 1; i <= 27; i++) {
         String key = "b$i";
-        if (boardData[key] != null && boardData[key]['type'] == 'land') {
+
+        if (boardData.containsKey(key) &&
+            boardData[key]["type"] == "land") {
           if (heritageIndex < heritageList.length) {
             boardData[key]["name"] = heritageList[heritageIndex]["이름"];
             heritageIndex++;
           }
         }
       }
-      // 수정된 보드 데이터를 해당 방 문서에 통째로 저장
-      await roomRef.update({"board": boardData});
+
+      // ✅ board만 다시 업데이트
+      await FirebaseFirestore.instance
+          .collection("online")
+          .doc(roomId)
+          .update({"board": boardData});
+
+      print("✅ 보드 이름 업데이트 완료");
     }
   }
   Future<void> _readLocal() async{

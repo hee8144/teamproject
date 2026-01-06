@@ -6,6 +6,7 @@ import '../Popup/Construction.dart';
 import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
 import '../Popup/Bankruptcy.dart';
+import '../quiz/chance_card_quiz_after.dart';
 import 'onlinedice.dart';
 
 class OnlineGamePage extends StatefulWidget {
@@ -95,36 +96,114 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       await _handleTollAndTakeover(data);
     }else if (data['type'] == 'island_event') {
       await _handleIslandEvent(data);
-    } else {
+    }else if (data['type'] == "chance") {
+      // 💡 찬스 카드 이벤트 발송
+      await _handleChanceEvent(data);
+    }
+    else {
       _completeAction({});
     }
   }
 
-  Future<void> _handleIslandEvent(Map<String, dynamic> data) async {
-    final int turnCount = data['islandCount'] ?? 3;
-
-    final String? result = await showDialog<String>(
+  Future<void> _handleChanceEvent(Map<String, dynamic> data) async {
+    // 1. 찬스 퀴즈 팝업 띄우기 (기존 위젯 사용)
+    // 💡 isCorrect는 팝업 내부 로직에 따라 결정되므로, 예시로 true를 넣거나 팝업 결과를 기다립니다.
+    final String? actionResult = await showDialog<String>(
+      useSafeArea: false,
       context: context,
       barrierDismissible: false,
-      builder: (context) => IslandDialog(user: myIndex,gameState:gameState,),
+      builder: (context) => ChanceCardQuizAfter(
+        quizEffect: true, // 로직에 맞게 수정 가능
+        storedCard: gameState!['users']['user$myIndex']['card'],
+        userIndex: myIndex,
+      ),
     );
 
-    if (result == "PAY") {
-      // 100만원 지불 처리 데이터를 서버로 전송
+    if (actionResult == null) {
+      _completeAction({});
+      return;
+    }
+
+    // 2. 결과에 따라 서버에 보낼 데이터 구성
+    Map<String, dynamic> updateData = {};
+
+    switch (actionResult) {
+      case "c_trip": // 국내여행 이동
+        updateData = {'users': {'user$myIndex': {'position': 21}}};
+        break;
+      case "c_start": // 출발지 이동
+        updateData = {'users': {'user$myIndex': {'position': 0}}};
+        break;
+      case "c_bonus": // 보너스 300만
+        int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
+        updateData = {'users': {'user$myIndex': {'money': currentMoney + 3000000}}};
+        break;
+      case "d_island": // 무인도행
+        updateData = {'users': {'user$myIndex': {'position': 7, 'islandCount': 3}}};
+        break;
+      case "d_tax": // 국세청행
+        updateData = {'users': {'user$myIndex': {'position': 26}}};
+        break;
+      case "d_rest": // 한 턴 쉬기
+        updateData = {'users': {'user$myIndex': {'restCount': 1}}};
+        break;
+      case "d_priceUp": // 통행료 2배
+        updateData = {'users': {'user$myIndex': {'isDoubleToll': true}}};
+        break;
+      case "d_move": // 랜덤 이동
+        int randomPos = (myIndex + (DateTime.now().millisecond % 27)) % 28;
+        updateData = {'users': {'user$myIndex': {'position': randomPos}}};
+        break;
+
+    // 💡 타일 선택이 필요한 하이라이트 액션 (지진, 태풍, 축제 등)
+      case "c_festival":
+      case "c_earthquake":
+      case "d_storm":
+      case "d_priceDown":
+      // 이 부분은 별도의 '타일 클릭 대기 로직'이 필요하므로 우선 알림만 띄우고 종료 처리
+        print("특수 액션($actionResult)은 추가 구현이 필요합니다.");
+        _completeAction({});
+        return;
+
+      default:
+        _completeAction({});
+        return;
+    }
+
+    // 3. 서버에 액션 완료 알림
+    _completeAction(updateData);
+  }
+
+  Future<void> _handleIslandEvent(Map<String, dynamic> data) async {
+    // IslandDialog로부터 결과 받기 (true: 결제, false: 대기)
+    final bool result = await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => IslandDialog(
+        user: myIndex,
+        gameState: gameState,
+      ),
+    );
+
+    if (result == true) { // 100만원 지불 선택
       int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
 
       _completeAction({
         'users': {
           'user$myIndex': {
             'money': currentMoney - 1000000,
-            'islandCount': 0, // 즉시 탈출
+            'islandCount': 0, // 즉시 탈출 처리
           }
         }
       });
       print("💰 무인도 탈출 비용 지불 완료");
     } else {
-      // 그냥 턴 종료 (다음 턴부터 무인도 갇힘 로직 작동)
-      _completeAction({});
+      // 그냥 쉬기(주사위 굴리기) 선택 시
+      // 서버에 알림을 보내서 주사위 버튼을 활성화시킵니다.
+      socket.emit('island_wait_complete', {
+        'roomId': widget.roomId,
+        'playerIndex': myIndex
+      });
     }
   }
 
