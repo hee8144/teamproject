@@ -92,10 +92,11 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false, // 뒤로가기 버튼 제어
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
         await _exitRoom();
-        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -105,10 +106,12 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
         body: StreamBuilder<DocumentSnapshot>(
           stream: _roomDoc.snapshots(),
           builder: (context, roomSnap) {
+            // 1. 게임 시작 상태 감시 (화면 전환)
             if (roomSnap.hasData && roomSnap.data!.exists) {
-              final status = (roomSnap.data!.data() as Map)['status'];
+              final roomData = roomSnap.data!.data() as Map<String, dynamic>;
+              final status = roomData['status'];
               if (!_hasNavigated && status == 'playing') {
-                _hasNavigated = true; // ✅ 상태 변수 사용
+                _hasNavigated = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
                   context.go('/onlinegameMain', extra: {'roomId': widget.roomId});
@@ -116,13 +119,19 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
               }
             }
 
+            // 2. 플레이어 목록 스트림
             return StreamBuilder<QuerySnapshot>(
-              stream: _usersCol.orderBy(FieldPath.documentId).snapshots(),
+              stream: _usersCol.snapshots(), // 유저 목록 실시간 감시
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
                 final docs = snapshot.data!.docs;
-                int activeCount = docs.where((d) => (d.data() as Map)['type'] == 'P').length;
+
+                // 현재 접속 중인 플레이어('P' 타입) 수 계산
+                int activeCount = docs.where((d) {
+                  final data = d.data() as Map<String, dynamic>;
+                  return data['type'] == 'P';
+                }).length;
 
                 return Column(
                   children: [
@@ -136,12 +145,23 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
                           mainAxisSpacing: 10,
                           crossAxisSpacing: 10,
                         ),
-                        itemCount: 4,
+                        itemCount: 4, // 4개의 고정 슬롯 표시
                         itemBuilder: (context, index) {
-                          if (index < docs.length) {
-                            final userData = docs[index].data() as Map<String, dynamic>;
-                            if (userData['type'] == 'P') return _buildActiveSlot(userData['name'] ?? "플레이어");
+                          // ✅ 핵심 수정: 단순히 docs[index]를 쓰는 게 아니라, user1~user4 이름을 직접 매칭
+                          final String targetId = 'user${index + 1}';
+
+                          // docs 리스트에서 ID가 'user1', 'user2'...인 문서를 찾음
+                          final userDoc = docs.where((d) => d.id == targetId).firstOrNull;
+
+                          if (userDoc != null) {
+                            final userData = userDoc.data() as Map<String, dynamic>;
+                            // 유저 타입이 'P'인 경우에만 이름을 표시
+                            if (userData['type'] == 'P') {
+                              return _buildActiveSlot(userData['name'] ?? "플레이어 ${index + 1}");
+                            }
                           }
+
+                          // 문서가 없거나 타입이 'N'이면 대기 중 표시
                           return _buildEmptySlot();
                         },
                       ),
@@ -153,6 +173,7 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
                           minimumSize: const Size(double.infinity, 60),
                           backgroundColor: Colors.orange,
                         ),
+                        // 2명 이상일 때만 시작 버튼 활성화
                         onPressed: activeCount >= 2 ? _startGame : null,
                         child: Text("게임 시작 ($activeCount/4)"),
                       ),
@@ -171,11 +192,15 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
     decoration: BoxDecoration(
       color: Colors.orange[100],
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.orange),
+      border: Border.all(color: Colors.orange, width: 2),
     ),
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [const Icon(Icons.person, color: Colors.orange), Text(name)],
+      children: [
+        const Icon(Icons.person, color: Colors.orange, size: 40),
+        const SizedBox(height: 8),
+        Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      ],
     ),
   );
 
@@ -183,8 +208,10 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom> {
     decoration: BoxDecoration(
       color: Colors.grey[200],
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.grey),
+      border: Border.all(color: Colors.grey[400]!),
     ),
-    child: const Center(child: Text("대기 중...")),
+    child: const Center(
+      child: Text("대기 중...", style: TextStyle(color: Colors.grey, fontSize: 16)),
+    ),
   );
 }
