@@ -119,20 +119,25 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   Future<void> _animateMovement(int playerIndex, int steps, bool isDouble) async {
     setState(() => _isMoving = true);
 
-    for (int i = 0; i < steps; i++) {
-      await Future.delayed(const Duration(milliseconds: 250));
-      if (!mounted) return;
-
-      setState(() {
-        String userKey = 'user$playerIndex';
-        int currentPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
-        int nextPos = (currentPos + 1) % 28;
-        gameState!['users'][userKey]['position'] = nextPos;
-      });
+    if (steps == 0) {
+      // 💡 여행/찬스카드 등 점프 이동 처리
+      // 서버가 이미 update_state를 보냈을 것이므로 gameState의 최신 위치를 반영
+    } else {
+      // 기존 주사위 이동 로직 (for문)
+      for (int i = 0; i < steps; i++) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        if (!mounted) return;
+        setState(() {
+          String userKey = 'user$playerIndex';
+          int currentPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
+          gameState!['users'][userKey]['position'] = (currentPos + 1) % 28;
+        });
+      }
     }
 
     setState(() => _isMoving = false);
 
+    // 💡 [중요] 이동이 끝났으니 서버에 알림 (이래야 서버가 다음 액션이나 턴을 진행함)
     if (playerIndex == myIndex) {
       int finalPos = int.tryParse(gameState!['users']['user$myIndex']['position']?.toString() ?? '0') ?? 0;
       socket.emit('move_complete', {
@@ -234,6 +239,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       );
 
       if (result != null && result is Map) {
+        bool shouldKeepTurn = (eventNow == "trip") ? false : isDouble;
         _completeAction({
           'board': {
             'b$pos': {
@@ -246,7 +252,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               'money': (int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0) - result['totalCost'],
             }
           }
-        }, isDouble: isDouble);
+        }, isDouble: shouldKeepTurn);
+        if(eventNow == "trip") eventNow = "";
         return;
       }
     }
@@ -470,7 +477,29 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (event == "priceDown") {
       updateData['board']['b$index'] = {'multiply': 0.5};
     } else if (event == "trip") {
-      updateData['users']['user$myIndex'] = {'position': index};
+      int currentPos = int.tryParse(gameState!['users']['user$myIndex']['position']?.toString() ?? '0') ?? 0;
+
+      // 💡 월급 로직: 현재 위치보다 index(목적지)가 작으면 한 바퀴 돈 것으로 간주 (0번 경유)
+      // 단, 0번으로 직접 가는 경우는 제외하거나 규칙에 따라 설정
+      if (index < currentPos && index != 0) {
+        int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
+        int salary = 1000000; // 월급 금액
+        updateData['money'] = currentMoney + salary;
+        await _showSimpleDialog("출발지를 통과하여 월급 100만원을 받았습니다!");
+      }
+
+      socket.emit('travel_move', {
+        'roomId': widget.roomId,
+        'playerIndex': myIndex,
+        'targetPos': index,
+        'updateData': updateData, // 돈 변화 등 추가 정보
+        'isDouble': _pendingIsDouble
+      });
+      _pendingIsDouble = false;
+      return;
+
+      // 💡 중요: 여행 이동은 'move_complete'와 유사한 효과를 내야 하므로
+      // 서버에서 이동 후의 땅 로직(건설/통행료)을 다시 실행하도록 설계해야 합니다.
     } else if (event == "start") {
       String tileKey = "b$index";
       int currentLevel = gameState!['board'][tileKey]['level'] ?? 0;
@@ -594,7 +623,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     await showDialog(
         context: context,
         builder: (ctx) {
-          Future.delayed(const Duration(seconds: 2), () => Navigator.pop(ctx));
+          Future.delayed(const Duration(seconds: 2), () => {if (context.mounted && Navigator.canPop(context)) {
+            Navigator.pop(context)
+          }});
           return AlertDialog(content: Text(message, textAlign: TextAlign.center));
         }
     );
@@ -723,24 +754,54 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     final tileData = gameState!['board']['b$index'] ?? {};
     final String type = tileData['type'] ?? 'land';
 
+    // 하이라이트 여부 판단
+    bool isHighlighted = false;
+    if (_highlightOwner != null) {
+      if (_highlightOwner == 99) isHighlighted = true; // 여행 모드일 때
+    }
+
     return Positioned(
       left: pos.dx, top: pos.dy,
-      child: Container(
-        width: tileSize, height: tileSize,
-        padding: const EdgeInsets.all(0.5),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade300, width: 0.5)),
-        child: type == 'land'
-            ? _buildLandContent(tileData, index)
-            : GestureDetector(
-          onTap: () async { },
-          child: Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                  tileData['name'] ?? "",
-                  style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)
+      child: GestureDetector(
+        // 💡 여기서 클릭 감지 (하이라이트 중일 때)
+        onTap: () async {
+          if (_highlightOwner == 99) {
+            await _stopHighlight(index, eventNow);
+          }
+        },
+        child: Container(
+          width: tileSize, height: tileSize,
+          padding: const EdgeInsets.all(0.5),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey.shade300, width: 0.5)
+          ),
+          child: Stack(
+            children: [
+              // 기존 타일 내용 표시
+              type == 'land'
+                  ? _buildLandContent(tileData, index)
+                  : Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                      tileData['name'] ?? "",
+                      style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)
+                  ),
+                ),
               ),
-            ),
+              // 💡 특수 타일 위에도 하이라이트 효과 표시
+              if (isHighlighted && type != 'land')
+                FadeTransition(
+                  opacity: _glowAnimation,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.yellowAccent, width: 3),
+                      color: Colors.yellowAccent.withOpacity(0.3),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -764,12 +825,15 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     return GestureDetector(
       onTap: () async {
-        if (_highlightOwner != null && _highlightOwner != -1) {
-          if (owner == _highlightOwner) await _stopHighlight(index, eventNow);
-          return;
-        } else if (_highlightOwner == -1) {
-          if (owner != 0 && owner != myIndex) await _stopHighlight(index, eventNow);
-          return;
+        if (_highlightOwner != null) {
+          if (_highlightOwner == 99) { // 여행
+            await _stopHighlight(index, eventNow);
+            return;
+          } else if (owner == _highlightOwner || (_highlightOwner == -1 && owner != 0 && owner != myIndex)) {
+            await _stopHighlight(index, eventNow);
+            return;
+          }
+          return; // 하이라이트 중인데 엉뚱한 곳 클릭 시 무시
         }
 
         if (tileData != null && tileData["type"] == "land") {
