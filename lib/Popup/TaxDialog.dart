@@ -1,14 +1,18 @@
-import 'dart:async'; // 타이머를 위해 추가
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'Bankruptcy.dart';
 
 class TaxDialog extends StatefulWidget {
   final int user;
+  final int? taxAmount; // 값이 있으면 온라인 모드
+  final int? currentMoney; // 온라인 모드일 때 보여줄 현재 잔액
 
   const TaxDialog({
     super.key,
     required this.user,
+    this.taxAmount,
+    this.currentMoney,
   });
 
   @override
@@ -18,58 +22,77 @@ class TaxDialog extends StatefulWidget {
 class _TaxDialogState extends State<TaxDialog> {
   final FirebaseFirestore fs = FirebaseFirestore.instance;
 
-  int totalTollPrice = 0;
   int tax = 0;
   int userMoney = 0;
   int remainMoney = 0;
   bool isPaying = false;
 
+  // ✅ [수정] 명시적인 로딩 상태 변수 추가
+  bool _isLoading = true;
+
   // ⏱️ 타이머 변수
   Timer? _timer;
   int _timeLeft = 5;
 
-  Map<String, dynamic> boardData = {};
-
   @override
   void initState() {
     super.initState();
-    // 데이터 로딩 후 타이머 시작
-    _readUser().then((_) {
-      if (mounted) _startAutoPayTimer();
-    });
+    _initData();
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // 위젯 종료 시 타이머 해제
+    _timer?.cancel();
     super.dispose();
   }
 
-  /// 5초 카운트다운 및 자동 납부
+  void _initData() {
+    // 1. [온라인 모드] 데이터가 이미 있으므로 로딩 필요 없음
+    if (widget.taxAmount != null) {
+      tax = widget.taxAmount!;
+      userMoney = widget.currentMoney ?? 0;
+      remainMoney = userMoney - tax;
+
+      _isLoading = false; // 로딩 즉시 해제
+      if (mounted) {
+        setState(() {});
+        _startAutoPayTimer();
+      }
+    }
+    // 2. [로컬 모드] DB에서 읽어와야 함
+    else {
+      _readLocalUser();
+    }
+  }
+
   void _startAutoPayTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
-
       setState(() {
         _timeLeft--;
       });
-
       if (_timeLeft <= 0) {
         timer.cancel();
-        _payTax(); // 시간 종료 시 자동 납부 실행
+        _payTax();
       }
     });
   }
 
-  /// 납부 로직 (버튼 & 자동 공용)
   Future<void> _payTax() async {
-    if (isPaying) return; // 중복 실행 방지
+    if (isPaying) return;
 
-    // 잔액 부족 시 파산 다이얼로그로 이동
+    // [온라인 모드]
+    if (widget.taxAmount != null) {
+      setState(() => isPaying = true);
+      if (mounted) Navigator.pop(context, tax);
+      return;
+    }
+
+    // [로컬 모드]
     if (userMoney < tax) {
       final lackMoney = tax - userMoney;
       if (mounted) {
-        Navigator.pop(context, 0); // 못 냈으므로 0 리턴 (혹은 null)
+        Navigator.pop(context, 0);
         Future.microtask(() {
           showDialog(
             context: context,
@@ -87,74 +110,75 @@ class _TaxDialogState extends State<TaxDialog> {
 
     setState(() => isPaying = true);
 
-    // DB 업데이트
-    await fs.collection("games").doc("users").update({
-      "user${widget.user}.money": FieldValue.increment(-tax),
-      "user${widget.user}.totalMoney": FieldValue.increment(-tax),
-    });
+    try {
+      await fs.collection("games").doc("users").update({
+        "user${widget.user}.money": FieldValue.increment(-tax),
+        "user${widget.user}.totalMoney": FieldValue.increment(-tax),
+      });
 
-    if (mounted) {
-      // 💰 [핵심] 납부한 세금 금액을 리턴하며 닫기
-      Navigator.pop(context, tax);
+      if (mounted) Navigator.pop(context, tax);
+    } catch (e) {
+      print("세금 납부 오류: $e");
     }
   }
 
-  Future<void> _readUser() async {
-    totalTollPrice = 0;
+  // ✅ [수정] 로컬 데이터 로드 함수 개선
+  Future<void> _readLocalUser() async {
+    int totalTollPrice = 0;
     try {
+      // 로컬 모드는 'games' 컬렉션을 사용한다고 가정
       final userSnap = await fs.collection("games").doc("users").get();
       final boardSnap = await fs.collection("games").doc("board").get();
 
-      if (boardSnap.exists) {
-        boardData = boardSnap.data()!;
+      if (boardSnap.exists && boardSnap.data() != null) {
+        Map<String, dynamic> boardData = boardSnap.data()!;
         boardData.forEach((key, value) {
-          if (value is Map && value["owner"] == widget.user) {
+          if (value is Map && value["owner"] == widget.user.toString()) {
             totalTollPrice += (value["tollPrice"] as int? ?? 0);
           }
         });
       }
 
-      if (userSnap.exists) {
-        final user = userSnap.data()!["user${widget.user}"];
-        userMoney = user["money"] ?? 0;
-        tax = (totalTollPrice * 0.1).toInt();
-        remainMoney = userMoney - tax;
+      if (userSnap.exists && userSnap.data() != null) {
+        final userData = userSnap.data()!;
+        if (userData.containsKey("user${widget.user}")) {
+          final user = userData["user${widget.user}"];
+          userMoney = user["money"] ?? 0;
+        }
       }
 
-      // 데이터 로드 후 화면 갱신
-      if (mounted) setState(() {});
+      // 세금 계산 (자산의 10%)
+      tax = (totalTollPrice * 0.1).toInt();
+      remainMoney = userMoney - tax;
 
     } catch (e) {
-      print("User load error: $e");
+      print("로컬 데이터 로드 실패: $e");
+    } finally {
+      // ✅ [핵심] 성공하든 실패하든 로딩 상태 해제 및 타이머 시작
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _startAutoPayTimer();
+      }
     }
-  }
-
-  String formatMoney(int value) {
-    return value.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',',
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // _readUser는 initState에서 호출하므로 FutureBuilder 제거 가능하지만
-    // 기존 구조 유지를 위해 데이터가 로드되었는지(tax > 0 등) 체크하거나
-    // 로딩 상태 변수를 두는 것이 좋습니다. 여기선 간단히 userMoney로 체크합니다.
-    if (userMoney == 0 && tax == 0 && totalTollPrice == 0) {
-      // 데이터 로딩 중
+    // ✅ [수정] 명시적인 로딩 변수 사용
+    if (_isLoading) {
       return const Center(child: CircularProgressIndicator(color: Colors.brown));
     }
 
     final size = MediaQuery.of(context).size;
-    final dialogWidth = size.width * 0.85;
-    final dialogHeight = size.height * 0.85;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.zero,
       child: Container(
-        width: dialogWidth,
-        height: dialogHeight,
+        width: size.width * 0.85,
+        height: size.height * 0.85,
         decoration: BoxDecoration(
           color: const Color(0xFFFDF5E6),
           borderRadius: BorderRadius.circular(20),
@@ -169,7 +193,7 @@ class _TaxDialogState extends State<TaxDialog> {
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
-                    // 좌측
+                    // 좌측 UI
                     Expanded(
                       flex: 4,
                       child: Container(
@@ -191,7 +215,6 @@ class _TaxDialogState extends State<TaxDialog> {
                             const SizedBox(height: 8),
                             const Text("(전체 보유 건물 가액의 10%)", style: TextStyle(fontSize: 12, color: Colors.brown)),
                             const SizedBox(height: 20),
-                            // ⏳ 남은 시간 표시
                             Text(
                               "$_timeLeft초 후 자동 납부",
                               style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
@@ -201,7 +224,7 @@ class _TaxDialogState extends State<TaxDialog> {
                       ),
                     ),
                     const SizedBox(width: 20),
-                    // 우측
+                    // 우측 UI
                     Expanded(
                       flex: 6,
                       child: Column(
@@ -226,17 +249,13 @@ class _TaxDialogState extends State<TaxDialog> {
                             ),
                           ),
                           const Spacer(),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _actionButton(
-                                  label: "세금 납부 ($_timeLeft)", // 버튼에도 시간 표시
-                                  color: const Color(0xFF5D4037),
-                                  onTap: isPaying ? null : _payTax, // 공통 함수 호출
-                                ),
-                              ),
-                              const SizedBox(width: 12)
-                            ],
+                          SizedBox(
+                            width: double.infinity,
+                            child: _actionButton(
+                              label: "세금 납부 ($_timeLeft)",
+                              color: const Color(0xFF5D4037),
+                              onTap: isPaying ? null : _payTax,
+                            ),
                           ),
                         ],
                       ),
@@ -251,14 +270,51 @@ class _TaxDialogState extends State<TaxDialog> {
     );
   }
 
-  // (이하 _header, _infoRow, _actionButton 위젯 코드는 기존과 동일하므로 생략하거나 그대로 두시면 됩니다)
-  Widget _header() { /* ... 기존 코드 ... */ return Container( /* ... */ child: const Center(child: Text("국 세 청", style: TextStyle(color: Color(0xFFFFD700), fontSize: 22, fontWeight: FontWeight.bold)))); }
-  Widget _infoRow(String title, int value, {bool isHighlight = false, bool isWarning = false}) { /* ... 기존 코드 ... */ return Row(children: [Text(title), Text("$value")]); }
-  Widget _actionButton({required String label, required Color color, required VoidCallback? onTap, bool isOutline = false}) {
+  // --- 기존 위젯 헬퍼 메서드들 ---
+  Widget _header() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF5D4037),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      child: const Center(
+        child: Text("국 세 청", style: TextStyle(color: Color(0xFFFFD700), fontSize: 22, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _infoRow(String title, int value, {bool isHighlight = false, bool isWarning = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: TextStyle(fontSize: 16, color: Colors.grey[800], fontWeight: FontWeight.w500)),
+        Text(
+          "${formatMoney(value)}원",
+          style: TextStyle(
+            fontSize: isHighlight ? 20 : 16,
+            fontWeight: FontWeight.bold,
+            color: isWarning ? Colors.red : (isHighlight ? const Color(0xFF5D4037) : Colors.black),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _actionButton({required String label, required Color color, required VoidCallback? onTap}) {
     return ElevatedButton(
       onPressed: onTap,
-      style: ElevatedButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
       child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
     );
+  }
+
+  String formatMoney(int value) {
+    return value.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
   }
 }

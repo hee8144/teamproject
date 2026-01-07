@@ -69,7 +69,6 @@ class _DetailPopupPopupState extends State<DetailPopup> {
   void initState() {
     super.initState();
     getDetail();
-    print(detail);
   }
 
   @override
