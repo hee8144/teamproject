@@ -189,6 +189,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       await _handleHighlightAction("festival");
     }
     else if (type == 'travel_event') {
+      _pendingIsDouble = isDouble; // ⭐ 이 줄이 핵심
       await _handleHighlightAction("trip");
     }
     else if (type == 'start_event') {
@@ -378,7 +379,22 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     } else if (event == "priceDown") {
       updateData['board']['b$index'] = {'multiply': 0.5};
+    }else if (event == "trip") {
+      // 하이라이트 종료
+      setState(() {
+        _highlightOwner = null;
+      });
+
+      // 🚀 서버에 여행 이동 요청
+      socket.emit("chance_move", {
+        "roomId": widget.roomId,
+        "playerIndex": myIndex,
+        "targetPos": index,
+      });
+
+      return; // ❗ _completeAction 호출하지 않음
     }
+
 
     // 🔥 저장해뒀던 더블 여부를 실어서 보냄
     _completeAction(updateData, isDouble: _pendingIsDouble);
@@ -446,7 +462,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     }
 
     switch (actionResult) {
-      case "c_trip": _handleHighlightAction("trip"); return;
+      case "c_trip":
+        myUpdate['position']= 0; break;
       case "c_start": myUpdate['position'] = 0; break;
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
@@ -736,7 +753,15 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               // 여기서는 일단 비워둠
             },
 
-          child: type == 'land' ? _buildLandContent(tileData, index) : Center(child: Text(tileData['name'] ?? "", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                    tileData['name'] ?? "",
+                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -763,6 +788,11 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
                 onTap: () async {
                   // 하이라이트 이벤트 중(지진, 축제 선택)이면 해당 로직 실행
+                  if (_highlightOwner == 99) {
+                    print("✈️ 여행 목적지 선택됨: $index");
+                    await _stopHighlight(index, "trip");
+                    return;
+                  }
                   if (_highlightOwner != null && _highlightOwner != -1) {
                     // 내 땅 선택 (축제)
                     if (owner == _highlightOwner) {
