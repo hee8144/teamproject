@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../game/game_initializer.dart';
+import '../widgets/loading_screen.dart';
 
 
 /// ==================== 게임 대기방 =================
@@ -320,21 +321,25 @@ class _GameWaitingRoomState extends State<GameWaitingRoom> {
       child: ElevatedButton(
         onPressed: canStart
             ? () async {
-          // 1️⃣ 보드 초기화
-          await _gameInitializer.initializeBoardLayout();
+          try {
+            // 1️⃣ 보드 초기화
+            await _gameInitializer.initializeBoardLayout();
 
-          // 2️⃣ 플레이어 타입 반영
-          await _updateUsersInDB();
+            // 2️⃣ 플레이어 타입 반영
+            await _updateUsersInDB();
 
-          // 3️⃣ 유저 상태 초기화
-          await _gameInitializer.resetGameStateOnly();
+            // 3️⃣ 유저 상태 초기화
+            await _gameInitializer.resetGameStateOnly();
+          } catch (e) {
+            debugPrint("초기화 중 오류: $e");
+          }
 
-          // 4️⃣ 게임 시작
-          context.go('/gameMain');
+          // 4️⃣ 즉시 게임 시작 (로딩은 GameMain에서 담당)
+          if (context.mounted) {
+            context.go('/gameMain');
+          }
         }
             : null,
-
-
         child: const Text('게임 시작!'),
       ),
     );
