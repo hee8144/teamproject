@@ -263,7 +263,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
       return GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1),
             borderRadius: BorderRadius.circular(15),
@@ -280,7 +280,7 @@ class _CardUseDialogState extends State<CardUseDialog> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,

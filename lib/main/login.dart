@@ -1,18 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fluttertoast/fluttertoast.dart'; // ✅ 추가
 import '../auth/login_dialog.dart';
+import '../auth/auth_service.dart'; // ✅ 추가
 
-class Login extends StatelessWidget {
+class Login extends StatefulWidget { // ✅ StatefulWidget으로 변경
   const Login({super.key});
 
   @override
+  State<Login> createState() => _LoginState();
+}
+
+class _LoginState extends State<Login> {
+  bool _isAutoLoginReady = false; // ✅ 추가
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ 자동 로그인 체크만 하고 대기
+    _checkAutoLogin();
+  }
+
+  Future<void> _checkAutoLogin() async {
+    final uid = await AuthService.instance.tryAutoLogin();
+    if (uid != null && mounted) {
+      setState(() {
+        _isAutoLoginReady = true; // ✅ 정보가 있으면 플래그만 설정
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const LoginScreen();
+    return LoginScreen(isAutoLoginReady: _isAutoLoginReady);
   }
 }
 
 class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
+  final bool isAutoLoginReady;
+  const LoginScreen({super.key, this.isAutoLoginReady = false});
 
   @override
   Widget build(BuildContext context) {
@@ -49,27 +75,28 @@ class LoginScreen extends StatelessWidget {
             ),
           ),
 
-          // 3. 회원가입 유도 버튼
-          Positioned(
-            bottom: 23,
-            left: 20,
-            child: TextButton.icon(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => const LoginDialog(isSignUpMode: true),
-                );
-              },
-              icon: const Icon(Icons.person_add, color: Colors.black, size: 20),
-              label: const Text(
-                "아직 회원이 아니신가요?",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
+          // 3. 회원가입 유도 버튼 (자동 로그인 준비 상태가 아닐 때만 표시)
+          if (!isAutoLoginReady)
+            Positioned(
+              bottom: 23,
+              left: 20,
+              child: TextButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const LoginDialog(isSignUpMode: true),
+                  );
+                },
+                icon: const Icon(Icons.person_add, color: Colors.black, size: 20),
+                label: const Text(
+                  "아직 회원이 아니신가요?",
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -157,11 +184,27 @@ class LoginScreen extends StatelessWidget {
             startColor: const Color(0xFFFFE0B2),
             endColor: const Color(0xFFFFCC80),
             borderColor: const Color(0xFFA1887F),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => const LoginDialog(),
-              );
+            onTap: () async {
+              if (isAutoLoginReady) {
+                // ✅ 자동 로그인 정보가 있으면 닉네임 가져와서 인사 후 입장
+                final String? uid = AuthService.instance.currentUid;
+                if (uid != null) {
+                  final String nickname = await AuthService.instance.getNickname(uid);
+                  Fluttertoast.showToast(
+                    msg: "🏯 $nickname님, 다시 오신 것을 환영합니다!",
+                    gravity: ToastGravity.TOP,
+                    backgroundColor: const Color(0xFF5D4037),
+                    textColor: Colors.white,
+                  );
+                }
+                context.go('/onlinemain');
+              } else {
+                // ❌ 없으면 기존처럼 다이얼로그 표시
+                showDialog(
+                  context: context,
+                  builder: (context) => const LoginDialog(),
+                );
+              }
             },
           ),
           const SizedBox(height: 10),
