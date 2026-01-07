@@ -1,4 +1,4 @@
-import 'dart:async'; // 💡 타이머 추가
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'chance_card.dart';
 import 'chance_card_repository.dart';
@@ -13,14 +13,13 @@ class ChanceCardQuizAfter extends StatefulWidget {
   final int userIndex;
   final Map<String, dynamic>? gameState; // null이면 로컬, 있으면 온라인
 
-
   const ChanceCardQuizAfter({
     super.key,
     required this.quizEffect,
     required this.storedCard,
     required this.userIndex,
     this.debugCard,
-    this.gameState
+    this.gameState,
   });
 
   @override
@@ -35,20 +34,21 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
   late final AnimationController _glowController;
   late final Animation<double> _glowAnimation;
 
-  late ConfettiController _leftConfettiController;
-  late ConfettiController _rightConfettiController;
+  late final ConfettiController _leftConfettiController;
+  late final ConfettiController _rightConfettiController;
 
   late final Future<ChanceCard> _cardFuture;
   ChanceCard? _loadedCard; 
 
-  // 💡 타이머 관련 변수
+  // 💡 최적화: 부분 리빌드를 위한 Notifier
+  late final ValueNotifier<int> _remainingTimeNotifier;
   Timer? _autoTimer;
-  int _remainingTime = 5;
   bool _isRotationFinished = false;
 
   @override
   void initState() {
     super.initState();
+    _remainingTimeNotifier = ValueNotifier<int>(5);
 
     _rotateController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
     _rotation = Tween<double>(begin: -6 * pi, end: 0.0).animate(CurvedAnimation(parent: _rotateController, curve: Curves.easeInOutQuart));
@@ -73,27 +73,22 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
         _rightConfettiController.play();
       }
       
-      // 💡 회전 애니메이션이 끝나면 타이머 시작
       _startAutoTimer();
     });
   }
 
-  // 💡 자동 진행 타이머 시작 함수
   void _startAutoTimer() {
     _autoTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
-      setState(() {
-        if (_remainingTime > 0) {
-          _remainingTime--;
-        } else {
-          _autoTimer?.cancel();
-          _handleAutoAction();
-        }
-      });
+      if (_remainingTimeNotifier.value > 0) {
+        _remainingTimeNotifier.value--;
+      } else {
+        timer.cancel();
+        _handleAutoAction();
+      }
     });
   }
 
-  // 💡 타이머 종료 시 자동 실행 로직
   void _handleAutoAction() {
     if (!mounted || _loadedCard == null) return;
     
@@ -101,27 +96,25 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     final bool hasStored = widget.storedCard != "N";
 
     if (isStorage && hasStored) {
-      // 교체/버리기 상황이면 안전하게 '버리기' (기존 카드 유지)
-      Navigator.pop(context, "discard");
+      if (mounted) Navigator.pop(context, "discard");
     } else {
-      // 일반 카드면 '확인' 처리
       _confirmSingleMode(_loadedCard!, isStorage);
     }
   }
 
-  // 💡 공통 확인 로직 분리
   Future<void> _confirmSingleMode(ChanceCard card, bool isStorage) async {
     if (isStorage) {
       await _updateCard(card.action);
       if (mounted) Navigator.pop(context, "refresh");
     } else {
-      Navigator.pop(context, card.action);
+      if (mounted) Navigator.pop(context, card.action);
     }
   }
 
   @override
   void dispose() {
-    _autoTimer?.cancel(); // 타이머 해제 필수
+    _autoTimer?.cancel();
+    _remainingTimeNotifier.dispose();
     _rotateController.dispose();
     _glowController.dispose();
     _leftConfettiController.dispose();
@@ -129,7 +122,6 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     super.dispose();
   }
 
-  /// DB에 카드 저장하는 함수
   Future<void> _updateCard(String cardAction) async {
     if (widget.gameState != null) return;
 
@@ -137,7 +129,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
     if (cardAction == "c_shield") cardValue = "shield";
     else if (cardAction == "c_escape") cardValue = "escape";
 
-    if (cardValue.isNotEmpty && widget.gameState == null) {
+    if (cardValue.isNotEmpty) {
       await FirebaseFirestore.instance
           .collection("games")
           .doc("users")
@@ -151,28 +143,30 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
       color: Colors.black.withOpacity(0.6),
       child: Stack(
         children: [
-          // 💡 [타이머 표시 - 우측 상단]
           if (_isRotationFinished)
             Positioned(
               top: 40,
               right: 40,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.timer, color: Colors.amber, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      "$_remainingTime초 후 자동 진행",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+              child: ValueListenableBuilder<int>(
+                valueListenable: _remainingTimeNotifier,
+                builder: (context, time, _) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.amber, width: 2),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.timer, color: Colors.amber, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        "$time초 후 자동 진행",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -274,7 +268,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
         Positioned(
           bottom: -15, 
           child: _actionButton("확 인", () async {
-            _autoTimer?.cancel(); // 수동 클릭 시 타이머 해제
+            _autoTimer?.cancel();
             _confirmSingleMode(card, isStorage);
           }),
         ),
@@ -303,7 +297,7 @@ class _ChanceCardQuizAfterState extends State<ChanceCardQuizAfter>
                       Icons.swap_horizontal_circle,
                       size: 50,
                       color: Colors.amberAccent.withOpacity(0.8),
-                      shadows: [
+                      shadows: const [
                         Shadow(color: Colors.black, blurRadius: 10),
                       ],
                     ),
