@@ -39,10 +39,23 @@ class _GameRulePageState extends State<GameRulePage> {
             '현금: 현재 보유하고 있는 소지금',
             '자산: 현금 + 소유 건물 가격',
             '순위: 총 자산 기준',
-            '파산: 보유 현금이 부족하여 부동산을 매각하였음에도 불구하고 통행료, 세금 등을 지불할 수 없을 때, 파산자는 게임판에서 본인의 건물을 모두 치우고 게임에서 빠집니다.',
+            '파산: 보유 현금이 부족하여 부동산을 매각해도 통행료, 세금 등을 지불할 수 없을 때, 파산자는 보드판에서 본인의 건물을 모두 치우고 게임에서 빠집니다.',
           ],
           iconTopRatio: 0.2,
           iconRightRatio: 0.1,
+          tooltipTopRatio: 0.05,
+          tooltipLeftRatio: 0.00,
+        ),
+        _TooltipData(
+          tooltipLines: [
+            '용어 설명',
+            '칸: 보드판을 이루는 28개의 칸',
+            '땅: 일반적인 칸, 플레이어 또는 봇이 해당 지역에 도착했을 때 건물을 지을 수 있습니다.',
+            '문화재: 그 땅 안의 고유 문화재',
+            '칸 > 땅 > 문화재',
+          ],
+          iconTopRatio: 0.75,
+          iconRightRatio: 0.25,
           tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.00,
         ),
@@ -57,7 +70,7 @@ class _GameRulePageState extends State<GameRulePage> {
             '건설',
             '빈 땅에 도착하면 건물을 짓습니다.',
             '처음에는 건물을 1단만 지을수 있습니다.',
-            '한바퀴를 돌때마다 내가 한번에 지을수 있는 건물의 개수가 늘어납니다. 1단 -> 2단 -> 3단 순',
+            '한 바퀴를 돌 때마다 내가 한 번에 지을 수 있는 건물의 개수가 늘어납니다. 1단 -> 2단 -> 3단 순',
           ],
           iconTopRatio: 0.18,
           iconRightRatio: 0.33,
@@ -84,7 +97,7 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '퀴즈',
-            '찬스카드 밟았을 때 100% 확률로 퀴즈 발동 -> 맞추면 50% 에서 70%로 이로운 효과 확률 상승',
+            '찬스 카드 밟았을 때 100% 확률로 퀴즈 발동 -> 맞추면 50% 에서 70%로 이로운 효과 확률 상승',
             '상대 땅을 밟았을 때 50% 확률로 퀴즈 발동 -> 맞추면 통행료 50% 할인',
           ],
           iconTopRatio: 0.3,
@@ -114,11 +127,11 @@ class _GameRulePageState extends State<GameRulePage> {
             '통행료',
             '상대방 땅에 도착하면 통행료를 내야 합니다.',
             '건물이 많고 비쌀수록, 랜드마크일수록 통행료가 비쌉니다.',
-            '상대 땅을 밟았을때 50% 확률로 퀴즈가 발동합니다. 퀴즈를 맞추면 통행료가 50% 할인됩니다.',
+            '상대 땅을 밟았을 때 50% 확률로 퀴즈가 발동합니다. 퀴즈를 맞히면 통행료가 50% 할인됩니다.',
           ],
           iconTopRatio: 0.2,
           iconRightRatio: 0.8,
-          tooltipTopRatio: 0.2,
+          tooltipTopRatio: 0.1,
           tooltipLeftRatio: 0.2,
         ),
         _TooltipData(
@@ -143,21 +156,21 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '문화재 상세보기1',
-            '블록을 누르면 그 블록만의 문화재 정보를 확인할 수 있습니다.',
+            '땅을 누르면 그 땅 만의 문화재 정보를 확인할 수 있습니다.',
           ],
           iconTopRatio: 0.25,
           iconRightRatio: 0.53,
-          tooltipTopRatio: 0.05,
+          tooltipTopRatio: 0.45,
           tooltipLeftRatio: 0.3,
         ),
         _TooltipData(
           tooltipLines: [
-            '문화재 상세보기1',
+            '화살표 버튼',
             '화살표를 누르면 게임 상의 정보(건설 비용, 인수 비용, 통행료)를 확인할 수 있습니다.',
           ],
           iconTopRatio: 0.75,
           iconRightRatio: 0.08,
-          tooltipTopRatio: 0.05,
+          tooltipTopRatio: 0.45,
           tooltipLeftRatio: 0.3,
         ),
       ],
@@ -169,12 +182,12 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '문화재 상세보기2',
-            '해당 블록의 단계별 건설비용, 통행료, 인수 비용을 확인할 수 있습니다.',
+            '해당 블록의 단계별 건설 비용, 통행료, 인수 비용을 확인할 수 있습니다.',
           ],
           iconTopRatio: 0.33,
           iconRightRatio: 0.62,
-          tooltipTopRatio: 0.05,
-          tooltipLeftRatio: 0.5,
+          tooltipTopRatio: 0.55,
+          tooltipLeftRatio: 0.05,
         ),
       ],
     ),
@@ -185,7 +198,7 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '출발지',
-            '도착하거나 지나갈 때마다 월급을 받습니다.',
+            '출발지에 도착하거나 지나갈 때마다 월급을 받습니다.',
             '출발지에 도착할 경우, 내 땅에 건물을 추가로 건설할 수도 있습니다.',
           ],
           iconTopRatio: 0.8,
@@ -264,7 +277,7 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '국내 여행',
-            '다음 턴에 원하는 곳으로 즉시 이동할 수 있습니다. (전략적으로 가장 중요한 블록)',
+            '다음 턴에 원하는 칸으로 즉시 이동할 수 있습니다. (전략적으로 가장 중요한 블록)',
           ],
           iconTopRatio: 0.00,
           iconRightRatio: 0.25,
@@ -280,11 +293,11 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '국세청',
-            '국세청 블록에 도착하면 세금을 납부해야 합니다.',
+            '국세청 칸에 도착하면 세금을 납부해야 합니다.',
             '가지고 있는 땅 기본 통행료의 10%를 세금으로 냅니다. 만약 땅이 없으면 아무 효과 없습니다.',
           ],
-          iconTopRatio: 0.78,
-          iconRightRatio: 0.47,
+          iconTopRatio: 0.49,
+          iconRightRatio: 0.14,
           tooltipTopRatio: 0.05,
           tooltipLeftRatio: 0.3,
         ),
@@ -313,11 +326,11 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '라인 승리',
-            '보드의 4면 중 한 면에 있는 모든 칸을 소유하면 즉시 승리합니다.',
+            '보드의 4면 중 한 면에 있는 모든 땅을 소유하면 즉시 승리합니다.',
           ],
           iconTopRatio: 0.18,
           iconRightRatio: 0.8,
-          tooltipTopRatio: 0.05,
+          tooltipTopRatio: 0.4,
           tooltipLeftRatio: 0.3,
         ),
       ],
@@ -329,12 +342,12 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '트리플 승리',
-            '서로 다른 3가지 색깔의 지역을 모두 내 땅으로 만들면 승리합니다.',
+            '서로 다른 3가지 색깔의 땅을 모두 내 땅으로 만들면 승리합니다.',
           ],
           iconTopRatio: 0.18,
           iconRightRatio: 0.8,
-          tooltipTopRatio: 0.05,
-          tooltipLeftRatio: 0.3,
+          tooltipTopRatio: 0.25,
+          tooltipLeftRatio: 0.4,
         ),
       ],
     ),
@@ -370,6 +383,21 @@ class _GameRulePageState extends State<GameRulePage> {
                         GestureDetector(
                           onTap: () => context.go('/main'),
                           child: const Icon(Icons.arrow_back, size: 36),
+                        ),
+                        const SizedBox(width: 16),
+                        const Icon(
+                          Icons.info_outline,
+                          size: 20,
+                          color: Color(0xFF000000),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          '아이콘을 눌러 자세한 설명을 확인하세요',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         const Spacer(),
                         _buildDotIndicator(),
@@ -578,7 +606,7 @@ class _GameRulePageState extends State<GameRulePage> {
       clipBehavior: Clip.none,
       children: [
         Container(
-          constraints: const BoxConstraints(maxWidth: 350, maxHeight: 250),
+          constraints: const BoxConstraints(maxWidth: 350, maxHeight: 280),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
           decoration: BoxDecoration(
             color: const Color(0xFF2E3A59),
