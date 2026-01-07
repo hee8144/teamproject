@@ -35,7 +35,7 @@
 | *소셜 로그인 기반 통합 세션 및 프로필* | *실시간 소켓 통신을 통한 방 생성 및 입장* |
 
 ### 2️⃣ 게임 플레이 및 데이터 연동 (Gameplay & Data)
-| **메인 게임 보드** | **특수 이벤트 및 상세 정보** |
+| **메인 게임 보드** | **특수 이벤트 ** |
 | :---: | :---: |
 | <img src="assets/screenshots/gameplay.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
 | *문화재 API 데이터 기반 실시간 보드 구성* | *교육용 퀴즈 UI* |
