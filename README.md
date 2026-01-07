@@ -38,7 +38,7 @@
 | **메인 게임 보드** | **특수 이벤트 및 상세 정보** |
 | :---: | :---: |
 | <img src="assets/screenshots/gameplay.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
-| *문화재 API 데이터 기반 실시간 보드 구성* | *3D 찬스카드, 교육용 퀴즈 및 상세 장부 UI* |
+| *문화재 API 데이터 기반 실시간 보드 구성* | *교육용 퀴즈 UI* |
 
 ---
 
