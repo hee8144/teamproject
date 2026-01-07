@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart'; // ✅ go_router 추가 (페이지 �
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
 
-// 💡 팝업 및 퀴즈 위젯 import
+// 💡 팝업 및 퀴즈 위젯 import (경로는 프로젝트에 맞게 확인해주세요)
 import '../Popup/Construction.dart';
 import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
@@ -60,7 +60,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   void _initSocket() {
+    // 💡 테스트 환경에 맞게 IP 주소 변경
     socket = IO.io('http://localhost:3000',
+    // socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -101,6 +103,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       }
 
       setState(() {
+        final newState = Map<String, dynamic>.from(data);
         if (_isMoving && gameState != null) {
           newState['users'] = gameState!['users'];
         }
@@ -163,26 +166,45 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   Future<void> _animateMovement(int playerIndex, int steps, bool isDouble) async {
     setState(() => _isMoving = true);
 
-    for (int i = 0; i < steps; i++) {
+    String userKey = 'user$playerIndex';
+    // 1. 현재 클라이언트 화면에 표시되고 있는 말의 위치
+    int currentPosInUI = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
+
+    // 2. 만약 서버에서 steps를 0으로 보냈다면(여행 등), 실제 이동해야 할 칸 수 계산
+    int actualSteps = steps;
+    if (steps == 0) {
+      // 서버가 준 최종 목적지(gameState에 이미 반영된 값)
+      int finalTargetPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
+      // 현재 위치에서 목적지까지 시계방향으로 몇 칸인지 계산
+      actualSteps = (finalTargetPos - currentPosInUI + 28) % 28;
+
+      // 이미 목적지에 있다면 애니메이션 생략
+      if (actualSteps == 0) {
+        setState(() => _isMoving = false);
+        return;
+      }
+    }
+
+    // 3. 애니메이션 시작 (실제 계산된 actualSteps만큼 반복)
+    for (int i = 0; i < actualSteps; i++) {
       await Future.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
 
       setState(() {
-        String userKey = 'user$playerIndex';
-        int currentPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
-        int nextPos = (currentPos + 1) % 28;
-        gameState!['users'][userKey]['position'] = nextPos;
+        // 화면상의 위치를 한 칸씩 전진
+        currentPosInUI = (currentPosInUI + 1) % 28;
+        gameState!['users'][userKey]['position'] = currentPosInUI;
       });
     }
 
     setState(() => _isMoving = false);
 
+    // 4. 이동 완료 보고 (내 캐릭터일 때만)
     if (playerIndex == myIndex) {
-      int finalPos = int.tryParse(gameState!['users']['user$myIndex']['position']?.toString() ?? '0') ?? 0;
       socket.emit('move_complete', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,
-        'finalPos': finalPos,
+        'finalPos': currentPosInUI, // 최종 도달 위치
         'isDouble': isDouble,
       });
     }
@@ -202,8 +224,10 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       await _handleTaxEvent(data, isDouble);
     } else if (type == 'festival_event') {
       _handleHighlightAction("festival", isDouble);
-    } else if (type == 'travel_event') {
-      _handleHighlightAction("trip", isDouble);
+    } else if (type == 'travel_select') {
+      // 여행지 선택 하이라이트 실행
+      // isDouble은 false로 전달 (여행 이동 후에는 보통 턴이 종료되므로)
+      _handleHighlightAction("trip", false);
     } else if (type == 'start_event') {
       await _showSimpleDialog("출발지에 도착했습니다!\n원하는 내 땅을 무료로 업그레이드 하세요.");
       _handleHighlightAction("start", isDouble);
@@ -249,6 +273,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     final tile = gameState!['board']['b$pos'];
     final int owner = int.tryParse(tile['owner']?.toString() ?? '0') ?? 0;
+
     final int currentLevel = int.tryParse(tile['level']?.toString() ?? '0') ?? 0;
     final int myLevel = int.tryParse(gameState!['users']['user$myIndex']['level']?.toString() ?? '1') ?? 1;
 
@@ -256,6 +281,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     if (owner == myIndex) {
       if (myLevel <= currentLevel) {
+        print("⛔ [내 땅] 레벨 제한(내 레벨: $myLevel, 건물: $currentLevel)으로 증축 불가.");
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("레벨이 부족하여 증축할 수 없습니다!"), duration: Duration(seconds: 1)));
         _completeAction({}, isDouble: isDouble);
         return;
@@ -275,6 +301,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
       if (result != null && result is Map) {
         int cost = result['totalCost'] ?? 0;
+        bool shouldKeepTurn = (eventNow == "trip") ? false : isDouble;
         _completeAction({
           'board': {
             'b$pos': {
@@ -288,7 +315,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               'totalMoney': myTotalMoney,
             }
           }
-        }, isDouble: isDouble);
+        }, isDouble: shouldKeepTurn);
+        if(eventNow == "trip") eventNow = "";
         return;
       }
     }
@@ -301,7 +329,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     int pos = int.tryParse(data['pos']?.toString() ?? '0') ?? 0;
     int toll = int.tryParse(data['toll']?.toString() ?? '0') ?? 0;
     int ownerIdx = int.tryParse(data['ownerIndex']?.toString() ?? '0') ?? 0;
-
     int myMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
     int myTotalMoney = int.tryParse(gameState!['users']['user$myIndex']['totalMoney']?.toString() ?? '0') ?? 0;
 
@@ -323,7 +350,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     }
 
     int remainingMoney = myMoney - toll;
-
     Map<String, dynamic> updateData = {
       'users': {
         'user$myIndex': {
@@ -402,6 +428,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
             };
           }
         } else {
+          print("⛔ [인수] 레벨 부족으로 추가 건설 없이 소유권만 변경.");
           updateData['board']['b$pos'] = {
             'level': currentLevel,
             'owner': myIndex.toString(),
@@ -536,7 +563,17 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (event == "priceDown") {
       updateData['board']['b$index'] = {'multiply': 0.5};
     } else if (event == "trip") {
-      updateData['users']['user$myIndex'] = {'position': index};
+      socket.emit('travel_move', {
+        'roomId': widget.roomId,
+        'playerIndex': myIndex,
+        'targetPos': index,
+      });
+
+      _pendingIsDouble = false;
+      return;
+
+      // 💡 중요: 여행 이동은 'move_complete'와 유사한 효과를 내야 하므로
+      // 서버에서 이동 후의 땅 로직(건설/통행료)을 다시 실행하도록 설계해야 합니다.
     } else if (event == "start") {
       String tileKey = "b$index";
       int currentLevel = gameState!['board'][tileKey]['level'] ?? 0;
@@ -549,6 +586,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     _pendingIsDouble = false;
   }
 
+  // --- 찬스 카드 ---
   Future<void> _handleChanceEvent(Map<String, dynamic> data, bool isDouble) async {
     if (gameState == null) return;
     QuizQuestion? question = await QuizRepository.getRandomQuiz();
@@ -602,7 +640,12 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     if (actionResult == "d_island" || actionResult == "d_rest") nextIsDouble = false;
 
     switch (actionResult) {
-      case "c_trip": _handleHighlightAction("trip", nextIsDouble); return;
+      case "c_trip":
+        socket.emit('reserve_travel', {
+          'roomId': widget.roomId,
+          'playerIndex': myIndex,
+        });
+        return;
       case "c_start": myUpdate['position'] = 0; break;
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
@@ -659,7 +702,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     await showDialog(
         context: context,
         builder: (ctx) {
-          Future.delayed(const Duration(seconds: 2), () => Navigator.pop(ctx));
+          Future.delayed(const Duration(seconds: 2), () => {if (context.mounted && Navigator.canPop(context)) {
+            Navigator.pop(context)
+          }});
           return AlertDialog(content: Text(message, textAlign: TextAlign.center));
         }
     );
@@ -730,7 +775,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                       child: onlineDiceApp(
                         key: diceAppKey,
                         turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
-                        totalTurn: gameState!['totalTurn'] ?? 3,
+                        totalTurn: gameState!['totalTurn'] ?? 20,
                         isBot: false,
                         onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
                         isOnline: true,
@@ -798,24 +843,54 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     final tileData = gameState!['board']['b$index'] ?? {};
     final String type = tileData['type'] ?? 'land';
 
+    // 하이라이트 여부 판단
+    bool isHighlighted = false;
+    if (_highlightOwner != null) {
+      if (_highlightOwner == 99) isHighlighted = true; // 여행 모드일 때
+    }
+
     return Positioned(
       left: pos.dx, top: pos.dy,
-      child: Container(
-        width: tileSize, height: tileSize,
-        padding: const EdgeInsets.all(0.5),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade300, width: 0.5)),
-        child: type == 'land'
-            ? _buildLandContent(tileData, index)
-            : GestureDetector(
-          onTap: () async { },
-          child: Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                  tileData['name'] ?? "",
-                  style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)
+      child: GestureDetector(
+        // 💡 여기서 클릭 감지 (하이라이트 중일 때)
+        onTap: () async {
+          if (_highlightOwner == 99) {
+            await _stopHighlight(index, eventNow);
+          }
+        },
+        child: Container(
+          width: tileSize, height: tileSize,
+          padding: const EdgeInsets.all(0.5),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey.shade300, width: 0.5)
+          ),
+          child: Stack(
+            children: [
+              // 기존 타일 내용 표시
+              type == 'land'
+                  ? _buildLandContent(tileData, index)
+                  : Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                      tileData['name'] ?? "",
+                      style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)
+                  ),
+                ),
               ),
-            ),
+              // 💡 특수 타일 위에도 하이라이트 효과 표시
+              if (isHighlighted && type != 'land')
+                FadeTransition(
+                  opacity: _glowAnimation,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.yellowAccent, width: 3),
+                      color: Colors.yellowAccent.withOpacity(0.3),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -839,12 +914,15 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     return GestureDetector(
       onTap: () async {
-        if (_highlightOwner != null && _highlightOwner != -1) {
-          if (owner == _highlightOwner) await _stopHighlight(index, eventNow);
-          return;
-        } else if (_highlightOwner == -1) {
-          if (owner != 0 && owner != myIndex) await _stopHighlight(index, eventNow);
-          return;
+        if (_highlightOwner != null) {
+          if (_highlightOwner == 99) { // 여행
+            await _stopHighlight(index, eventNow);
+            return;
+          } else if (owner == _highlightOwner || (_highlightOwner == -1 && owner != 0 && owner != myIndex)) {
+            await _stopHighlight(index, eventNow);
+            return;
+          }
+          return; // 하이라이트 중인데 엉뚱한 곳 클릭 시 무시
         }
 
         if (tileData != null && tileData["type"] == "land") {
@@ -1000,6 +1078,7 @@ class _TopRightTriangleClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
+// 💡 [추가된 커스텀 패널 클래스]
 class OnlinePlayerInfoPanel extends StatelessWidget {
   final Alignment alignment;
   final Map<String, dynamic> playerData;
@@ -1137,6 +1216,7 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
+                      // ✅ [수정완료] 현금과 자산 표시
                       _moneyText("현금", money, isLeft),
                       _moneyText("자산", totalMoney, isLeft),
                     ],

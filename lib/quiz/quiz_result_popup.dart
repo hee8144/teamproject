@@ -131,24 +131,15 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  // const Text(
-                                  //   "💡 상세 해설",
-                                  //   style: TextStyle(
-                                  //     fontSize: 16,
-                                  //     fontWeight: FontWeight.bold,
-                                  //     color: Color(0xFF4E342E),
-                                  //   ),
-                                  // ),
-                                  // const SizedBox(height: 10),
-                                  
                                   // 해설 내용을 스크롤 가능하게 배치
                                   Expanded(
                                     child: SingleChildScrollView(
+                                      physics: const BouncingScrollPhysics(),
                                       child: _buildExplanationContent(),
                                     ),
                                   ),
                                   
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 12),
                                   
                                   Align(
                                     alignment: Alignment.centerRight,
@@ -156,15 +147,16 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFF5D4037),
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14), // 클릭 영역 확대
+                                        elevation: 4,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                       ),
-                                      onPressed: () => Navigator.pop(context),
+                                      onPressed: () => Navigator.of(context).pop(),
                                       child: const Text(
-                                        "확인",
-                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                        "확 인",
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
                                       ),
                                     ),
                                   ),
