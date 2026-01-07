@@ -13,16 +13,20 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
+  // 소셜 로그인(Firebase 미연동) 유저를 위한 UID 저장용
+  String? _socialUid;
+
   // 네이버 로그인
-  Future<bool> signInWithNaver() async {
+  Future<String?> signInWithNaver() async {
     try {
       final result = await FlutterNaverLogin.logIn();
 
       if (result.status.toString().contains('loggedIn')) {
         final acc = result.account;
-        if (acc == null) return false;
+        if (acc == null) return null;
 
         final String uid = "naver:${acc.id}";
+        _socialUid = uid; // UID 저장
         final String? email = acc.email;
 
         // Firestore 유저 확인 및 생성
@@ -42,27 +46,23 @@ class AuthService {
             'point': 0,
             'winCount': 0,
             'totalGames': 0,
-            'tier': '초보 여행자',
             'createdAt': FieldValue.serverTimestamp(),
             'provider': 'naver',
           });
         }
-        return true;
+        return uid;
 
-      } else if (result.status.toString().contains('cancelled')) {
-        return false;
       } else {
-        return false;
+        return null;
       }
-
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
 
   // 카카오 로그인
-  Future<bool> signInWithKakao() async {
+  Future<String?> signInWithKakao() async {
     try {
       // 1. 카카오톡 설치 여부 확인
       bool isInstalled = await kakao.isKakaoTalkInstalled();
@@ -71,27 +71,20 @@ class AuthService {
         try {
           await kakao.UserApi.instance.loginWithKakaoTalk();
         } catch (error) {
-          // 사용자가 화면에서 '취소'를 누른 경우 (카카오 예외)
-          if (error is kakao.KakaoAuthException && error.error == 'access_denied') {
-            return false;
-          }
-          // 뒤로가기 등으로 취소한 경우 (플랫폼 예외)
-          if (error is PlatformException && error.code == 'CANCELED') {
-            return false;
-          }
-          // 그 외 에러는 앱 로그인 실패로 간주하고 웹 로그인 시도
+          if (error is kakao.KakaoAuthException && error.error == 'access_denied') return null;
+          if (error is PlatformException && error.code == 'CANCELED') return null;
           await kakao.UserApi.instance.loginWithKakaoAccount();
         }
       } else {
-        // 카카오톡 미설치 시 웹 계정 로그인 시도
         await kakao.UserApi.instance.loginWithKakaoAccount();
       }
 
       // 2. 카카오 사용자 정보 가져오기
       kakao.User kakaoUser = await kakao.UserApi.instance.me();
       
-      // 3. Firebase 로그인 연동 (이메일 기반 간단 구현)
+      // 3. UID 생성
       final String uid = "kakao:${kakaoUser.id}";
+      _socialUid = uid; // UID 저장
       final String? email = kakaoUser.kakaoAccount?.email;
 
       // Firestore 유저 확인 및 생성
@@ -111,15 +104,15 @@ class AuthService {
           'point': 0,
           'winCount': 0,
           'totalGames': 0,
-          'tier': '초보 여행자',
           'createdAt': FieldValue.serverTimestamp(),
           'provider': 'kakao',
         });
       }
 
-      return true;
+      return uid;
     } catch (e) {
-      throw Exception('카카오 로그인 실패: $e');
+      print('카카오 로그인 에러: $e');
+      return null;
     }
   }
 
@@ -159,7 +152,6 @@ class AuthService {
             'winCount': 0,
             'totalGames': 0,
             'provider': 'google',
-            'tier': '초보 여행자', // 추후 정식 명칭으로 교체
             'createdAt': FieldValue.serverTimestamp(),
           });
         }
@@ -198,7 +190,6 @@ class AuthService {
           'point': 0,
           'winCount': 0,
           'totalGames': 0,
-          'tier': '초보 여행자', // 추후 정식 명칭으로 교체
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -229,11 +220,67 @@ class AuthService {
     }
   }
 
-  // 로그아웃
+  // 로그아웃 (통합 버전)
   Future<void> signOut() async {
-    await _auth.signOut();
+    try {
+      _socialUid = null; // UID 초기화
+      // 1. 카카오 로그아웃
+      try {
+        await kakao.UserApi.instance.logout();
+      } catch (e) {
+        print("카카오 로그아웃 에러(무시 가능): $e");
+      }
+
+      // 2. 네이버 로그아웃
+      try {
+        await FlutterNaverLogin.logOut();
+      } catch (e) {
+        print("네이버 로그아웃 에러(무시 가능): $e");
+      }
+
+      // 3. Firebase 로그아웃
+      await _auth.signOut();
+    } catch (e) {
+      print("로그아웃 도중 에러 발생: $e");
+    }
   }
 
   // 현재 유저 가져오기
   User? get currentUser => _auth.currentUser;
+
+  // 현재 유저의 실제 UID 가져오기 (Firebase 또는 소셜 전용)
+  String? get currentUid {
+    if (_auth.currentUser != null) return _auth.currentUser!.uid;
+    return _socialUid;
+  }
+
+  // 닉네임 가져오기 추가
+  Future<String> getNickname(String uid) async {
+    try {
+      final doc = await _fs.collection('members').doc(uid).get();
+      if (doc.exists) {
+        return doc.data()?['nickname'] ?? "여행자";
+      }
+    } catch (e) {
+      print("닉네임 조회 에러: $e");
+    }
+    return "여행자";
+  }
+
+  // 포인트별 티어 계산 로직
+  static String getTierName(int points) {
+    if (points >= 5000) return "전설의 유람객";
+    if (points >= 3000) return "일류 탐험가";
+    if (points >= 1000) return "숙련된 여행자";
+    return "초보 여행자";
+  }
+
+  // 티어별 색상 반환 로직
+  static Color getTierColor(int points) {
+    if (points >= 5000) return const Color(0xFFFFD700); // 전설: 골드
+    if (points >= 3000) return const Color(0xFF00E5FF);  // 일류: 하늘색
+    if (points >= 1000) return const Color(0xFF69F0AE);  // 숙련: 그린
+    return const Color(0xFFD7C0A1); // 초보: 베이지/브론즈
+  }
+
 }

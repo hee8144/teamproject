@@ -51,8 +51,10 @@ class _LoginDialogState extends State<LoginDialog> {
       }
 
       if (isLoginMode) {
-        await AuthService.instance.signIn(email, pw);
-        if (mounted) {
+        final user = await AuthService.instance.signIn(email, pw);
+        if (user != null && mounted) {
+          final nickname = await AuthService.instance.getNickname(user.uid);
+          _showWelcomeToast(nickname);
           Navigator.pop(context);
           context.go('/onlinemain');
         }
@@ -171,8 +173,12 @@ class _LoginDialogState extends State<LoginDialog> {
                     if (isLoading) return;
                     setState(() => isLoading = true);
                     try {
-                      await AuthService.instance.signInWithGoogle();
-                      if (mounted) context.go('/onlinemain');
+                      final user = await AuthService.instance.signInWithGoogle();
+                      if (user != null && mounted) {
+                        final nick = await AuthService.instance.getNickname(user.uid);
+                        _showWelcomeToast(nick);
+                        context.go('/onlinemain');
+                      }
                     } catch (e) {
                       Fluttertoast.showToast(msg: "구글 로그인 실패");
                     } finally {
@@ -187,8 +193,10 @@ class _LoginDialogState extends State<LoginDialog> {
                     if (isLoading) return;
                     setState(() => isLoading = true);
                     try {
-                      final success = await AuthService.instance.signInWithKakao();
-                      if (success && mounted) {
+                      final uid = await AuthService.instance.signInWithKakao();
+                      if (uid != null && mounted) {
+                        final nick = await AuthService.instance.getNickname(uid);
+                        _showWelcomeToast(nick);
                         context.go('/onlinemain');
                       }
                     } catch (e) {
@@ -205,8 +213,10 @@ class _LoginDialogState extends State<LoginDialog> {
                     if (isLoading) return;
                     setState(() => isLoading = true);
                     try {
-                      final success = await AuthService.instance.signInWithNaver();
-                      if (success && mounted) {
+                      final uid = await AuthService.instance.signInWithNaver();
+                      if (uid != null && mounted) {
+                        final nick = await AuthService.instance.getNickname(uid);
+                        _showWelcomeToast(nick);
                         context.go('/onlinemain');
                       }
                     } catch (e) {
@@ -221,6 +231,17 @@ class _LoginDialogState extends State<LoginDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showWelcomeToast(String nickname) {
+    Fluttertoast.showToast(
+      msg: "🏯 $nickname님, 환영합니다!",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.TOP,
+      backgroundColor: const Color(0xFF5D4037),
+      textColor: Colors.white,
+      fontSize: 16.0,
     );
   }
 

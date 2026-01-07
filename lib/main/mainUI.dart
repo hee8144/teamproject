@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:teamproject/main/login.dart';
 import 'package:teamproject/main/game_rule.dart';
 import 'package:teamproject/main/game_waiting_room.dart';
+import '../auth/auth_service.dart';
+import '../widgets/loading_screen.dart';
 
 class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
@@ -103,12 +105,29 @@ class MainScreen extends StatelessWidget {
             children: [
               _buildMainButton(
                 text: "방 만들기",
-                onTap: () => context.go('/gameWaitingRoom'), // ✅ GoRouter 이동
+                onTap: () => context.go('/gameWaitingRoom'), // ✅ 즉시 이동으로 원복
               ),
               const SizedBox(height: 12),
               _buildMainButton(
                 text: "처음으로",
-                onTap: () => context.go('/'), // ✅ 초기화 후 Login 화면
+                onTap: () async {
+                  // 비회원이므로 세션 종료 없이 바로 이동 (로딩은 선택사항)
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const LoadingScreen(
+                      isOverlay: true,
+                      message: "초기 화면으로 이동 중...",
+                      type: LoadingType.inkBrush,
+                    ),
+                  );
+                  
+                  await Future.delayed(const Duration(milliseconds: 500)); // 짧은 연출
+
+                  if (context.mounted) {
+                    context.go('/');
+                  }
+                },
               ),
             ],
           ),

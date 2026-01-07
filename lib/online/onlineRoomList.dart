@@ -280,7 +280,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     });
 
     // 3. Firestore 데이터 주입 (지역명 제거 로직 포함됨)
-    // await _insertLocal(newId);
+    await _insertLocal(newId);
 
     await _readLocal();
     await _readPlayer();
