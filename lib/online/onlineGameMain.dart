@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
 
-// 💡 팝업 및 퀴즈 위젯 import
+// 💡 팝업 및 퀴즈 위젯 import (경로는 프로젝트에 맞게 확인해주세요)
 import '../Popup/Construction.dart';
 import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
@@ -56,9 +56,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   void _initSocket() {
-    // 💡 에뮬레이터: 10.0.2.2, 실기기/웹: IP 주소 또는 localhost
-    // socket = IO.io('http://10.0.2.2:3000',
-    socket = IO.io('http://localhost:3000',
+    // 💡 테스트 환경에 맞게 IP 주소 변경
+    // socket = IO.io('http://localhost:3000',
+    socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -160,7 +160,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (type == 'toll_event') {
       await _handleTollAndTakeover(data, isDouble);
     } else if (type == 'tax_event') {
-      // ✅ [수정 완료] 국세청 다이얼로그 호출
       await _handleTaxEvent(data, isDouble);
     } else if (type == 'festival_event') {
       _handleHighlightAction("festival", isDouble);
@@ -182,7 +181,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     int myMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
     int totalMoney = int.tryParse(gameState!['users']['user$myIndex']['totalMoney']?.toString() ?? '0') ?? 0;
 
-    // 1. 세금 납부 다이얼로그 (TaxDialog) 호출
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -193,7 +191,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       ),
     );
 
-    // 2. 납부 후 서버 업데이트
     _completeAction({
       'users': {
         'user$myIndex': {
@@ -214,7 +211,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     final tile = gameState!['board']['b$pos'];
     final int owner = int.tryParse(tile['owner']?.toString() ?? '0') ?? 0;
 
-    // ✅ [레벨 체크] 내 레벨 vs 건물 레벨
     final int currentLevel = int.tryParse(tile['level']?.toString() ?? '0') ?? 0;
     final int myLevel = int.tryParse(gameState!['users']['user$myIndex']['level']?.toString() ?? '1') ?? 1;
 
@@ -721,31 +717,36 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   Widget _buildPlayerInfoPanel(Alignment alignment, Map<String, dynamic> playerData, Color color, String name) {
-    if (playerData['type'] == "N") return const SizedBox();
-    bool isTurn = int.tryParse(gameState!['currentTurn']?.toString() ?? '0') == int.parse(name.split(' ')[1]);
+    // 랭킹 계산
+    int myRank = 1;
+    int myTotal = int.tryParse(playerData['totalMoney']?.toString() ?? '0') ?? 0;
 
-    return Positioned(
-      top: alignment.y < 0 ? 0 : null, bottom: alignment.y > 0 ? 0 : null,
-      left: alignment.x < 0 ? 0 : null, right: alignment.x > 0 ? 0 : null,
-      child: SafeArea(
-        child: Container(
-          width: 140, height: 70, margin: const EdgeInsets.all(10),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(isTurn ? 1.0 : 0.6),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: isTurn ? Colors.white : Colors.white54, width: isTurn ? 3 : 1),
-            boxShadow: [if (isTurn) BoxShadow(color: color.withOpacity(0.5), blurRadius: 10)],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
-              Text("자산: ${_formatMoney(playerData['money'])}", style: const TextStyle(color: Colors.white, fontSize: 10)),
-            ],
-          ),
-        ),
-      ),
+    if (gameState != null && gameState!['users'] != null) {
+      final users = gameState!['users'] as Map<String, dynamic>;
+      String myKey = "";
+      users.forEach((k, v) {
+        if (v['name'] == name) myKey = k;
+      });
+
+      users.forEach((key, val) {
+        if (key != myKey && val['type'] != 'N') {
+          int otherTotal = int.tryParse(val['totalMoney']?.toString() ?? '0') ?? 0;
+          if (otherTotal > myTotal) {
+            myRank++;
+          }
+        }
+      });
+    }
+
+    Map<String, dynamic> finalData = Map.from(playerData);
+    finalData['rank'] = myRank;
+
+    return OnlinePlayerInfoPanel(
+      alignment: alignment,
+      playerData: finalData,
+      color: color,
+      name: name,
+      onTap: () { },
     );
   }
 
@@ -881,12 +882,12 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                         children: [
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                tileData["name"]?.toString() ?? "",
-                                style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
-                              ),
+                            child: Text(
+                              tileData["name"]?.toString() ?? "",
+                              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           ),
                           Text(_formatMoney(tileData["tollPrice"] ?? 0), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
@@ -987,4 +988,256 @@ class _TopRightTriangleClipper extends CustomClipper<Path> {
   }
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+// 💡 [추가된 커스텀 패널 클래스]
+class OnlinePlayerInfoPanel extends StatelessWidget {
+  final Alignment alignment;
+  final Map<String, dynamic> playerData;
+  final Color color;
+  final String name;
+  final String? moneyEffect;
+  final VoidCallback? onTap;
+
+  const OnlinePlayerInfoPanel({
+    super.key,
+    required this.alignment,
+    required this.playerData,
+    required this.color,
+    required this.name,
+    this.moneyEffect,
+    this.onTap,
+  });
+
+  String _formatMoney(dynamic number) {
+    if (number == null) return "0";
+    return number.toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String type = playerData['type'] ?? "N";
+    if (type == "N") return const SizedBox();
+
+    bool isBankrupt = (type == "D");
+
+    String displayName = name.toUpperCase().replaceAll(" ", "");
+    if (isBankrupt) displayName = "파산";
+
+    bool isTop = alignment.y < 0;
+    bool isLeft = alignment.x < 0;
+
+    String money = _formatMoney(playerData['money']);
+    String totalMoney = _formatMoney(playerData['totalMoney']);
+
+    int rank = playerData['rank'] ?? 0;
+    bool isDoubleToll = playerData['isDoubleToll'] ?? false;
+    String card = playerData['card'] ?? "";
+
+    double? effectTopPos = isTop ? 90 : -45;
+
+    IconData? cardIcon;
+    Color cardColor = Colors.transparent;
+    if (card == "shield") {
+      cardIcon = Icons.shield;
+      cardColor = Colors.blueAccent;
+    } else if (card == "escape") {
+      cardIcon = Icons.vpn_key;
+      cardColor = Colors.orangeAccent;
+    }
+
+    var panelBorderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(15),
+      topRight: const Radius.circular(15),
+      bottomLeft: isLeft ? const Radius.circular(5) : const Radius.circular(15),
+      bottomRight: isLeft ? const Radius.circular(15) : const Radius.circular(5),
+    );
+
+    return Positioned(
+      top: isTop ? 20 : null,
+      bottom: isTop ? null : 20,
+      left: isLeft ? 10 : null,
+      right: isLeft ? null : 10,
+      child: SizedBox(
+        width: 170,
+        height: 85,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (cardIcon != null && !isBankrupt)
+              Positioned(
+                top: isTop ? null : -12,
+                bottom: isTop ? -22 : null,
+                left: isLeft ? 10 : null,
+                right: isLeft ? null : 10,
+                child: Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2, offset: Offset(0, 2))],
+                  ),
+                  child: Icon(cardIcon, size: 18, color: Colors.white),
+                ),
+              ),
+
+            Positioned(
+              top: 10, bottom: 0,
+              left: isLeft ? 0 : 25,
+              right: isLeft ? 25 : 0,
+              child: GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isBankrupt
+                          ? [Colors.grey.shade800, Colors.black]
+                          : [color.withOpacity(0.9), color.withOpacity(0.6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: panelBorderRadius,
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
+                    border: Border.all(
+                        color: isBankrupt ? Colors.grey.withOpacity(0.3) : Colors.white.withOpacity(0.6), width: 1.5),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: isLeft ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (!isLeft && isDoubleToll) const SizedBox(width: 1),
+                          if (!isLeft && isDoubleToll) _buildDoubleBadge(),
+                          if (!isLeft && !isDoubleToll) const SizedBox(width: 1),
+
+                          Text(
+                            displayName,
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isBankrupt ? Colors.grey.shade600 : Colors.white,
+                                fontSize: 12),
+                          ),
+
+                          if (isLeft && isDoubleToll) _buildDoubleBadge(),
+                          if (isLeft && isDoubleToll) const SizedBox(width: 1)
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // ✅ [수정완료] 현금과 자산 표시
+                      _moneyText("현금", money, isLeft),
+                      _moneyText("자산", totalMoney, isLeft),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            Positioned(
+              top: 0,
+              left: isLeft ? 125 : 0,
+              child: Container(
+                width: 45, height: 45,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isBankrupt ? Colors.grey.shade400 : Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: isBankrupt ? Colors.grey.shade600 : color, width: 3),
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("RANK", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+                    Text("$rank", style: TextStyle(fontSize: 18, color: isBankrupt ? Colors.grey.shade600 : color, fontWeight: FontWeight.w900, height: 1.0)),
+                  ],
+                ),
+              ),
+            ),
+
+            if (moneyEffect != null && !isBankrupt)
+              Positioned(
+                top: effectTopPos,
+                left: 0, right: 0,
+                child: Center(
+                  child: Stack(
+                    children: [
+                      Text(
+                        moneyEffect!,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          foreground: Paint()
+                            ..style = PaintingStyle.stroke
+                            ..strokeWidth = 4
+                            ..color = Colors.black,
+                        ),
+                      ),
+                      Text(
+                        moneyEffect!,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: moneyEffect!.startsWith("-")
+                              ? const Color(0xFFFF5252)
+                              : const Color(0xFF69F0AE),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            if (isBankrupt)
+              Positioned(
+                top: 10, bottom: 0,
+                left: isLeft ? 0 : 25,
+                right: isLeft ? 25 : 0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.05),
+                    borderRadius: panelBorderRadius,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _moneyText(String label, String value, bool isLeftPanel) {
+    return Row(
+      mainAxisAlignment: isLeftPanel ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: [
+        if (!isLeftPanel) ...[
+          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10)),
+          const SizedBox(width: 8),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+        if (isLeftPanel) ...[
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10)),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDoubleBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.red, width: 1.5),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+      ),
+      child: const Text("x2", style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w900, height: 1.0)),
+    );
+  }
 }
