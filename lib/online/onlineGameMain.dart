@@ -163,35 +163,34 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     });
   }
 
-  Future<void> _animateMovement(int playerIndex, int steps, bool isDouble) async {
+  // 매개변수에 bool isTravel = false를 추가합니다.
+  Future<void> _animateMovement(int playerIndex, int steps, bool isDouble, {bool isTravel = false}) async {
     setState(() => _isMoving = true);
 
     String userKey = 'user$playerIndex';
     // 1. 현재 클라이언트 화면에 표시되고 있는 말의 위치
     int currentPosInUI = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
 
-    // 2. 만약 서버에서 steps를 0으로 보냈다면(여행 등), 실제 이동해야 할 칸 수 계산
+    // 2. 실제 이동해야 할 칸 수 계산
     int actualSteps = steps;
-    if (steps == 0) {
-      // 서버가 준 최종 목적지(gameState에 이미 반영된 값)
+
+    // 여행(isTravel)이거나 steps가 0인 경우 최종 목적지 기반으로 계산
+    if (isTravel || steps == 0) {
       int finalTargetPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
-      // 현재 위치에서 목적지까지 시계방향으로 몇 칸인지 계산
       actualSteps = (finalTargetPos - currentPosInUI + 28) % 28;
 
-      // 이미 목적지에 있다면 애니메이션 생략
       if (actualSteps == 0) {
         setState(() => _isMoving = false);
         return;
       }
     }
 
-    // 3. 애니메이션 시작 (실제 계산된 actualSteps만큼 반복)
+    // 3. 애니메이션 시작
     for (int i = 0; i < actualSteps; i++) {
       await Future.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
 
       setState(() {
-        // 화면상의 위치를 한 칸씩 전진
         currentPosInUI = (currentPosInUI + 1) % 28;
         gameState!['users'][userKey]['position'] = currentPosInUI;
       });
@@ -199,14 +198,18 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     setState(() => _isMoving = false);
 
-    // 4. 이동 완료 보고 (내 캐릭터일 때만)
-    if (playerIndex == myIndex) {
+    // 4. ✨ 수정 포인트: 내 캐릭터이면서 '여행이 아닐 때만' 보고를 보냅니다.
+    // 여행 이동 시에는 서버가 이미 handleTileEvent를 예약해두었으므로 보고를 생략합니다.
+    if (playerIndex == myIndex && !isTravel) {
+      print("📢 일반 이동 완료 보고 전송: $currentPosInUI");
       socket.emit('move_complete', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,
-        'finalPos': currentPosInUI, // 최종 도달 위치
+        'finalPos': currentPosInUI,
         'isDouble': isDouble,
       });
+    } else {
+      print("✈ 여행 이동 완료: 서버 이벤트를 기다립니다.");
     }
   }
 
@@ -575,10 +578,28 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       // 💡 중요: 여행 이동은 'move_complete'와 유사한 효과를 내야 하므로
       // 서버에서 이동 후의 땅 로직(건설/통행료)을 다시 실행하도록 설계해야 합니다.
     } else if (event == "start") {
-      String tileKey = "b$index";
-      int currentLevel = gameState!['board'][tileKey]['level'] ?? 0;
-      if (currentLevel < 4) {
-        updateData['board'][tileKey] = {'level': currentLevel + 1};
+      // 1. 클릭한 땅 번호(index)에 대해 건설 팝업창을 띄웁니다.
+      final result = await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => ConstructionDialog(
+          user: myIndex,
+          buildingId: index, // 클릭한 땅 번호
+          gameState: gameState, // 💡 출발지 보너스이므로 '무료' 옵션이 있다면 추가 (없다면 아래 cost 로직 참고)
+        ),
+      );
+
+      // 2. 팝업에서 건설을 확정했다면 그 결과를 서버에 보냅니다.
+      if (result != null && result is Map) {
+        // 출발지 보너스이므로 돈(money)은 차감하지 않고 보드 정보만 업데이트
+        updateData['board']['b$index'] = {
+          'level': result['level'],
+          'owner': myIndex.toString()
+        };
+        // 돈 차감 로직을 넣지 않으면 '무료 건설'이 됩니다.
+      } else {
+        // 취소했다면 아무것도 하지 않고 함수 종료 (턴은 유지됨)
+        return;
       }
     }
 
@@ -646,7 +667,18 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           'playerIndex': myIndex,
         });
         return;
-      case "c_start": myUpdate['position'] = 0; break;
+      case "c_start":
+      // 1. 상태 업데이트 데이터 준비
+        myUpdate['position'] = 0;
+
+        // 2. 서버에 이동 완료 보고 (이래야 서버의 handleTileEvent가 실행됨)
+        socket.emit('move_complete', {
+          'roomId': widget.roomId,
+          'playerIndex': myIndex,
+          'finalPos': 0,
+          'isDouble': nextIsDouble,
+        });
+        return;
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
         myUpdate['money'] = currentMoney + 3000000;
@@ -656,7 +688,10 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         myUpdate['islandCount'] = 3;
         break;
       case "d_tax": myUpdate['position'] = 26; break;
-      case "d_rest": myUpdate['restCount'] = 1; break;
+      case "d_rest":
+        myUpdate['restCount'] = 1;
+        _completeAction(updateData, isDouble: false);
+        return;
       case "d_priceUp": myUpdate['isDoubleToll'] = true; break;
       case "d_move":
         int randomPos = (myIndex + (DateTime.now().millisecond % 27)) % 28;
