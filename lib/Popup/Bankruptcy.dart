@@ -101,45 +101,29 @@ class _BankruptDialogState extends State<BankruptDialog> {
   }
 
   /// 🏠 내 땅 목록 불러오기
+  /// 🏠 내 땅 목록 불러오기 (온라인/로컬 통합 수정본)
   Future<void> boardGet() async {
     final List<Map<String, dynamic>> temp = [];
+    print("DEBUG: boardGet 시작 - 내 인덱스: ${widget.user}");
 
     if (widget.gameState != null) {
-      // 🌐 [온라인 모드] 전달받은 gameState에서 추출
+      // 🌐 [온라인 모드]
       final boardData = widget.gameState!['board'] as Map<String, dynamic>? ?? {};
+      print("DEBUG: 온라인 보드 데이터 개수: ${boardData.length}");
 
       boardData.forEach((key, value) {
-        if (value is Map && value["owner"].toString() == widget.user.toString()) {
-          int toll = int.tryParse(value["tollPrice"]?.toString() ?? '0') ?? 0;
-          int level = int.tryParse(value["level"]?.toString() ?? '0') ?? 0;
+        if (value is Map) {
+          // owner가 숫자일 수도, 문자열일 수도 있으므로 양쪽 다 고려하여 비교
+          final dynamic rawOwner = value["owner"];
+          final String ownerStr = rawOwner?.toString() ?? "";
+          final String myIndexStr = widget.user.toString();
 
-          int sellPrice = 0;
-          switch (level) {
-            case 1: sellPrice = toll; break;
-            case 2: sellPrice = toll * 3; break;
-            case 3: sellPrice = toll * 7; break;
-            case 4: sellPrice = toll * 15; break;
-            default: sellPrice = toll; break;
-          }
+          if (ownerStr != "0" && ownerStr == myIndexStr) {
+            print("DEBUG: 내 땅 발견! -> $key (${value['name']})");
 
-          temp.add({
-            "boardKey": key,
-            "index": value["index"],
-            "name": value["name"],
-            "level": level,
-            "sellPrice": sellPrice,
-          });
-        }
-      });
-    } else {
-      // 🏠 [로컬 모드] Firebase에서 직접 로드
-      final boardSnap = await fs.collection("games").doc("board").get();
-      if (boardSnap.exists) {
-        var boardData = boardSnap.data()!;
-        boardData.forEach((key, value) {
-          if (value is Map && value["owner"] == widget.user) {
-            int toll = value["tollPrice"] ?? 0;
-            int level = value["level"] ?? 0;
+            int toll = int.tryParse(value["tollPrice"]?.toString() ?? '0') ?? 0;
+            int level = int.tryParse(value["level"]?.toString() ?? '0') ?? 0;
+            int tileIndex = int.tryParse(value["index"]?.toString() ?? '0') ?? 0;
 
             int sellPrice = 0;
             switch (level) {
@@ -152,8 +136,29 @@ class _BankruptDialogState extends State<BankruptDialog> {
 
             temp.add({
               "boardKey": key,
-              "index": value["index"],
-              "name": value["name"],
+              "index": tileIndex,
+              "name": value["name"] ?? "이름 없음",
+              "level": level,
+              "sellPrice": sellPrice,
+            });
+          }
+        }
+      });
+    } else {
+      // 🏠 [로컬 모드] 기존 로직 유지
+      final boardSnap = await fs.collection("games").doc("board").get();
+      if (boardSnap.exists) {
+        var boardData = boardSnap.data()!;
+        boardData.forEach((key, value) {
+          if (value is Map && value["owner"].toString() == widget.user.toString()) {
+            int toll = value["tollPrice"] ?? 0;
+            int level = value["level"] ?? 0;
+            int sellPrice = (level == 4) ? toll * 15 : (level == 3 ? toll * 7 : (level == 2 ? toll * 3 : toll));
+
+            temp.add({
+              "boardKey": key,
+              "index": value["index"] ?? 0,
+              "name": value["name"] ?? "토지",
               "level": level,
               "sellPrice": sellPrice,
             });
@@ -167,6 +172,8 @@ class _BankruptDialogState extends State<BankruptDialog> {
       selectedIndexes.clear();
       currentSelectionTotal = 0;
     });
+
+    print("DEBUG: 최종 로드된 자산 개수: ${assets.length}");
   }
 
   /// 💰 선택한 자산 판매 실행
