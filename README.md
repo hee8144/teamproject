@@ -20,23 +20,25 @@
 |                   이름                   | 역할 | 담당 업무                              |            연락처            |
 |:--------------------------------------:|:--:|:-----------------------------------|:-------------------------:|
 | [**유희연**](https://github.com/hee8144)  | 팀장 | -                                  |   ✉️ email@example.com    |
-|  [**정은성**](https://github.com/깃허브아이디)  | -  | -                                  |   ✉️ email@example.com    |
-|  [**조원정**](https://github.com/깃허브아이디)  | -  | -                                  |   ✉️ email@example.com    |
+|  [**정은성**](https://github.com/kkomi211)  | -  | -                                  |   ✉️ email@example.com    |
+|  [**조원정**](https://github.com/dragonstudy9)  | -  | -                                  |   ✉️ email@example.com    |
 | [**이민형**](https://github.com/narang06) | -  | 찬스 카드 및 퀴즈 로직 설계 및 구현 , 로그인 시스템 구현 | ✉️ sinso5281532@gmail.com |
 
 ---
 
 ## 🖼️ 주요 화면 미리보기 (Screenshots)
 
-| **1. 메인 로비 & 호패 프로필** | **2. 실시간 게임 플레이** |
+### 1️⃣ 접속 및 멀티플레이 환경 (Auth & Multiplayer)
+| **메인 로비 & 호패 프로필** | **온라인 방 목록 및 대기실** |
 | :---: | :---: |
-| <img src="assets/screenshots/lobby.png" width="400" alt="Lobby Screen"> | <img src="assets/screenshots/gameplay.png" width="400" alt="Gameplay Screen"> |
-| *전통 호패 디자인의 실시간 프로필 카드* | *3D 주사위 연출 및 실제 문화재 데이터 보드* |
+| <img src="assets/screenshots/lobby.png" width="400"> | <img src="assets/screenshots/online_list.png" width="400"> |
+| *소셜 로그인 기반 통합 세션 및 프로필* | *실시간 소켓 통신을 통한 방 생성 및 입장* |
 
-| **3. 한국적 미를 살린 로딩** | **4. 플레이어 상세 정보** |
+### 2️⃣ 게임 플레이 및 데이터 연동 (Gameplay & Data)
+| **메인 게임 보드** | **특수 이벤트 및 상세 정보** |
 | :---: | :---: |
-| <img src="assets/screenshots/loading.png" width="400" alt="Loading Screen"> | <img src="assets/screenshots/detail.png" width="400" alt="Detail Popup"> |
-| *수묵화 붓터치 기법의 로딩 애니메이션* | *한지 장부 스타일의 전적 및 자산 상세창* |
+| <img src="assets/screenshots/gameplay.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
+| *문화재 API 데이터 기반 실시간 보드 구성* | *3D 찬스카드, 교육용 퀴즈 및 상세 장부 UI* |
 
 ---
 
