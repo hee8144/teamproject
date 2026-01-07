@@ -278,7 +278,7 @@ class AuthService {
   // 티어별 색상 반환 로직
   static Color getTierColor(int points) {
     if (points >= 5000) return const Color(0xFFFFD700); // 전설: 골드
-    if (points >= 3000) return const Color(0xFF00E5FF);  // 일류: (하늘색)
+    if (points >= 3000) return const Color(0xFF00E5FF);  // 일류: 하늘색
     if (points >= 1000) return const Color(0xFF69F0AE);  // 숙련: 그린
     return const Color(0xFFD7C0A1); // 초보: 베이지/브론즈
   }
