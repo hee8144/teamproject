@@ -165,7 +165,7 @@
 
       int total = val1 + val2;
       bool isDouble = (val1 == val2);
-      movePlayer(total, currentTurn, isDouble);
+      movePlayer(1, currentTurn, isDouble);
     }
 
     Future<void> _checkAndStartTurn() async {
