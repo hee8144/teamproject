@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:carousel_slider/carousel_controller.dart';
+import '../auth/auth_service.dart';
 
 class GameRulePage extends StatefulWidget {
   const GameRulePage({super.key});
@@ -381,9 +382,19 @@ class _GameRulePageState extends State<GameRulePage> {
                     child: Row(
                       children: [
                         GestureDetector(
-                          onTap: () => context.go('/main'),
+                          onTap: () {
+                            final bool isLoggedIn =
+                                AuthService.instance.currentUid != null;
+
+                            if (isLoggedIn) {
+                              context.go('/onlinemain');
+                            } else {
+                              context.go('/main');
+                            }
+                          },
                           child: const Icon(Icons.arrow_back, size: 36),
                         ),
+
                         const SizedBox(width: 16),
                         const Icon(
                           Icons.info_outline,
