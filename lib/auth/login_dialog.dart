@@ -41,6 +41,11 @@ class _LoginDialogState extends State<LoginDialog> {
       final nick = _nicknameCtrl.text.trim();
 
       if (email.isEmpty || pw.isEmpty) throw Exception("모든 정보를 입력해주세요.");
+
+      final emailPattern = RegExp(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+      if (!emailPattern.hasMatch(email)) {
+        throw Exception("올바른 이메일 형식이 아닙니다.");
+      }
       
       if (!isLoginMode) {
         if (nick.isEmpty) throw Exception("닉네임을 입력해주세요.");

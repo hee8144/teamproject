@@ -79,11 +79,12 @@ class QuizGenerator {
     }
     shortDesc += ".";
 
-    // 마스킹 로직
-    String questionText = shortDesc.replaceAll(name, "OOO");
-    for (var part in name.split(' ')) {
-      if (part.length >= 2) questionText = questionText.replaceAll(part, "OOO");
-    }
+    // [최적화] 마스킹 로직: 정규식을 활용하여 한 번에 치환
+    final List<String> parts = name.split(' ').where((p) => p.length >= 2).toList();
+    final String pattern = ([name, ...parts].map((e) => RegExp.escape(e)).join('|'));
+    String questionText = shortDesc.replaceAll(RegExp(pattern), "OOO");
+
+    // 연속된 마스킹 정리
     while (questionText.contains("OOO OOO")) {
       questionText = questionText.replaceAll("OOO OOO", "OOO");
     }
