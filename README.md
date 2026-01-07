@@ -21,7 +21,7 @@
 |:--------------------------------------:|:--:|:-----------------------------------|:-------------------------:|
 | [**유희연**](https://github.com/hee8144)  | 팀장 | -                                  |   ✉️ email@example.com    |
 |  [**정은성**](https://github.com/kkomi211)  | 팀원 | -                                  |   ✉️ email@example.com    |
-|  [**조원정**](https://github.com/dragonstudy9)  | 팀원 | 메인 화면, 게임 규칙 설명, 게임 대기방, 게임 결과 화면 UI 및 화면 전환 로직 구현 | ✉️ dragonstudy9@gmail.com |
+|  [**조원정**](https://github.com/dragonstudy9)  | 팀원 | 메인 화면, 게임 규칙 설명, 게임 대기방, 게임 결과 화면 구현 | ✉️ dragonstudy9@gmail.com |
 | [**이민형**](https://github.com/narang06) | 팀원 | 찬스 카드 및 퀴즈 로직 설계 및 구현 , 로그인 시스템 구현 | ✉️ sinso5281532@gmail.com |
 
 ---

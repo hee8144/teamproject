@@ -129,7 +129,7 @@ class _GameRulePageState extends State<GameRulePage> {
             '건물이 많고 비쌀수록, 랜드마크일수록 통행료가 비쌉니다.',
             '상대 땅을 밟았을 때 50% 확률로 퀴즈가 발동합니다. 퀴즈를 맞히면 통행료가 50% 할인됩니다.',
           ],
-          iconTopRatio: 0.2,
+          iconTopRatio: 0.15,
           iconRightRatio: 0.8,
           tooltipTopRatio: 0.1,
           tooltipLeftRatio: 0.2,
