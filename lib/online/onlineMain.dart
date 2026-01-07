@@ -15,13 +15,10 @@ class onlineMainScreen extends StatefulWidget {
 }
 
 class _onlineMainScreenState extends State<onlineMainScreen> {
-  // 💡 최적화: 유저 데이터를 하나의 Notifier로 관리하여 부분 리빌드 유도
-  final ValueNotifier<Map<String, dynamic>> _userInfoNotifier = ValueNotifier({
-    'nickname': "불러오는 중...",
-    'points': 0,
-    'tier': "초보 여행자",
-    'isLoading': true,
-  });
+  String nickname = "불러오는 중...";
+  int points = 0;
+  String tier = "초보 여행자";
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -29,33 +26,38 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
     _loadUserInfo();
   }
 
-  @override
-  void dispose() {
-    _userInfoNotifier.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadUserInfo() async {
     final String? uid = AuthService.instance.currentUid;
-    if (uid == null) {
-      _userInfoNotifier.value = {..._userInfoNotifier.value, 'nickname': '게스트', 'isLoading': false};
-      return;
-    }
+    if (uid != null) {
+      try {
+        DocumentSnapshot doc = await FirebaseFirestore.instance.collection('members').doc(uid).get();
 
-    try {
-      final doc = await FirebaseFirestore.instance.collection('members').doc(uid).get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        final int userPoints = data['point'] ?? 0;
-        _userInfoNotifier.value = {
-          'nickname': data['nickname'] ?? "여행자",
-          'points': userPoints,
-          'tier': AuthService.getTierName(userPoints),
-          'isLoading': false,
-        };
+        if (doc.exists) {
+          final data = doc.data() as Map<String, dynamic>;
+          final int userPoints = data['point'] ?? 0;
+          setState(() {
+            nickname = data['nickname'] ?? "여행자";
+            points = userPoints;
+            tier = AuthService.getTierName(userPoints); // 포인트로 티어 자동 계산
+            isLoading = false;
+          });
+        } else {
+          // 문서가 없는 경우 (만약의 상황 대비)
+          setState(() {
+            nickname = "정보 없음";
+            isLoading = false;
+          });
+        }
+      } catch (e) {
+        print("유저 정보 로드 실패: $e");
+        setState(() => isLoading = false);
       }
-    } catch (e) {
-      _userInfoNotifier.value = {..._userInfoNotifier.value, 'nickname': '정보 없음', 'isLoading': false};
+    } else {
+      // UID 자체가 없는 경우
+      setState(() {
+        nickname = "게스트";
+        isLoading = false;
+      });
     }
   }
 
@@ -66,11 +68,18 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 배경 및 버튼 (리빌드되지 않음)
+          // ================= 배경 =================
           Container(
-            width: size.width, height: size.height,
-            decoration: const BoxDecoration(image: DecorationImage(image: AssetImage('assets/background.png'), fit: BoxFit.cover)),
+            width: size.width,
+            height: size.height,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/background.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
+          // ================= UI (가로 전용) =================
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -78,17 +87,11 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
             ),
           ),
 
-          // 💡 부분 리빌드: 유저 정보 카드만 독립적으로 업데이트
+          // 프로필 카드 위치
           Positioned(
-            top: 20,
-            left: 20,
+            left: 5,
             child: SafeArea(
-              child: ValueListenableBuilder<Map<String, dynamic>>(
-                valueListenable: _userInfoNotifier,
-                builder: (context, data, _) {
-                  return _buildProfileCard(data);
-                },
-              ),
+              child: _buildProfileCard(),
             ),
           ),
         ],
@@ -96,14 +99,13 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
     );
   }
 
-  Widget _buildProfileCard(Map<String, dynamic> data) {
-    final nickname = data['nickname'];
-    final points = data['points'];
-    final tier = data['tier'];
-    final Color tierColor = AuthService.getTierColor(points);
+
+  // 로그인 사용자 프로필 카드
+  Widget _buildProfileCard() {
+    final Color tierColor = AuthService.getTierColor(points); // 티어 색상 가져오기
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF8D6E63), Color(0xFF5D4037)],
@@ -113,7 +115,11 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFD7C0A1), width: 2),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(2, 4)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(2, 4),
+          ),
         ],
       ),
       child: Row(
@@ -121,7 +127,10 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(color: Color(0xFFFDF5E6), shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFDF5E6),
+              shape: BoxShape.circle,
+            ),
             child: const Icon(Icons.person, color: Color(0xFF5D4037), size: 24),
           ),
           const SizedBox(width: 12),
@@ -129,15 +138,26 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(nickname, style: const TextStyle(color: Color(0xFFFDF5E6), fontSize: 14, fontWeight: FontWeight.bold)),
+              Text(
+                nickname,
+                style: const TextStyle(
+                  color: Color(0xFFFDF5E6),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 2),
               Row(
                 children: [
-                  Icon(Icons.stars, color: tierColor, size: 12),
+                  Icon(Icons.stars, color: tierColor, size: 12), // 아이콘 색상 적용
                   const SizedBox(width: 4),
                   Text(
                     "$tier ($points P)",
-                    style: TextStyle(color: tierColor.withOpacity(0.9), fontSize: 11, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: tierColor.withOpacity(0.9), // 텍스트 색상 적용
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -214,7 +234,7 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
             children: [
               _buildMainButton(
                 text: "방 목록",
-                onTap: () => context.go('/onlineRoom'), // ✅ GoRouter 이동
+                onTap: () => context.go('/onlineRoom', extra: nickname), // ✅ GoRouter 이동
               ),
               const SizedBox(height: 12),
               _buildMainButton(

@@ -2,7 +2,7 @@
   <img src="assets/Logo.png" width="400" alt="문화재 마블 로고">
 </p>
 
-# 🏯 문화재 마블 (Cultural Heritage Marble)
+# 🏯 문화재 마블
 
 > **"주사위로 떠나는 우리 문화유산 여행"**  
 > 공공데이터 API와 실시간 통신 기술을 활용한 한국 전통 테마의 보드게임 프로젝트입니다.
@@ -20,25 +20,25 @@
 |                   이름                   | 역할 | 담당 업무                              |            연락처            |
 |:--------------------------------------:|:--:|:-----------------------------------|:-------------------------:|
 | [**유희연**](https://github.com/hee8144)  | 팀장 | -                                  |   ✉️ email@example.com    |
-|  [**정은성**](https://github.com/kkomi211)  | -  | -                                  |   ✉️ email@example.com    |
-|  [**조원정**](https://github.com/dragonstudy9)  | -  | -                                  |   ✉️ email@example.com    |
-| [**이민형**](https://github.com/narang06) | -  | 찬스 카드 및 퀴즈 로직 설계 및 구현 , 로그인 시스템 구현 | ✉️ sinso5281532@gmail.com |
+|  [**정은성**](https://github.com/kkomi211)  | 팀원 | -                                  |   ✉️ email@example.com    |
+|  [**조원정**](https://github.com/dragonstudy9)  | 팀원 | 메인 화면, 게임 규칙 설명, 게임 대기방, 게임 결과 화면 UI 및 화면 전환 로직 구현 | ✉️ dragonstudy9@gmail.com |
+| [**이민형**](https://github.com/narang06) | 팀원 | 찬스 카드 및 퀴즈 로직 설계 및 구현 , 로그인 시스템 구현 | ✉️ sinso5281532@gmail.com |
 
 ---
 
-## 🖼️ 주요 화면 미리보기 (Screenshots)
+## 🖼️ 주요 화면 미리보기
 
 ### 1️⃣ 접속 및 멀티플레이 환경 (Auth & Multiplayer)
-| **메인 로비 & 호패 프로필** | **온라인 방 목록 및 대기실** |
+| **메인 로비 & 로그인** | **온라인 방 목록 및 대기실** |
 | :---: | :---: |
 | <img src="assets/screenshots/lobby.png" width="400"> | <img src="assets/screenshots/online_list.png" width="400"> |
 | *소셜 로그인 기반 통합 세션 및 프로필* | *실시간 소켓 통신을 통한 방 생성 및 입장* |
 
 ### 2️⃣ 게임 플레이 및 데이터 연동 (Gameplay & Data)
-| **메인 게임 보드** | **특수 이벤트 및 상세 정보** |
+| **메인 게임 보드** | **특수 이벤트** |
 | :---: | :---: |
 | <img src="assets/screenshots/gameplay.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
-| *문화재 API 데이터 기반 실시간 보드 구성* | *3D 찬스카드, 교육용 퀴즈 및 상세 장부 UI* |
+| *문화재 API 데이터 기반 실시간 보드 구성* | *교육용 퀴즈 UI* |
 
 ---
 
@@ -91,6 +91,17 @@ lib/
 ├── quiz/          # 문화재 퀴즈 저장소 및 게이미피케이션 로직
 └── widgets/       # 공통 위젯 (LoadingScreen, 통합 애니메이션 등)
 ```
+---
+## 📜 발표 PPT
+
+---
+
+---
+## 🎬 시연 영상
+
+---
+
+## 📂 기타 산출물 링크
 
 ---
 © 2026 Cultural Heritage Marble Team. All rights reserved.
