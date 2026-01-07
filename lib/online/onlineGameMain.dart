@@ -56,8 +56,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경 (에뮬레이터: 10.0.2.2, 실기기: PC IP)
-    socket = IO.io('http://localhost:3000',
-    // socket = IO.io('http://10.0.2.2:3000',
+    // socket = IO.io('http://localhost:3000',
+    socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()

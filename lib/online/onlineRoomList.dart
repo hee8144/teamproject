@@ -8,7 +8,12 @@ import 'dart:math';
 import '../network/socket_service.dart';
 
 class OnlineRoomListPage extends StatefulWidget {
-  const OnlineRoomListPage({super.key});
+  final String userNickname; // 💡 외부에서 받아온 닉네임
+
+  const OnlineRoomListPage({
+    super.key,
+    required this.userNickname,
+  });
 
   @override
   State<OnlineRoomListPage> createState() => _OnlineRoomListPageState();
@@ -66,7 +71,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     socket.emit("get_rooms");
   }
 
-  /// Firestore 업데이트 및 이동
+  /// Firestore 업데이트 및 이동 (닉네임 저장 로직 포함)
   Future<void> _updateFirestoreAndNavigate(String roomId) async {
     final roomRef = FirebaseFirestore.instance.collection('online').doc(roomId);
     final usersCol = roomRef.collection('users');
@@ -74,9 +79,15 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
     try {
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         DocumentSnapshot roomSnap = await transaction.get(roomRef);
+
+        // 방이 없으면 초기화 (보통 서버가 하지만 안전장치)
         if (!roomSnap.exists) {
           transaction.set(roomRef, {'status': 'waiting', 'createdAt': FieldValue.serverTimestamp()});
-          transaction.set(usersCol.doc('user1'), {'type': 'P', 'name': '플레이어 1(방장)', 'id': socket.id});
+          transaction.set(usersCol.doc('user1'), {
+            'type': 'P',
+            'name': widget.userNickname, // 💡 내 닉네임 사용
+            'id': socket.id
+          });
           transaction.set(usersCol.doc('user2'), {'type': 'N'});
           transaction.set(usersCol.doc('user3'), {'type': 'N'});
           transaction.set(usersCol.doc('user4'), {'type': 'N'});
@@ -84,26 +95,26 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
         }
 
         String? targetDocId;
-        int playerNum = 0;
 
+        // 빈 자리 찾기
         for (int i = 1; i <= 4; i++) {
           String docId = 'user$i';
           DocumentSnapshot userSnap = await transaction.get(usersCol.doc(docId));
 
           if (userSnap.exists) {
             Map<String, dynamic> userData = userSnap.data() as Map<String, dynamic>;
-            if (userData['id'] == socket.id) return;
+            if (userData['id'] == socket.id) return; // 이미 접속 중이면 패스
             if (targetDocId == null && userData['type'] == 'N') {
               targetDocId = docId;
-              playerNum = i;
             }
           }
         }
 
+        // 빈 자리에 내 정보 업데이트
         if (targetDocId != null) {
           transaction.update(usersCol.doc(targetDocId), {
             'type': 'P',
-            'name': '플레이어 $playerNum',
+            'name': widget.userNickname, // 💡 내 닉네임 사용
             'id': socket.id,
           });
         }
@@ -183,7 +194,7 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
         }
       }
 
-      // 2. 보드 데이터 준비 (생략되지 않도록 주의)
+      // 2. 보드 데이터 준비
       DocumentSnapshot boardSnap = await FirebaseFirestore.instance.collection("games").doc("board").get();
       Map<String, dynamic> boardData = {};
 
@@ -198,31 +209,28 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
               String fullName = heritageList[heritageIndex]["이름"]!;
               String shortName = fullName;
 
-              // 💡 [수정됨] 지역 이름 제거 로직
               for (var map in localList) {
-                String region = map.keys.first; // '서울', '인천' 등
+                String region = map.keys.first;
                 if (shortName.startsWith(region)) {
-                  // 지역명 길이만큼 자르고 공백 제거 (예: "서울 숭례문" -> "숭례문")
                   shortName = shortName.substring(region.length).trim();
                   break;
                 }
               }
 
-              boardData[key]["fullName"] = fullName; // 원래 이름
-              boardData[key]["name"] = shortName; // 줄임 이름
+              boardData[key]["fullName"] = fullName;
+              boardData[key]["name"] = shortName;
               heritageIndex++;
             }
           }
         }
       }
-      // 수정된 보드 데이터를 해당 방 문서에 저장
-        await roomRef.set({
-          "quiz": quizUpdates,
-          "board": boardData,
-        }, SetOptions(merge: true));
+      await roomRef.set({
+        "quiz": quizUpdates,
+        "board": boardData,
+      }, SetOptions(merge: true));
 
-        debugPrint("✅ Firestore에 퀴즈 및 보드 데이터 주입 완료");
-      } catch (e) {
+      debugPrint("✅ Firestore에 퀴즈 및 보드 데이터 주입 완료");
+    } catch (e) {
       debugPrint("❌ _insertLocal 에러: $e");
     }
   }
@@ -276,17 +284,17 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
       "roomId": newId,
       "localName": selectedLocalName,
       "localCode": localcode.toString(),
-      "creator": { "name": "플레이어 1(방장)", "id": socket.id }
+      // 💡 방 생성 시 방장 닉네임 전송
+      "creator": { "name": widget.userNickname, "id": socket.id }
     });
 
-    // 3. Firestore 데이터 주입 (지역명 제거 로직 포함됨)
+    // 3. Firestore 데이터 주입
     await _insertLocal(newId);
-
     await _readLocal();
     await _readPlayer();
     await rankChange();
 
-    print("📡 방 생성 및 데이터 주입 완료: $newId");
+    print("📡 방 생성 완료: $newId");
   }
 
   void joinRoom(String roomId) {
@@ -298,39 +306,140 @@ class _OnlineRoomListPageState extends State<OnlineRoomListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("온라인 방 목록")),
-      floatingActionButton: FloatingActionButton(
-        onPressed: createRoom,
-        child: const Icon(Icons.add),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text(
+          "온라인 방 목록",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 22),
+        ),
+        backgroundColor: Colors.black.withOpacity(0.3),
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        // ✅ [추가] 왼쪽 상단 뒤로가기 버튼
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+          onPressed: () {
+            context.go('/onlinemain'); // 이전 화면으로 이동
+          },
+        ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('online').snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+      body: Stack(
+        children: [
+          // 1. 배경 이미지
+          Positioned.fill(
+            child: Image.asset(
+              "assets/board-background.PNG",
+              fit: BoxFit.cover,
+            ),
+          ),
+          // 2. 어두운 오버레이
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.3)),
+          ),
+          // 3. 메인 컨텐츠
+          SafeArea(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('online').orderBy('createdAt', descending: true).snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white));
 
-          final roomDocs = snapshot.data!.docs;
+                final roomDocs = snapshot.data!.docs;
 
-          if (roomDocs.isEmpty) {
-            return const Center(child: Text("방이 없습니다."));
-          }
+                if (roomDocs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.meeting_room_outlined, size: 80, color: Colors.white70),
+                        SizedBox(height: 16),
+                        Text(
+                          "생성된 방이 없습니다.\n새로운 방을 만들어보세요!",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-          return ListView.builder(
-            itemCount: roomDocs.length,
-            itemBuilder: (context, index) {
-              final roomId = roomDocs[index].id;
-              // 방 상태나 인원 등을 DB에서 추가로 읽어와 표시 가능
-              return ListTile(
-                leading: const Icon(Icons.meeting_room, color: Colors.blue),
-                title: Text("방 번호: $roomId"),
-                subtitle: const Text("대기 중..."),
-                trailing: ElevatedButton(
-                  onPressed: () => joinRoom(roomId),
-                  child: const Text("입장"),
-                ),
-              );
-            },
-          );
-        },
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  itemCount: roomDocs.length,
+                  itemBuilder: (context, index) {
+                    final roomId = roomDocs[index].id;
+                    final data = roomDocs[index].data() as Map<String, dynamic>?;
+                    final String localName = data?['localName'] ?? "지역 미정";
+                    final String status = data?['status'] == 'waiting' ? "대기중" : "게임중";
+                    final bool isWaiting = data?['status'] == 'waiting';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDF5E6).withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF5D4037), width: 2),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))
+                        ],
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF5D4037),
+                          radius: 24,
+                          child: Text(
+                            localName.isNotEmpty ? localName.substring(0, 1) : "?",
+                            style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        title: Text(
+                          "방 번호 : $roomId",
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF3E2723)),
+                        ),
+                        subtitle: Row(
+                          children: [
+                            Icon(Icons.location_on, size: 16, color: Colors.grey[700]),
+                            const SizedBox(width: 4),
+                            Text(
+                              "$localName  |  $status",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isWaiting ? Colors.green[800] : Colors.red[800],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: ElevatedButton(
+                          onPressed: isWaiting ? () => joinRoom(roomId) : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isWaiting ? const Color(0xFF5D4037) : Colors.grey,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          ),
+                          child: Text(isWaiting ? "입장" : "진행중"),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: createRoom,
+        backgroundColor: const Color(0xFF5D4037),
+        icon: isJoining
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : const Icon(Icons.add_circle, color: Color(0xFFFFD700)),
+        label: Text(
+          isJoining ? "생성 중..." : "방 만들기",
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        ),
       ),
     );
   }

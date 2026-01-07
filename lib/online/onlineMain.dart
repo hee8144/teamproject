@@ -31,7 +31,7 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
     if (uid != null) {
       try {
         DocumentSnapshot doc = await FirebaseFirestore.instance.collection('members').doc(uid).get();
-        
+
         if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
           final int userPoints = data['point'] ?? 0;
@@ -234,7 +234,7 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
             children: [
               _buildMainButton(
                 text: "방 목록",
-                onTap: () => context.go('/onlineRoom'), // ✅ GoRouter 이동
+                onTap: () => context.go('/onlineRoom', extra: nickname), // ✅ GoRouter 이동
               ),
               const SizedBox(height: 12),
               _buildMainButton(
