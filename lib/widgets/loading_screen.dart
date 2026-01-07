@@ -46,7 +46,7 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
     
     switch (widget.type) {
       case LoadingType.inkBrush:
-        loadingWidget = const InkBrushLoading();
+        loadingWidget = const RepaintBoundary(child: InkBrushLoading());
         break;
       case LoadingType.dice:
       default:
@@ -58,7 +58,7 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
             builder: (context, child) {
               double x = _controller.value * 2 * math.pi;
               double y = _controller.value * 4 * math.pi;
-              return _build3DCube(x, y);
+              return RepaintBoundary(child: _build3DCube(x, y));
             },
           ),
         );

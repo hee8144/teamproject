@@ -8,7 +8,7 @@ class onlineDiceApp extends StatefulWidget {
   final int totalTurn;
   final bool isBot;
   final bool isOnline;
-  final bool isMyTurn;
+  final bool isMyTurn; // 💡 내 턴인지 확인
 
   const onlineDiceApp({
     Key? key,
@@ -29,6 +29,7 @@ class onlineDiceAppState extends State<onlineDiceApp> with TickerProviderStateMi
   double _x1 = 0.0, _y1 = 0.0;
   double _x2 = 0.0, _y2 = 0.0;
   int _totalResult = 2;
+  bool _isDouble = false; // ✨ 더블 여부 저장
   bool isRolling = false;
 
   late AnimationController _controller1, _controller2;
@@ -45,14 +46,20 @@ class onlineDiceAppState extends State<onlineDiceApp> with TickerProviderStateMi
 
     _controller1.addListener(() => setState(() { _x1 = _animationX1.value; _y1 = _animationY1.value; }));
     _controller2.addListener(() => setState(() { _x2 = _animationX2.value; _y2 = _animationY2.value; }));
-    _controller2.addStatusListener((status) { if (status == AnimationStatus.completed) _calculateResult(); });
+
+    // 애니메이션이 끝나면 결과값 계산 및 더블 체크
+    _controller2.addStatusListener((status) {
+      if (status == AnimationStatus.completed) _calculateResult();
+    });
   }
 
+  // 📡 서버에서 온 결과값으로 주사위 굴리기
   void rollDiceFromServer(int target1, int target2) {
     if (isRolling) return;
     setState(() {
       isRolling = true;
-      _totalResult = 0; // 초기화
+      _isDouble = false; // 굴리는 동안은 더블 표시 끔
+      _totalResult = 0;
     });
 
     _animationX1 = _createTargetAnim(_controller1, _x1, target1, true);
@@ -70,6 +77,7 @@ class onlineDiceAppState extends State<onlineDiceApp> with TickerProviderStateMi
     double rotations = (current / (2 * pi)).floorToDouble();
     double nextBase = rotations * (2 * pi) + targetBase;
     if (nextBase < current) nextBase += (2 * pi);
+    // (2 * pi * 3)을 더해서 3바퀴 더 회전하게 연출
     return Tween<double>(begin: current, end: nextBase + (2 * pi * 3)).animate(CurvedAnimation(parent: c, curve: Curves.easeOutBack));
   }
 
@@ -86,8 +94,12 @@ class onlineDiceAppState extends State<onlineDiceApp> with TickerProviderStateMi
   }
 
   void _calculateResult() {
+    int v1 = _getFaceValue(_x1, _y1);
+    int v2 = _getFaceValue(_x2, _y2);
+
     setState(() {
-      _totalResult = _getFaceValue(_x1, _y1) + _getFaceValue(_x2, _y2);
+      _totalResult = v1 + v2;
+      _isDouble = (v1 == v2); // ✨ 더블 체크
       isRolling = false;
     });
   }
@@ -104,20 +116,79 @@ class onlineDiceAppState extends State<onlineDiceApp> with TickerProviderStateMi
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260, padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.7), borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text("Player ${widget.turn}님의 턴", style: const TextStyle(color: Colors.white, fontSize: 18)),
-          const SizedBox(height: 10),
-          Text(isRolling ? "굴러가는 중..." : "합계: $_totalResult", style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [Cube(x: _x1, y: _y1, size: _size), const SizedBox(width: 30), Cube(x: _x2, y: _y2, size: _size)]),
-          const SizedBox(height: 20),
-          if (widget.isMyTurn && !isRolling) ElevatedButton(onPressed: () => widget.onRoll(0, 0), child: const Text("주사위 던지기"))
-        ],
+    // 플레이어 색상 (1번: 빨강, 2번: 파랑...)
+    List<Color> colors = [Colors.red, Colors.blue, Colors.green, Colors.purple];
+    int currentTurnIndex = (widget.turn - 1).clamp(0, 3);
+
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.75), // 로컬과 동일한 배경색
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24, width: 1.5),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // ✨ 더블 알림 텍스트
+            SizedBox(
+              height: 20,
+              child: _isDouble && !isRolling
+                  ? const Text("✨ DOUBLE!! ✨", style: TextStyle(color: Colors.yellowAccent, fontSize: 16, fontWeight: FontWeight.bold))
+                  : null,
+            ),
+
+            // 🔄 전체 턴 수 표시
+            Text("남은 턴 : ${widget.totalTurn}", style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+
+            // 👤 누구 턴인지 표시
+            Text("Player ${widget.turn}님의 턴", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+
+            // 🎲 합계 결과 표시
+            Text(
+                isRolling ? "Rolling..." : "TOTAL: $_totalResult",
+                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
+            ),
+
+            const SizedBox(height: 25),
+
+            // 🎲 주사위 큐브 2개
+            Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Cube(x: _x1, y: _y1, size: _size),
+                  const SizedBox(width: 25),
+                  Cube(x: _x2, y: _y2, size: _size)
+                ]
+            ),
+
+            const SizedBox(height: 30),
+
+            // 👇 내 턴일 때만 버튼 표시
+            if (widget.isMyTurn && !isRolling)
+              ElevatedButton(
+                onPressed: () => widget.onRoll(0, 0), // 서버로 roll 요청
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  backgroundColor: colors[currentTurnIndex], // 현재 턴 플레이어 색상
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  elevation: 5,
+                ),
+                child: const Text("ROLL DICE 🎲", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              )
+            else
+            // 버튼이 없을 때 레이아웃 꺼짐 방지용 빈 공간
+              const SizedBox(height: 48),
+          ],
+        ),
       ),
     );
   }
@@ -126,6 +197,7 @@ class onlineDiceAppState extends State<onlineDiceApp> with TickerProviderStateMi
   void dispose() { _controller1.dispose(); _controller2.dispose(); super.dispose(); }
 }
 
+// 📦 Cube 및 DiceDotsPainter 클래스는 로컬과 완전히 동일하게 사용
 class Cube extends StatelessWidget {
   const Cube({super.key, required this.x, required this.y, required this.size});
   final double x, y, size;
