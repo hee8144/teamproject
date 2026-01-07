@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // ✅ go_router 추가 (페이지 이동용)
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
 
-// 💡 팝업 및 퀴즈 위젯 import (경로는 프로젝트에 맞게 확인해주세요)
+// 💡 팝업 및 퀴즈 위젯 import
 import '../Popup/Construction.dart';
 import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
@@ -41,6 +42,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   // 더블 상태 임시 저장 변수
   bool _pendingIsDouble = false;
 
+  // 💰 돈 변화 이펙트 상태 관리
+  Map<String, String?> _moneyEffects = {};
+
   // 주사위 제어 키
   final GlobalKey<onlineDiceAppState> diceAppKey = GlobalKey<onlineDiceAppState>();
 
@@ -56,9 +60,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   void _initSocket() {
-    // 💡 테스트 환경에 맞게 IP 주소 변경
-    // socket = IO.io('http://localhost:3000',
-    socket = IO.io('http://10.0.2.2:3000',
+    socket = IO.io('http://localhost:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -78,14 +80,42 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     socket.on('update_state', (data) {
       if (!mounted || data == null) return;
+
+      final newState = Map<String, dynamic>.from(data);
+
+      if (gameState != null && gameState!['users'] != null) {
+        final oldUsers = gameState!['users'] as Map<String, dynamic>;
+        final newUsers = newState['users'] as Map<String, dynamic>;
+
+        for (int i = 1; i <= 4; i++) {
+          String key = 'user$i';
+          if (oldUsers.containsKey(key) && newUsers.containsKey(key)) {
+            int oldMoney = int.tryParse(oldUsers[key]['money']?.toString() ?? '0') ?? 0;
+            int newMoney = int.tryParse(newUsers[key]['money']?.toString() ?? '0') ?? 0;
+            int diff = newMoney - oldMoney;
+            if (diff != 0) {
+              _triggerMoneyEffect(key, diff);
+            }
+          }
+        }
+      }
+
       setState(() {
-        final newState = Map<String, dynamic>.from(data);
         if (_isMoving && gameState != null) {
           newState['users'] = gameState!['users'];
         }
         gameState = newState;
         isMyTurn = (int.tryParse(gameState!['currentTurn']?.toString() ?? '0') == myIndex);
       });
+    });
+
+    // 🏆 [추가됨] 게임 종료 이벤트 수신
+    socket.on('game_over', (data) {
+      if (!mounted) return;
+      int winner = int.tryParse(data['winner']?.toString() ?? '0') ?? 0;
+      String type = data['type']?.toString() ?? 'unknown';
+      // 승리 화면으로 이동 (go_router 사용 가정)
+      context.go('/gameResult?victoryType=$type&winnerName=$winner');
     });
 
     socket.on('dice_animation', (data) {
@@ -114,6 +144,20 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     socket.onConnect((_) => socket.emit('join_game', {'roomId': widget.roomId}));
     if (socket.connected) socket.emit('join_game', {'roomId': widget.roomId});
     socket.connect();
+  }
+
+  void _triggerMoneyEffect(String userKey, int amount) {
+    setState(() {
+      _moneyEffects[userKey] = amount > 0 ? "+$amount" : "$amount";
+    });
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _moneyEffects[userKey] = null;
+        });
+      }
+    });
   }
 
   Future<void> _animateMovement(int playerIndex, int steps, bool isDouble) async {
@@ -205,13 +249,13 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     final tile = gameState!['board']['b$pos'];
     final int owner = int.tryParse(tile['owner']?.toString() ?? '0') ?? 0;
-
     final int currentLevel = int.tryParse(tile['level']?.toString() ?? '0') ?? 0;
     final int myLevel = int.tryParse(gameState!['users']['user$myIndex']['level']?.toString() ?? '1') ?? 1;
 
+    int myTotalMoney = int.tryParse(gameState!['users']['user$myIndex']['totalMoney']?.toString() ?? '0') ?? 0;
+
     if (owner == myIndex) {
       if (myLevel <= currentLevel) {
-        print("⛔ [내 땅] 레벨 제한(내 레벨: $myLevel, 건물: $currentLevel)으로 증축 불가.");
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("레벨이 부족하여 증축할 수 없습니다!"), duration: Duration(seconds: 1)));
         _completeAction({}, isDouble: isDouble);
         return;
@@ -230,6 +274,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       );
 
       if (result != null && result is Map) {
+        int cost = result['totalCost'] ?? 0;
         _completeAction({
           'board': {
             'b$pos': {
@@ -239,7 +284,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           },
           'users': {
             'user$myIndex': {
-              'money': (int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0) - result['totalCost'],
+              'money': (int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0) - cost,
+              'totalMoney': myTotalMoney,
             }
           }
         }, isDouble: isDouble);
@@ -255,7 +301,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     int pos = int.tryParse(data['pos']?.toString() ?? '0') ?? 0;
     int toll = int.tryParse(data['toll']?.toString() ?? '0') ?? 0;
     int ownerIdx = int.tryParse(data['ownerIndex']?.toString() ?? '0') ?? 0;
+
     int myMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
+    int myTotalMoney = int.tryParse(gameState!['users']['user$myIndex']['totalMoney']?.toString() ?? '0') ?? 0;
 
     if (ownerIdx == myIndex) {
       await _handleLandEvent(pos, isDouble);
@@ -275,10 +323,16 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     }
 
     int remainingMoney = myMoney - toll;
+
     Map<String, dynamic> updateData = {
       'users': {
-        'user$myIndex': {'money': remainingMoney},
-        'user$ownerIdx': {'money': (int.tryParse(gameState!['users']['user$ownerIdx']['money']?.toString() ?? '0') ?? 0) + toll}
+        'user$myIndex': {
+          'money': remainingMoney,
+          'totalMoney': myTotalMoney - toll
+        },
+        'user$ownerIdx': {
+          'money': (int.tryParse(gameState!['users']['user$ownerIdx']['money']?.toString() ?? '0') ?? 0) + toll
+        }
       },
       'board': {}
     };
@@ -300,6 +354,13 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       if (confirmTakeover == true) {
         int playerLevel = int.tryParse(gameState!['users']['user$myIndex']['level']?.toString() ?? '1') ?? 1;
         int takeoverCost = (tileData['tollPrice'] ?? 0) * 2;
+        int currentTotalMoneyAfterToll = myTotalMoney - toll;
+
+        // 자산은 인수 비용의 절반만큼 차감 (인수비용=2배, 자산가치=1배)
+        int decreasedAsset = (takeoverCost / 2).floor();
+        int newTotalMoney = currentTotalMoneyAfterToll - decreasedAsset;
+
+        updateData['users']['user$ownerIdx']['money'] = (updateData['users']['user$ownerIdx']['money'] ?? 0) + takeoverCost;
 
         if (playerLevel > currentLevel) {
           Map<String, dynamic> tempGameState = Map<String, dynamic>.from(gameState!);
@@ -325,21 +386,30 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               'owner': myIndex.toString(),
             };
             int constructionCost = int.tryParse(buildResult['totalCost']?.toString() ?? '0') ?? 0;
-            updateData['users']['user$myIndex']['money'] = remainingMoney - takeoverCost - constructionCost;
+
+            updateData['users']['user$myIndex'] = {
+              'money': remainingMoney - takeoverCost - constructionCost,
+              'totalMoney': newTotalMoney
+            };
           } else {
             updateData['board']['b$pos'] = {
               'level': currentLevel,
               'owner': myIndex.toString(),
             };
-            updateData['users']['user$myIndex']['money'] = remainingMoney - takeoverCost;
+            updateData['users']['user$myIndex'] = {
+              'money': remainingMoney - takeoverCost,
+              'totalMoney': newTotalMoney
+            };
           }
         } else {
-          print("⛔ [인수] 레벨 부족으로 추가 건설 없이 소유권만 변경.");
           updateData['board']['b$pos'] = {
             'level': currentLevel,
             'owner': myIndex.toString(),
           };
-          updateData['users']['user$myIndex']['money'] = remainingMoney - takeoverCost;
+          updateData['users']['user$myIndex'] = {
+            'money': remainingMoney - takeoverCost,
+            'totalMoney': newTotalMoney
+          };
         }
       }
     }
@@ -479,7 +549,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     _pendingIsDouble = false;
   }
 
-  // --- 찬스 카드 ---
   Future<void> _handleChanceEvent(Map<String, dynamic> data, bool isDouble) async {
     if (gameState == null) return;
     QuizQuestion? question = await QuizRepository.getRandomQuiz();
@@ -661,7 +730,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                       child: onlineDiceApp(
                         key: diceAppKey,
                         turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
-                        totalTurn: gameState!['totalTurn'] ?? 20,
+                        totalTurn: gameState!['totalTurn'] ?? 3,
                         isBot: false,
                         onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
                         isOnline: true,
@@ -686,23 +755,24 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   Widget _buildPlayerInfoPanel(Alignment alignment, Map<String, dynamic> playerData, Color color, String name) {
-    // 랭킹 계산
     int myRank = 1;
-    int myTotal = int.tryParse(playerData['totalMoney']?.toString() ?? '0') ?? 0;
+    num myTotal = num.tryParse(playerData['totalMoney']?.toString() ?? '0') ?? 0;
 
+    String myKey = "";
     if (gameState != null && gameState!['users'] != null) {
       final users = gameState!['users'] as Map<String, dynamic>;
-      String myKey = "";
+
       users.forEach((k, v) {
         if (v['name'] == name) myKey = k;
       });
+      if (myKey.isEmpty && name.toLowerCase().startsWith("player")) {
+        myKey = "user${name.split(' ')[1]}";
+      }
 
       users.forEach((key, val) {
         if (key != myKey && val['type'] != 'N') {
-          int otherTotal = int.tryParse(val['totalMoney']?.toString() ?? '0') ?? 0;
-          if (otherTotal > myTotal) {
-            myRank++;
-          }
+          num otherTotal = num.tryParse(val['totalMoney']?.toString() ?? '0') ?? 0;
+          if (otherTotal > myTotal) myRank++;
         }
       });
     }
@@ -710,11 +780,15 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     Map<String, dynamic> finalData = Map.from(playerData);
     finalData['rank'] = myRank;
 
+    String displayName = playerData['name']?.toString() ?? name;
+    String? currentEffect = _moneyEffects[myKey];
+
     return OnlinePlayerInfoPanel(
       alignment: alignment,
       playerData: finalData,
       color: color,
-      name: name,
+      name: displayName,
+      moneyEffect: currentEffect,
       onTap: () { },
     );
   }
@@ -926,7 +1000,6 @@ class _TopRightTriangleClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-// 💡 [추가된 커스텀 패널 클래스]
 class OnlinePlayerInfoPanel extends StatelessWidget {
   final Alignment alignment;
   final Map<String, dynamic> playerData;
@@ -958,7 +1031,7 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
 
     bool isBankrupt = (type == "D");
 
-    String displayName = name.toUpperCase().replaceAll(" ", "");
+    String displayName = name;
     if (isBankrupt) displayName = "파산";
 
     bool isTop = alignment.y < 0;
@@ -1064,7 +1137,6 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      // ✅ [수정완료] 현금과 자산 표시
                       _moneyText("현금", money, isLeft),
                       _moneyText("자산", totalMoney, isLeft),
                     ],
