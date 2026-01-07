@@ -57,8 +57,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경
-    // socket = IO.io('http://localhost:3000',
-    socket = IO.io('http://10.0.2.2:3000',
+    socket = IO.io('http://localhost:3000',
+    // socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -119,31 +119,45 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   Future<void> _animateMovement(int playerIndex, int steps, bool isDouble) async {
     setState(() => _isMoving = true);
 
+    String userKey = 'user$playerIndex';
+    // 1. 현재 클라이언트 화면에 표시되고 있는 말의 위치
+    int currentPosInUI = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
+
+    // 2. 만약 서버에서 steps를 0으로 보냈다면(여행 등), 실제 이동해야 할 칸 수 계산
+    int actualSteps = steps;
     if (steps == 0) {
-      // 💡 여행/찬스카드 등 점프 이동 처리
-      // 서버가 이미 update_state를 보냈을 것이므로 gameState의 최신 위치를 반영
-    } else {
-      // 기존 주사위 이동 로직 (for문)
-      for (int i = 0; i < steps; i++) {
-        await Future.delayed(const Duration(milliseconds: 250));
-        if (!mounted) return;
-        setState(() {
-          String userKey = 'user$playerIndex';
-          int currentPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
-          gameState!['users'][userKey]['position'] = (currentPos + 1) % 28;
-        });
+      // 서버가 준 최종 목적지(gameState에 이미 반영된 값)
+      int finalTargetPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
+      // 현재 위치에서 목적지까지 시계방향으로 몇 칸인지 계산
+      actualSteps = (finalTargetPos - currentPosInUI + 28) % 28;
+
+      // 이미 목적지에 있다면 애니메이션 생략
+      if (actualSteps == 0) {
+        setState(() => _isMoving = false);
+        return;
       }
+    }
+
+    // 3. 애니메이션 시작 (실제 계산된 actualSteps만큼 반복)
+    for (int i = 0; i < actualSteps; i++) {
+      await Future.delayed(const Duration(milliseconds: 250));
+      if (!mounted) return;
+
+      setState(() {
+        // 화면상의 위치를 한 칸씩 전진
+        currentPosInUI = (currentPosInUI + 1) % 28;
+        gameState!['users'][userKey]['position'] = currentPosInUI;
+      });
     }
 
     setState(() => _isMoving = false);
 
-    // 💡 [중요] 이동이 끝났으니 서버에 알림 (이래야 서버가 다음 액션이나 턴을 진행함)
+    // 4. 이동 완료 보고 (내 캐릭터일 때만)
     if (playerIndex == myIndex) {
-      int finalPos = int.tryParse(gameState!['users']['user$myIndex']['position']?.toString() ?? '0') ?? 0;
       socket.emit('move_complete', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,
-        'finalPos': finalPos,
+        'finalPos': currentPosInUI, // 최종 도달 위치
         'isDouble': isDouble,
       });
     }
@@ -163,8 +177,10 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       await _handleTaxEvent(data, isDouble);
     } else if (type == 'festival_event') {
       _handleHighlightAction("festival", isDouble);
-    } else if (type == 'travel_event') {
-      _handleHighlightAction("trip", isDouble);
+    } else if (type == 'travel_select') {
+      // 여행지 선택 하이라이트 실행
+      // isDouble은 false로 전달 (여행 이동 후에는 보통 턴이 종료되므로)
+      _handleHighlightAction("trip", false);
     } else if (type == 'start_event') {
       await _showSimpleDialog("출발지에 도착했습니다!\n원하는 내 땅을 무료로 업그레이드 하세요.");
       _handleHighlightAction("start", isDouble);
@@ -473,24 +489,12 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (event == "priceDown") {
       updateData['board']['b$index'] = {'multiply': 0.5};
     } else if (event == "trip") {
-      int currentPos = int.tryParse(gameState!['users']['user$myIndex']['position']?.toString() ?? '0') ?? 0;
-
-      // 💡 월급 로직: 현재 위치보다 index(목적지)가 작으면 한 바퀴 돈 것으로 간주 (0번 경유)
-      // 단, 0번으로 직접 가는 경우는 제외하거나 규칙에 따라 설정
-      if (index < currentPos && index != 0) {
-        int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
-        int salary = 1000000; // 월급 금액
-        updateData['money'] = currentMoney + salary;
-        await _showSimpleDialog("출발지를 통과하여 월급 100만원을 받았습니다!");
-      }
-
       socket.emit('travel_move', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,
         'targetPos': index,
-        'updateData': updateData, // 돈 변화 등 추가 정보
-        'isDouble': _pendingIsDouble
       });
+
       _pendingIsDouble = false;
       return;
 
@@ -562,7 +566,12 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     if (actionResult == "d_island" || actionResult == "d_rest") nextIsDouble = false;
 
     switch (actionResult) {
-      case "c_trip": _handleHighlightAction("trip", nextIsDouble); return;
+      case "c_trip":
+        socket.emit('reserve_travel', {
+          'roomId': widget.roomId,
+          'playerIndex': myIndex,
+        });
+        return;
       case "c_start": myUpdate['position'] = 0; break;
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
