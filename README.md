@@ -29,7 +29,7 @@
 ## 🖼️ 주요 화면 미리보기 (Screenshots)
 
 ### 1️⃣ 접속 및 멀티플레이 환경 (Auth & Multiplayer)
-| **메인 로비 & 호패 프로필** | **온라인 방 목록 및 대기실** |
+| **메인 로비 & 로그인** | **온라인 방 목록 및 대기실** |
 | :---: | :---: |
 | <img src="assets/screenshots/lobby.png" width="400"> | <img src="assets/screenshots/online_list.png" width="400"> |
 | *소셜 로그인 기반 통합 세션 및 프로필* | *실시간 소켓 통신을 통한 방 생성 및 입장* |
