@@ -17,17 +17,17 @@ class QuizDialog extends StatefulWidget {
   State<QuizDialog> createState() => _QuizDialogState();
 }
 
-class _QuizDialogState extends State<QuizDialog>
-    with TickerProviderStateMixin {
-  int remainingSeconds = 40;
+class _QuizDialogState extends State<QuizDialog> with TickerProviderStateMixin {
+  late final ValueNotifier<int> _remainingSecondsNotifier;
   Timer? _timer;
 
-  late AnimationController _unrollController;
-  late Animation<double> _unrollAnimation;
+  late final AnimationController _unrollController;
+  late final Animation<double> _unrollAnimation;
 
   @override
   void initState() {
     super.initState();
+    _remainingSecondsNotifier = ValueNotifier<int>(40);
 
     _unrollController = AnimationController(
       vsync: this,
@@ -42,12 +42,14 @@ class _QuizDialogState extends State<QuizDialog>
     _unrollController.forward();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (remainingSeconds <= 1) {
+      if (_remainingSecondsNotifier.value <= 1) {
         t.cancel();
-        Navigator.pop(context);
-        widget.onQuizFinished(-1, false);
+        if (mounted) {
+          Navigator.of(context).pop();
+          widget.onQuizFinished(-1, false);
+        }
       } else {
-        setState(() => remainingSeconds--);
+        _remainingSecondsNotifier.value--;
       }
     });
   }
@@ -55,6 +57,7 @@ class _QuizDialogState extends State<QuizDialog>
   @override
   void dispose() {
     _timer?.cancel();
+    _remainingSecondsNotifier.dispose();
     _unrollController.dispose();
     super.dispose();
   }
@@ -62,69 +65,50 @@ class _QuizDialogState extends State<QuizDialog>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-
     final double fullWidth = min(size.width - 80, 800.0);
     final double fullHeight = size.height * 0.85;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-      child: Stack(
-        children: [
-          Center(
-            child: AnimatedBuilder(
-              animation: _unrollAnimation,
-              builder: (context, child) {
-                final currentWidth = _unrollAnimation.value * fullWidth;
-                return Stack(
-                  alignment: Alignment.centerLeft,
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: currentWidth,
-                      height: fullHeight,
-                      clipBehavior: Clip.hardEdge,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFDF5E6),
-                        border: const Border.symmetric(
-                          vertical: BorderSide(color: Color(0xFF3E2723), width: 12),
-                          horizontal: BorderSide(color: Color(0xFF5D4037), width: 4),
-                        ),
-                      ),
-                      child: OverflowBox(
-                        minWidth: fullWidth,
-                        maxWidth: fullWidth,
-                        minHeight: fullHeight,
-                        maxHeight: fullHeight,
-                        alignment: Alignment.centerLeft,
-                        child: child,
-                      ),
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _unrollAnimation,
+          builder: (context, child) {
+            final currentWidth = _unrollAnimation.value * fullWidth;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: currentWidth,
+                  height: fullHeight,
+                  clipBehavior: Clip.hardEdge,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFDF5E6),
+                    border: Border.symmetric(
+                      vertical: BorderSide(color: Color(0xFF3E2723), width: 12),
+                      horizontal: BorderSide(color: Color(0xFF5D4037), width: 4),
                     ),
-                    Positioned(
-                      left: currentWidth - 12,
-                      child: _buildScrollHandle(fullHeight),
-                    ),
-                  ]
-                );
-              },
-              child: Container(
-                width: fullWidth,
-                height: fullHeight,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFDF5E6),
-                  border: const Border.symmetric(
-                    vertical:
-                    BorderSide(color: Color(0xFF3E2723), width: 12),
-                    horizontal:
-                    BorderSide(color: Color(0xFF5D4037), width: 4),
+                  ),
+                  child: OverflowBox(
+                    minWidth: fullWidth,
+                    maxWidth: fullWidth,
+                    minHeight: fullHeight,
+                    maxHeight: fullHeight,
+                    alignment: Alignment.centerLeft,
+                    child: child,
                   ),
                 ),
-                clipBehavior: Clip.hardEdge,
-                child: _buildContent(context),
-              ),
-            ),
-          ),
-        ],
+                Positioned(
+                  left: currentWidth - 12,
+                  child: _buildScrollHandle(fullHeight),
+                ),
+              ],
+            );
+          },
+          child: _buildContent(context),
+        ),
       ),
     );
   }
@@ -162,37 +146,30 @@ class _QuizDialogState extends State<QuizDialog>
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 30, 4),
       color: const Color(0xFF5D4037),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
             "대한민국 문화재 퀴즈",
-            style: TextStyle(
-              color: Color(0xFFFFD700),
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
             child: Row(
               children: [
-                const Icon(Icons.timer_outlined,
-                    color: Colors.white, size: 14),
+                const Icon(Icons.timer_outlined, color: Colors.white, size: 14),
                 const SizedBox(width: 4),
-                Text(
-                  "$remainingSeconds초",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
+                ValueListenableBuilder<int>(
+                  valueListenable: _remainingSecondsNotifier,
+                  builder: (context, seconds, _) {
+                    return Text(
+                      "${seconds}초",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    );
+                  },
                 ),
               ],
             ),
@@ -209,26 +186,19 @@ class _QuizDialogState extends State<QuizDialog>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 6,
-            offset: const Offset(2, 2),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6, offset: const Offset(2, 2)),
         ],
         gradient: const LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
-          colors: [
-            Color(0xFF3E2723),
-            Color(0xFF8D6E63),
-            Color(0xFF3E2723),
-          ],
+          colors: [Color(0xFF3E2723), Color(0xFF8D6E63), Color(0xFF3E2723)],
         ),
       ),
     );
   }
 
   Widget _imageBox() {
+    final imgUrl = widget.question.imageUrl;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -237,18 +207,13 @@ class _QuizDialogState extends State<QuizDialog>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: widget.question.imageUrl != null &&
-            widget.question.imageUrl!.isNotEmpty
+        child: (imgUrl != null && imgUrl.isNotEmpty)
             ? Image.network(
-          widget.question.imageUrl!,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
-          const Center(child: Text("이미지 없음")),
-        )
-            : const Center(
-          child: Icon(Icons.account_balance_rounded,
-              size: 48, color: Color(0xFFD4C4A8)),
-        ),
+                imgUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Center(child: Text("이미지 없음")),
+              )
+            : const Center(child: Icon(Icons.account_balance_rounded, size: 48, color: Color(0xFFD4C4A8))),
       ),
     );
   }
@@ -259,35 +224,30 @@ class _QuizDialogState extends State<QuizDialog>
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.6),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-            color: const Color(0xFF5D4037).withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFF5D4037).withOpacity(0.2)),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Text(
           widget.question.question,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            height: 1.3,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, height: 1.3),
         ),
       ),
     );
   }
 
   Widget _choicesGrid(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      childAspectRatio: 3.4,
-      physics: const NeverScrollableScrollPhysics(),
-      children: List.generate(
-        widget.question.choices.length,
-            (i) => _choiceButton(context, i, widget.question.choices[i]),
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 3.4,
       ),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: widget.question.choices.length,
+      itemBuilder: (context, i) => _choiceButton(context, i, widget.question.choices[i]),
     );
   }
 
@@ -307,8 +267,7 @@ class _QuizDialogState extends State<QuizDialog>
               width: 24,
               color: const Color(0xFF5D4037),
               alignment: Alignment.center,
-              child: Text("${index + 1}",
-                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+              child: Text("${index + 1}", style: const TextStyle(color: Colors.white, fontSize: 12)),
             ),
             Expanded(
               child: Padding(
@@ -330,25 +289,20 @@ class _QuizDialogState extends State<QuizDialog>
     );
   }
 
-  void _showSubmitDialog(
-      BuildContext context, int selectedIndex, String answerText) {
+  void _showSubmitDialog(BuildContext context, int selectedIndex, String answerText) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("답안 제출"),
         content: Text("선택하신 답: $answerText\n\n제출하시겠습니까?"),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("취소"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
           ElevatedButton(
             onPressed: () {
-              final isCorrect =
-                  selectedIndex == widget.question.correctIndex;
+              final isCorrect = selectedIndex == widget.question.correctIndex;
               _timer?.cancel();
-              Navigator.pop(context);
-              Navigator.pop(context);
+              Navigator.pop(context); // 제출창 닫기
+              Navigator.pop(context); // 퀴즈창 닫기
               widget.onQuizFinished(selectedIndex, isCorrect);
             },
             child: const Text("제출"),
