@@ -6,6 +6,7 @@ class PlayerInfoPanel extends StatelessWidget {
   final Color color;
   final String name; // "user1", "user2" ...
   final String? moneyEffect; // "+300000" 같은 이펙트 텍스트
+  final VoidCallback? onTap; // ✅ 추가
 
   const PlayerInfoPanel({
     super.key,
@@ -14,6 +15,7 @@ class PlayerInfoPanel extends StatelessWidget {
     required this.color,
     required this.name,
     this.moneyEffect,
+    this.onTap, // ✅ 추가
   });
 
   // 숫자에 콤마 찍기 (내부용)
@@ -106,55 +108,58 @@ class PlayerInfoPanel extends StatelessWidget {
               top: 10, bottom: 0,
               left: isLeft ? 0 : 25,
               right: isLeft ? 25 : 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    // 파산 시 어두운 색
-                    colors: isBankrupt
-                        ? [Colors.grey.shade800, Colors.black]
-                        : [color.withOpacity(0.9), color.withOpacity(0.6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: panelBorderRadius,
-                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
-                  border: Border.all(
-                      color: isBankrupt ? Colors.grey.withOpacity(0.3) : Colors.white.withOpacity(0.6),
-                      width: 1.5
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: isLeft ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // 💡 [복구됨] 오른쪽 패널일 때 이름 위치를 잡기 위한 로직
-                        if (!isLeft && isDoubleToll) const SizedBox(width: 1),
-                        if (!isLeft && isDoubleToll) _buildDoubleBadge(),
-                        // 아래 줄이 핵심입니다: 배지가 없을 때도 빈 박스를 넣어 spaceBetween으로 이름을 끝으로 밈
-                        if (!isLeft && !isDoubleToll) const SizedBox(width: 1),
-
-                        Text(
-                          displayName,
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              // 파산 시 텍스트 어둡게
-                              color: isBankrupt ? Colors.grey.shade600 : Colors.white,
-                              fontSize: 12
-                          ),
-                        ),
-
-                        if (isLeft && isDoubleToll) _buildDoubleBadge(),
-                        if (isLeft && isDoubleToll) const SizedBox(width: 1)
-                      ],
+              child: GestureDetector( // ✅ 추가
+                onTap: onTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      // 파산 시 어두운 색
+                      colors: isBankrupt
+                          ? [Colors.grey.shade800, Colors.black]
+                          : [color.withOpacity(0.9), color.withOpacity(0.6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const SizedBox(height: 4),
-                    _moneyText("현금", money, isLeft),
-                    _moneyText("자산", totalMoney, isLeft),
-                  ],
+                    borderRadius: panelBorderRadius,
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
+                    border: Border.all(
+                        color: isBankrupt ? Colors.grey.withOpacity(0.3) : Colors.white.withOpacity(0.6),
+                        width: 1.5
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: isLeft ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // 💡 [복구됨] 오른쪽 패널일 때 이름 위치를 잡기 위한 로직
+                          if (!isLeft && isDoubleToll) const SizedBox(width: 1),
+                          if (!isLeft && isDoubleToll) _buildDoubleBadge(),
+                          // 아래 줄이 핵심입니다: 배지가 없을 때도 빈 박스를 넣어 spaceBetween으로 이름을 끝으로 밈
+                          if (!isLeft && !isDoubleToll) const SizedBox(width: 1),
+
+                          Text(
+                            displayName,
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                // 파산 시 텍스트 어둡게
+                                color: isBankrupt ? Colors.grey.shade600 : Colors.white,
+                                fontSize: 12
+                            ),
+                          ),
+
+                          if (isLeft && isDoubleToll) _buildDoubleBadge(),
+                          if (isLeft && isDoubleToll) const SizedBox(width: 1)
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      _moneyText("현금", money, isLeft),
+                      _moneyText("자산", totalMoney, isLeft),
+                    ],
+                  ),
                 ),
               ),
             ),

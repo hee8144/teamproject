@@ -22,6 +22,7 @@
   import '../Popup/Detail.dart';
   import '../Popup/CardUse.dart';
   import '../Popup/check.dart';
+  import '../Popup/PlayerDetailPopup.dart'; // ✅ 추가
   import '../quiz/quiz_repository.dart';
   import '../quiz/quiz_question.dart';
   import '../quiz/quiz_dialog.dart';
@@ -867,6 +868,39 @@
     Future<void> _readPlayer() async{ final snap = await fs.collection("games").doc("users").get(); setState(() { players = snap.data() ?? {}; }); }
     Future<void> _readLocal() async{ final snap = await fs.collection("games").doc("board").get(); if(snap.exists && snap.data() != null){ if(mounted) { setState(() { boardList = snap.data() as Map<String, dynamic>; }); } } }
 
+    // ================= 플레이어 상세 정보창 팝업 함수 추가 =================
+    void _showPlayerDetail(String key, Color color) {
+      showDialog(
+        context: context,
+        builder: (context) => PlayerDetailPopup(
+          playerKey: key,
+          playerData: players[key] ?? {},
+          boardData: boardList,
+          playerColor: color,
+        ),
+      );
+    }
+
+    // ================= 종료 확인 다이얼로그 함수 =================
+    Future<void> _showExitDialog() async {
+      bool? exit = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("게임 종료", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5D4037))),
+          content: const Text("게임을 종료하고 메인 화면으로 돌아가시겠습니까?\n현재 진행 상황은 저장되지 않습니다."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("취소", style: TextStyle(color: Colors.grey))),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("종료", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+          ],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          backgroundColor: const Color(0xFFFDF5E6),
+        ),
+      );
+      if (exit == true && mounted) {
+        context.go('/main');
+      }
+    }
+
     void _showStartDialog(String localName) {
       if (!mounted) return;
       showDialog(context: context, barrierDismissible: false, builder: (BuildContext context) {
@@ -917,9 +951,15 @@
       final double boardSize = screenHeight * 0.9;
       final double tileSize = boardSize / 8;
 
-      return Scaffold(
-        backgroundColor: Colors.grey[900],
-        body: Center(
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          await _showExitDialog();
+        },
+        child: Scaffold(
+          backgroundColor: Colors.grey[900],
+          body: Center(
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -986,10 +1026,10 @@
                   ],
                 ),
               ),
-              PlayerInfoPanel(alignment: Alignment.bottomRight, playerData: players['user1'] ?? {}, color: Colors.red, name: "user1", moneyEffect: _moneyEffects["user1"]),
-              PlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'] ?? {}, color : Colors.blue, name : "user2", moneyEffect: _moneyEffects["user2"]),
-              PlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'] ?? {}, color: Colors.green, name : "user3", moneyEffect: _moneyEffects["user3"]),
-              PlayerInfoPanel(alignment: Alignment.topRight, playerData: players['user4'] ?? {}, color : Colors.purple, name : "user4", moneyEffect: _moneyEffects["user4"]),
+              PlayerInfoPanel(alignment: Alignment.bottomRight, playerData: players['user1'] ?? {}, color: Colors.red, name: "user1", moneyEffect: _moneyEffects["user1"], onTap: () => _showPlayerDetail("user1", Colors.red)),
+              PlayerInfoPanel(alignment: Alignment.topLeft, playerData: players['user2'] ?? {}, color : Colors.blue, name : "user2", moneyEffect: _moneyEffects["user2"], onTap: () => _showPlayerDetail("user2", Colors.blue)),
+              PlayerInfoPanel(alignment: Alignment.bottomLeft, playerData: players['user3'] ?? {}, color: Colors.green, name : "user3", moneyEffect: _moneyEffects["user3"], onTap: () => _showPlayerDetail("user3", Colors.green)),
+              PlayerInfoPanel(alignment: Alignment.topRight, playerData: players['user4'] ?? {}, color : Colors.purple, name : "user4", moneyEffect: _moneyEffects["user4"], onTap: () => _showPlayerDetail("user4", Colors.purple)),
 
               // 나가기 버튼
               Positioned(
@@ -1061,6 +1101,7 @@
             ],
           ),
         ),
-      );
-    }
+      ),
+    );
   }
+}
