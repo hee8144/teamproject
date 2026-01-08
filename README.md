@@ -20,7 +20,7 @@
 |                   이름                   | 역할 | 담당 업무                              |            연락처            |
 |:--------------------------------------:|:--:|:-----------------------------------|:-------------------------:|
 | [**유희연**](https://github.com/hee8144)  | 팀장 | -                                  |   ✉️ email@example.com    |
-|  [**정은성**](https://github.com/kkomi211)  | 팀원 | -                                  |   ✉️ email@example.com    |
+|  [**정은성**](https://github.com/kkomi211)  | 팀원 | 문화재 api 통합, 비회원 게임 기능 구현, 위젯 통합, 온라인 게임 기능 구현 |   ✉️ cutybaby8024@gmail.com    |
 |  [**조원정**](https://github.com/dragonstudy9)  | 팀원 | 메인 화면, 게임 규칙 설명, 게임 대기방, 게임 결과 화면 구현 | ✉️ dragonstudy9@gmail.com |
 | [**이민형**](https://github.com/narang06) | 팀원 | 찬스 카드 및 퀴즈 로직 설계 및 구현 , 로그인 시스템 구현 | ✉️ sinso5281532@gmail.com |
 
@@ -98,13 +98,14 @@ lib/
 ## 📜 발표 PPT
 
 ---
-
+[PPT](https://www.canva.com/design/DAG9t7pBUUY/z-FXVDM7JWnX0oS6_LhDgw/edit)
 ---
 ## 🎬 시연 영상
 
 ---
 
 ## 📂 기타 산출물 링크
-
+---
+[서버](https://github.com/hee8144/teamproject_server)
 ---
 © 2026 Cultural Heritage Marble Team. All rights reserved.
