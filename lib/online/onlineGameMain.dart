@@ -586,6 +586,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (event == "priceDown") {
       updateData['board']['b$index'] = {'multiply': 0.5};
     } else if (event == "trip") {
+      setState(() => isActionActive = false);
+
       socket.emit('travel_move', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,

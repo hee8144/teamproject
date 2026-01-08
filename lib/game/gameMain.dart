@@ -1095,7 +1095,7 @@
                         width: boardSize * 0.75, height: boardSize * 0.75,
                         decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
                         child: _highlightOwner == null
-                            ? (_isMoving ? const SizedBox() : DiceApp(key: diceAppKey, turn: currentTurn, totalTurn: totalTurn, isBot: (players["user$currentTurn"]?["type"] == "B"), onRoll: (int v1, int v2) => _onDiceRoll(v1, v2)))
+                            ? (_isMoving   ? const SizedBox() : DiceApp(key: diceAppKey, turn: currentTurn, totalTurn: totalTurn, isBot: (players["user$currentTurn"]?["type"] == "B"), onRoll: (int v1, int v2) => _onDiceRoll(v1, v2)))
                             : _showEventDialog(),
                       ),
                     ),
