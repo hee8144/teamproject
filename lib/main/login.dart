@@ -185,28 +185,26 @@ class LoginScreen extends StatelessWidget {
             endColor: const Color(0xFFFFCC80),
             borderColor: const Color(0xFFA1887F),
             onTap: () async {
-              // if (isAutoLoginReady) {
-              //   // ✅ 자동 로그인 정보가 있으면 닉네임 가져와서 인사 후 입장
-              //   final String? uid = AuthService.instance.currentUid;
-              //   if (uid != null) {
-              //     final String nickname = await AuthService.instance.getNickname(uid);
-              //     Fluttertoast.showToast(
-              //       msg: "🏯 $nickname님, 다시 오신 것을 환영합니다!",
-              //       gravity: ToastGravity.TOP,
-              //       backgroundColor: const Color(0xFF5D4037),
-              //       textColor: Colors.white,
-              //     );
-              //   }
-              //   context.go('/onlinemain');
-              // } else {
-              //   // ❌ 없으면 기존처럼 다이얼로그 표시
-              //   showDialog(
-              //     context: context,
-              //     builder: (context) => const LoginDialog(),
-              //   );
-              // }
-              context.go('/onlinemain');
-
+              if (isAutoLoginReady) {
+                // ✅ 자동 로그인 정보가 있으면 닉네임 가져와서 인사 후 입장
+                final String? uid = AuthService.instance.currentUid;
+                if (uid != null) {
+                  final String nickname = await AuthService.instance.getNickname(uid);
+                  Fluttertoast.showToast(
+                    msg: "🏯 $nickname님, 다시 오신 것을 환영합니다!",
+                    gravity: ToastGravity.TOP,
+                    backgroundColor: const Color(0xFF5D4037),
+                    textColor: Colors.white,
+                  );
+                }
+                context.go('/onlinemain');
+              } else {
+                // ❌ 없으면 기존처럼 다이얼로그 표시
+                showDialog(
+                  context: context,
+                  builder: (context) => const LoginDialog(),
+                );
+              }
             },
           ),
           const SizedBox(height: 10),

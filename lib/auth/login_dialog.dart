@@ -135,21 +135,21 @@ class _LoginDialogState extends State<LoginDialog> {
             const SizedBox(height: 6),
             if (!isLoginMode) ...[
               TextField(controller: _nicknameCtrl, decoration: _inputDeco("닉네임", Icons.face)),
-              const SizedBox(height: 6),
+              const SizedBox(height: 5),
             ],
             TextField(controller: _emailCtrl, decoration: _inputDeco("이메일 주소", Icons.email), keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             TextField(controller: _pwCtrl, decoration: _inputDeco("비밀번호", Icons.lock), obscureText: true),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             isLoading
                 ? const SizedBox(height: 34, child: Center(child: CircularProgressIndicator(color: Colors.brown, strokeWidth: 2)))
-                : SizedBox(width: double.infinity, height: 32,
+                : SizedBox(width: double.infinity, height: 30,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5D4037)),
                       onPressed: _submit,
                       child: Text(isLoginMode ? "로그인하기" : "가입하기", style: const TextStyle(color: Colors.white, fontSize: 14)),
                     )),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
