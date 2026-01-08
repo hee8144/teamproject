@@ -47,6 +47,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   // 주사위 제어 키
   final GlobalKey<onlineDiceAppState> diceAppKey = GlobalKey<onlineDiceAppState>();
+  bool isActionActive = false;
 
   @override
   void initState() {
@@ -61,8 +62,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경
-    socket = IO.io('http://localhost:3000',
-    // socket = IO.io('http://10.0.2.2:3000',
+    // socket = IO.io('http://localhost:3000',
+    socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -382,7 +383,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
       if (confirmTakeover == true) {
         int playerLevel = int.tryParse(gameState!['users']['user$myIndex']['level']?.toString() ?? '1') ?? 1;
-        int takeoverCost = (tileData['tollPrice'] ?? 0) * 2;
+        int takeoverCost = (tileData['tollPrice'] ?? 0);
         int currentTotalMoneyAfterToll = myTotalMoney - toll;
 
         // 자산은 인수 비용의 절반만큼 차감 (인수비용=2배, 자산가치=1배)
@@ -449,7 +450,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   // --- 하이라이트 이벤트 ---
   Future<void> _handleHighlightAction(String type, bool isDouble) async {
     bool hasTarget = false;
-
+    isActionActive = true;
     gameState!['board'].forEach((key, val) {
       int owner = int.tryParse(val['owner']?.toString() ?? '0') ?? 0;
       if (type == "festival" || type == "priceDown" || type == "start") {
@@ -464,6 +465,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     if (!hasTarget) {
       await _showSimpleDialog(type == "festival" ? "선택할 내 땅이 없습니다!" : "선택할 상대 땅이 없습니다!");
       _completeAction({}, isDouble: isDouble);
+      isActionActive = false;
       return;
     }
 
@@ -493,6 +495,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         },
       );
     }
+    isActionActive = false;
   }
 
   Widget _showEventDialog() {
@@ -798,26 +801,26 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           children: [
             Container(width: double.infinity, height: double.infinity,
                 decoration: const BoxDecoration(image: DecorationImage(image: AssetImage('assets/board-background.PNG'), fit: BoxFit.cover))),
-
             SizedBox(
               width: boardSize, height: boardSize,
               child: Stack(
                 children: [
-                  Center(
-                    child: Container(
-                      width: boardSize * 0.75, height: boardSize * 0.75,
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                      child: onlineDiceApp(
-                        key: diceAppKey,
-                        turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
-                        totalTurn: gameState!['totalTurn'] ?? 20,
-                        isBot: false,
-                        onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
-                        isOnline: true,
-                        isMyTurn: isMyTurn,
+                  if(!isActionActive)
+                    Center(
+                      child: Container(
+                        width: boardSize * 0.75, height: boardSize * 0.75,
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                        child: onlineDiceApp(
+                          key: diceAppKey,
+                          turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
+                          totalTurn: gameState!['totalTurn'] ?? 20,
+                          isBot: false,
+                          onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
+                          isOnline: true,
+                          isMyTurn: isMyTurn,
+                        ),
                       ),
                     ),
-                  ),
                   ...List.generate(28, (index) => _buildGameTile(index, tileSize)),
                   ...List.generate(4, (index) => _buildAnimatedPlayer(index, tileSize)),
                 ],
