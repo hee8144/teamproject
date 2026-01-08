@@ -61,7 +61,16 @@ final GoRouter router = GoRouter(
       },
     ),
 
-    GoRoute(path: '/gameRule', builder: (context, state) => GameRulePage()),
+    GoRoute(
+      path: '/gameRule',
+      builder: (context, state) {
+        // extra로 전달된 값 받기 (Map 형태 권장)
+        final data = (state.extra as Map<String, dynamic>?) ?? {};
+        final String fromPage = data['fromPage'] ?? 'unknown';
+
+        return GameRulePage(fromPage: fromPage); // ✅ GameRulePage에 값 전달
+      },
+    ),
     GoRoute(path: '/gameWaitingRoom', builder: (context, state) => GameWaitingRoom()),
 
     GoRoute(
