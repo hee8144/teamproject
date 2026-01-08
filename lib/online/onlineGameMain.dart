@@ -820,7 +820,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               width: boardSize, height: boardSize,
               child: Stack(
                 children: [
-                  if( !isActionActive || !_isMoving)
+                  if( !isActionActive && !_isMoving)
                     Center(
                       child: Container(
                         width: boardSize * 0.75, height: boardSize * 0.75,
