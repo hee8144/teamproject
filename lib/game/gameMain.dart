@@ -22,14 +22,15 @@
   import '../Popup/Detail.dart';
   import '../Popup/CardUse.dart';
   import '../Popup/check.dart';
-  import '../Popup/PlayerDetailPopup.dart'; // ✅ 추가
+  import '../Popup/PlayerDetailPopup.dart';
   import '../quiz/quiz_repository.dart';
   import '../quiz/quiz_question.dart';
   import '../quiz/quiz_dialog.dart';
   import '../quiz/quiz_result_popup.dart';
   import '../quiz/chance_card_quiz_after.dart';
   import '../quiz/DiscountQuizManager.dart';
-  import '../widgets/loading_screen.dart'; // ✅ 추가
+  import '../widgets/loading_screen.dart';
+  import 'logic/game_log_manager.dart';
 
   class GameMain extends StatefulWidget {
     const GameMain({super.key});
@@ -41,6 +42,7 @@
   class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
     FirebaseFirestore fs = FirebaseFirestore.instance;
     final HeritageRepository _heritageRepo = HeritageRepository();
+    final GameLogManager _logManager = GameLogManager(); // 로그 매니저
 
     StreamSubscription<DocumentSnapshot>? _boardStream;
 
@@ -137,6 +139,11 @@
     }
 
     Future<void> _onDiceRoll(int val1, int val2) async {
+      //-- 로그 기록 --
+      int currentTurnNum = 21 - totalTurn;
+      int diceSum = val1 + val2;
+      _logManager.startTurnLog(currentTurnNum, diceSum);
+      //-------------------
       bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
       if (isTraveling) {
         setState(() { players["user$currentTurn"]["isTraveling"] = false; });
@@ -151,11 +158,13 @@
         bool isDouble = (val1 == val2);
         if (isDouble) {
           print("🎲 더블! 무인도 탈출 성공!");
+          _logManager.addActionLog("더블! 무인도 탈출 성공 🎉");
           await fs.collection("games").doc("users").update({ "user$currentTurn.islandCount": 0 });
           setState(() { players["user$currentTurn"]["islandCount"] = 0; });
           movePlayer(val1 + val2, currentTurn, false);
         } else {
           print("🎲 더블 아님. 무인도 잔류.");
+          _logManager.addActionLog("탈출 실패 (남은 횟수: ${islandCount - 1})");
           int newCount = islandCount - 1;
           await fs.collection("games").doc("users").update({ "user$currentTurn.islandCount": newCount });
           setState(() { players["user$currentTurn"]["islandCount"] = newCount; });
@@ -204,6 +213,10 @@
       int restCount = players["user$currentTurn"]["restCount"] ?? 0;
 
       if (restCount > 0) {
+        int currentTurnNum = 21 - totalTurn;
+        _logManager.startTurnLog(currentTurnNum, 0); // 주사위 0
+        _logManager.addActionLog("💤 한 턴 쉬어갑니다.");
+        
         await fs.collection("games").doc("users").update({ "user$currentTurn.restCount": 0 });
         setState(() { players["user$currentTurn"]["restCount"] = 0; });
 
@@ -247,6 +260,7 @@
           if(players["user$currentTurn"]["card"] == "escape"){
             final result = await showDialog(context: context, useSafeArea: false, builder: (context)=>CardUseDialog(user: currentTurn));
             if(result) {
+              _logManager.addActionLog("🎫 무인도 탈출권 사용 (탈출 성공!)");
               fs.collection("games").doc("users").update({ "user$currentTurn.card" : "N" });
               await _readPlayer();
               return;
@@ -318,6 +332,9 @@
         await _readPlayer(); await rankChange(); setState(() {}); _handleTurnEnd();
 
       } else if(event == "festival"){
+        String targetName = boardList["b$index"]?['name'] ?? "알 수 없음";
+        _logManager.addActionLog("🎉 $targetName에 축제 개최");
+        
         if(itsFestival != 0){
           await fs.collection("games").doc("board").update({"b$itsFestival.isFestival" : false});
         }
@@ -330,13 +347,21 @@
           setState(() { players["user$_eventPlayer"]["isTraveling"] = false; });
           await fs.collection("games").doc("users").update({ "user$_eventPlayer.isTraveling": false });
         }
+        // ...
+        int currentTurnNum = 21 - totalTurn;
+        _logManager.startTurnLog(currentTurnNum, 0); 
+        _logManager.addActionLog("✈️ 세계여행으로 이동");
         _movePlayerTo(index, _eventPlayer);
 
       } else if (event == "earthquake" || event == "storm") {
+        String targetName = boardList["b$index"]?['name'] ?? "알 수 없음";
+        _logManager.addActionLog("📉 $targetName 공격 ($event)");
         await _executeEarthquake(index);
         _handleTurnEnd();
 
       } else if (event == "priceDown") {
+        String targetName = boardList["b$index"]?['name'] ?? "알 수 없음";
+        _logManager.addActionLog("🏷️ $targetName 통행료 할인");
         await fs.collection("games").doc("board").update({ "b$index.multiply": 0.5 });
         setState(() { if(boardList["b$index"] != null) boardList["b$index"]["multiply"] = 0.5; });
         _handleTurnEnd();
@@ -479,6 +504,7 @@
               players["user$player"]["money"] = currentMoney + salary; players["user$player"]["totalMoney"] = currentTotalMoney + salary;
             });
           }
+          _logManager.addActionLog("💵 출발지 통과 (월급 +${_formatMoney(salary)})");
           _triggerMoneyEffect("user$player", salary);
         }
         setState(() { players["user$player"]["position"] = tempPos % 28; });
@@ -489,6 +515,10 @@
       await fs.collection("games").doc("users").update({"user$player.position": changePosition});
 
       String tileKey = "b$changePosition";
+      // -- 로그 기록용(도착한 곳) ---
+      String landName = boardList[tileKey]?['name'] ?? "알 수 없음";
+      _logManager.setArrivalLog(landName);
+      // -------------------------------
       bool forceNextTurn = false;
 
       if(boardList[tileKey] != null && boardList[tileKey]["type"] == "land"){
@@ -509,6 +539,10 @@
                   builder: (context) { return ConstructionDialog(user: player, buildingId: changePosition); }
               );
               if (result != null && result is Map) {
+                int level = result['level'] ?? 1;
+                String levelText = (level >= 4) ? "랜드마크" : "$level단계";
+                _logManager.addActionLog("🏛️ $levelText 업그레이드");
+                
                 setState(() {
                   if (boardList[tileKey] == null) boardList[tileKey] = {};
                   boardList[tileKey]["level"] = result["level"];
@@ -536,6 +570,7 @@
             final bool? useShield = await showDialog(context: context, useSafeArea: false, barrierDismissible: false, builder: (context) => CardUseDialog(user: player, tollPrice: finalToll));
             if(useShield == true){
               isShieldUsed = true;
+              _logManager.addActionLog("🛡️ VIP 카드 사용 (통행료 면제)");
               await fs.collection("games").doc("users").update({ "user$player.card" : "N" });
               setState(() { players["user$player"]["card"] = "N"; });
             }
@@ -544,6 +579,9 @@
             bool quizResult = await DiscountQuizManager.startDiscountQuiz(context, "통행료");
             if (quizResult) {
               finalToll = (finalToll / 2).round();
+              _logManager.addActionLog("💡 찬스 퀴즈 정답! 통행료 50% 할인 🎉");
+            } else {
+              _logManager.addActionLog("❌ 찬스 퀴즈 오답... 할인 실패");
             }
           }
 
@@ -551,6 +589,8 @@
           int myMoney = players["user$player"]["money"];
 
           if(finalToll > 0) {
+            _logManager.addActionLog("💸 통행료 지불 (-${_formatMoney(finalToll)}) → user$owner");
+            
             if(myMoney - finalToll < 0){
               bool isBankrupt = false;
               if (playerType == 'B') {
@@ -563,6 +603,9 @@
               }
 
               if (isBankrupt) {
+                _logManager.addActionLog("💀 파산하였습니다! 모든 자산을 처분합니다.");
+                _logManager.addLog("user$owner", "🎊 상대방(user$player)이 파산하여 보상금을 획득했습니다!");
+
                 // 파산 처리 로직 (이전과 동일)
                 int remainingMoney = myMoney > 0 ? myMoney : 0;
                 int survivorCount = 0;
@@ -591,6 +634,9 @@
               "user$owner.money": players["user$owner"]["money"] + finalToll,
               "user$owner.totalMoney": players["user$owner"]["totalMoney"] + finalToll
             });
+
+            String landNameForOwner = boardList[tileKey]?['name'] ?? "알 수 없음";
+            _logManager.addLog("user$owner", "💰 통행료 획득 (+${_formatMoney(finalToll)}) - $landNameForOwner");
 
             if (players["user$player"]["isDoubleToll"] == true) {
               fs.collection("games").doc("users").update({"user$player.isDoubleToll" : false});
@@ -635,8 +681,17 @@
                 await _checkWinCondition(player);
                 setState(() { if (boardList[tileKey] == null) boardList[tileKey] = {}; boardList[tileKey]["owner"] = player; });
                 await _readPlayer(); await _readLocal();
-                _triggerMoneyEffect("user$player", -(levelMult*tollPrice));
-                _triggerMoneyEffect("user$owner", (levelMult*tollPrice));
+
+                // ✅ 인수 비용 계산 및 변수 정의
+                int takeoverPrice = levelMult * tollPrice;
+
+                _triggerMoneyEffect("user$player", -takeoverPrice);
+                _triggerMoneyEffect("user$owner", takeoverPrice);
+
+                _logManager.addLog("user$owner", "💸 내 땅 인수 당함 (+${_formatMoney(takeoverPrice)}) - ${boardList[tileKey]?['name']}");
+
+                _logManager.addActionLog("🏗️ 도시 인수 (-${_formatMoney(takeoverPrice)})");
+
                 if (!mounted) return;
                 int myLevel = players["user$player"]["level"] ?? 1;
                 int currentBuildingLevel = (boardList[tileKey] != null) ? (boardList[tileKey]["level"] ?? 0) : 0;
@@ -660,6 +715,11 @@
             if (myLevel > currentBuildingLevel) {
               final result = await showDialog(context: context, barrierDismissible: false, builder: (context) { return ConstructionDialog(user: player, buildingId: changePosition); });
               if (result != null && result is Map) {
+                int cost = result['totalCost'] ?? 0;
+                int level = result['level'] ?? 1;
+                String levelText = (level >= 4) ? "랜드마크" : "$level단계";
+                _logManager.addActionLog("🏛️ $levelText 건설 (-${_formatMoney(cost)})");
+                
                 setState(() {
                   if (boardList[tileKey] == null) boardList[tileKey] = {};
                   boardList[tileKey]["level"] = result["level"];
@@ -677,10 +737,12 @@
           int myMoney = players["user$player"]["money"];
           int tax = (myMoney * 0.1).round();
           await fs.collection("games").doc("users").update({ "user$player.money": FieldValue.increment(-tax), "user$player.totalMoney": FieldValue.increment(-tax), });
+          _logManager.addActionLog("세금 납부 (-${_formatMoney(tax)})");
           _triggerMoneyEffect("user$player", -tax);
         } else {
           int tax = await showDialog(context: context, builder: (context)=> TaxDialog(user: player));
           if(tax > 0){
+            _logManager.addActionLog("세금 납부 (-${_formatMoney(tax)})");
             _triggerMoneyEffect("user$player", -tax);
           }
         }
@@ -733,29 +795,54 @@
           if (mounted) {
             final String? actionResult = await showDialog<String>(useSafeArea: false, context: context, barrierDismissible: false, builder: (context) => ChanceCardQuizAfter(quizEffect: isCorrect, storedCard: players["user$player"]["card"], userIndex: player));
             if (actionResult != null) {
-              if (actionResult == "c_trip") { _movePlayerTo(21, player); return; }
+
+              if (actionResult == "c_trip") { 
+                _logManager.addActionLog("✨ 찬스카드: 세계여행 당첨!");
+                _movePlayerTo(21, player); return; 
+              }
               else if (actionResult == "c_festival") {
+                _logManager.addActionLog("✨ 찬스카드: 축제 개최권 획득");
+                // ... (축제 로직) ...
                 bool hasMyLand = false;
                 boardList.forEach((key, val) { if (val is Map && val['type'] == 'land') { int owner = int.tryParse(val['owner'].toString()) ?? 0; if (owner == player) hasMyLand = true; } });
                 if (hasMyLand) { _triggerHighlight(player, "festival"); return; }
                 else {
                   await showDialog(context: context, barrierDismissible: false, builder: (ctx) { Future.delayed(const Duration(seconds: 2), () { if (ctx.mounted) Navigator.of(ctx).pop(); }); return const Dialog(backgroundColor: Colors.transparent, elevation: 0, child: Text("축제를 열 땅이 없습니다!", textAlign: TextAlign.center)); });
                 }
-              } else if (actionResult == "c_start") { _movePlayerTo(0, player); return; }
+              } else if (actionResult == "c_start") { 
+                _logManager.addActionLog("✨ 찬스카드: 시작점으로 이동");
+                _movePlayerTo(0, player); return; 
+              }
               else if (actionResult == "c_earthquake") {
+                _logManager.addActionLog("✨ 찬스카드: 지진 공격권 획득");
+                // ... (지진 로직) ...
                 List<int> validTargets = [];
                 boardList.forEach((key, val) { if (val is Map && val['type'] == 'land') { int owner = int.tryParse(val['owner'].toString()) ?? 0; int level = val['level'] ?? 0; if (owner != 0 && owner != player && level < 4) validTargets.add(val['index']); } });
                 if (validTargets.isEmpty) {
                   await showDialog(context: context, barrierDismissible: false, builder: (ctx) { Future.delayed(const Duration(seconds: 2), () { if (ctx.mounted) Navigator.of(ctx).pop(); }); return const Dialog(backgroundColor: Colors.transparent, elevation: 0, child: Text("공격할 상대 건물이 없습니다!", textAlign: TextAlign.center)); });
                 } else { _triggerHighlight(player, "earthquake"); return; }
               } else if (actionResult == "c_bonus") {
+                _logManager.addActionLog("✨ 찬스카드: 보너스 300만 획득");
                 await fs.collection("games").doc("users").update({ "user$player.money" : players["user$player"]["money"] + 3000000, "user$player.totalMoney" : players["user$player"]["totalMoney"] + 3000000 });
                 _triggerMoneyEffect("user$player", 3000000);
-              } else if (actionResult == "d_island") { _movePlayerTo(7, player); }
-              else if (actionResult == "d_tax") { _movePlayerTo(26, player); }
-              else if (actionResult == "d_rest") { await fs.collection("games").doc("users").update({"user$player.restCount": 1}); }
-              else if (actionResult == "d_priceUp") { await fs.collection("games").doc("users").update({"user$player.isDoubleToll": true}); }
+              } else if (actionResult == "d_island") { 
+                _logManager.addActionLog("🌩️ 함정카드: 무인도로 강제 이동");
+                _movePlayerTo(7, player); 
+              }
+              else if (actionResult == "d_tax") { 
+                _logManager.addActionLog("🌩️ 함정카드: 국세청으로 강제 이동");
+                _movePlayerTo(26, player); 
+              }
+              else if (actionResult == "d_rest") { 
+                 _logManager.addActionLog("🌩️ 함정카드: 한 턴 휴식");
+                 await fs.collection("games").doc("users").update({"user$player.restCount": 1}); 
+              }
+              else if (actionResult == "d_priceUp") { 
+                 _logManager.addActionLog("🌩️ 함정카드: 보유 땅 통행료 2배 적용");
+                 await fs.collection("games").doc("users").update({"user$player.isDoubleToll": true}); 
+              }
               else if (actionResult == "d_storm") {
+                _logManager.addActionLog("🌩️ 함정카드: 태풍 공격권 획득");
                 bool hasMyLand = false;
                 boardList.forEach((key, val) { if (val is Map && val['type'] == 'land') { int owner = int.tryParse(val['owner'].toString()) ?? 0; if (owner == player) hasMyLand = true; } });
                 if (hasMyLand) { _triggerHighlight(player, "storm"); return;  }
@@ -764,12 +851,14 @@
                 }
               }
               else if (actionResult == "d_priceDown") {
+                _logManager.addActionLog("🌩️ 함정카드: 보유 땅 통행료 할인");
                 List<int> myLands = [];
                 boardList.forEach((key, val) { if (val['type'] == 'land') { int owner = int.tryParse(val['owner'].toString()) ?? 0; if (owner == player) myLands.add(val['index']); } });
                 if (myLands.isEmpty) {
                   await showDialog(context: context, builder: (ctx) { Future.delayed(const Duration(seconds: 2), () { if (ctx.mounted) Navigator.of(ctx).pop(); }); return const Dialog(backgroundColor: Colors.transparent, elevation: 0, child: Text("할인할 내 땅이 없습니다!", textAlign: TextAlign.center)); });
                 } else { _triggerHighlight(player, "priceDown"); return; }
               } else if (actionResult == "d_move") {
+                _logManager.addActionLog("🌩️ 함정카드: 랜덤 지역으로 이동");
                 Random ran = Random(); int currentPos = players["user$player"]["position"]; int randomPos = ran.nextInt(28);
                 while(randomPos == currentPos) { randomPos = ran.nextInt(28); }
                 Future.delayed(const Duration(milliseconds: 500), () { if (mounted) _movePlayerTo(randomPos, player); });
@@ -786,10 +875,14 @@
       if (forceNextTurn || !isDouble) {
         _nextTurn();
       } else {
+        _logManager.addActionLog("🎲 더블! 한 번 더!");
+        _logManager.commitLog("user$player");
+
         doubleCount++;
         if (doubleCount >= 3) {
           setState(() { players["user$player"]["position"] = 7; });
           await fs.collection("games").doc("users").update({ "user$player.position": 7, "user$player.islandCount": 3 });
+          _logManager.addActionLog("🚨 3연속 더블 -> 무인도 이동");
           _nextTurn();
         } else {
           if (playerType == 'B') {
@@ -825,12 +918,17 @@
           tx.update(fs.collection("games").doc("board"), { "$tileKey.level": targetLevel, "$tileKey.owner": player, });
         });
         setState(() { boardList[tileKey]["level"] = targetLevel; boardList[tileKey]["owner"] = player; });
+
+        String levelText = (targetLevel >= 4) ? "랜드마크" : "$targetLevel단계";
+        _logManager.addActionLog("🤖 $levelText 건설 (-${_formatMoney(totalCost)})");
+        
         _triggerMoneyEffect("user$player", -totalCost);
         await _readPlayer(); await rankChange(); setState(() {}); await _checkWinCondition(player);
       }
     }
 
     void _nextTurn() {
+      _logManager.commitLog("user$currentTurn");
       int survivors = 0;
       int lastSurvivorIndex = 0;
       for (int i = 1; i <= 4; i++) { String type = players["user$i"]?["type"] ?? "N"; if (type != "N" && type != "D" && type != "BD") { survivors++; lastSurvivorIndex = i; } }
@@ -877,6 +975,7 @@
           playerData: players[key] ?? {},
           boardData: boardList,
           playerColor: color,
+          logs: _logManager.getLogs(key),
         ),
       );
     }
@@ -1104,4 +1203,11 @@
       ),
     );
   }
+    // 돈 포멧팅 함수
+    String _formatMoney(dynamic number) {
+      if (number == null) return "0";
+      return number.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+              (Match m) => '${m[1]},');
+    }
 }
