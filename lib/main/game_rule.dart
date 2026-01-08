@@ -758,7 +758,6 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
         borderRadius: BorderRadius.circular(20),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
             borderRadius: BorderRadius.circular(20),
           ),
           padding: const EdgeInsets.all(16),
@@ -775,68 +774,74 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
               ),
               // const SizedBox(height: 30),
               Expanded(
-                child: ListView.builder(
-                  itemCount: tocItems.length,
-                  itemBuilder: (context, index) {
-                    final entry = tocItems[index];
-                    final ruleIndex = entry.key; // 실제 rules 리스트의 인덱스
-                    final rule = entry.value;
+                child: Align(
+                  alignment: Alignment.centerLeft, // ⭐ 왼쪽 정렬
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    child: ListView.builder(
+                      itemCount: tocItems.length,
+                      itemBuilder: (context, index) {
+                        final entry = tocItems[index];
+                        final ruleIndex = entry.key; // 실제 rules 리스트의 인덱스
+                        final rule = entry.value;
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: InkWell(
-                        onTap: () {
-                          _controller.animateToPage(
-                            ruleIndex,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE6AD5C).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFFE6AD5C),
-                              width: 2,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: InkWell(
+                            onTap: () {
+                              _controller.animateToPage(
+                                ruleIndex,
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE6AD5C), // ✅ 갈색으로 꽉 채움
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFE6AD5C),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    '${index + 1}',
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white, // ✅ 변경
+                                    ),
+                                  ),
+                                  const SizedBox(width: 20),
+                                  Expanded(
+                                    child: Text(
+                                      rule.tocTitle ?? rule.title,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white, // ✅ 변경
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.arrow_forward_ios,
+                                    color: Colors.white, // ✅ 변경
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              Text(
-                                '${index + 1}',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFE6AD5C),
-                                ),
-                              ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: Text(
-                                  rule.tocTitle ?? rule.title,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.arrow_forward_ios,
-                                color: Color(0xFFE6AD5C),
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
             ],
