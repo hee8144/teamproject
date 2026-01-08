@@ -16,8 +16,6 @@ class onlineMainScreen extends StatefulWidget {
 
 class _onlineMainScreenState extends State<onlineMainScreen> {
   String nickname = "불러오는 중...";
-  int points = 0;
-  String tier = "초보 여행자";
   bool isLoading = true;
 
   @override
@@ -37,8 +35,6 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
           final int userPoints = data['point'] ?? 0;
           setState(() {
             nickname = data['nickname'] ?? "여행자";
-            points = userPoints;
-            tier = AuthService.getTierName(userPoints); // 포인트로 티어 자동 계산
             isLoading = false;
           });
         } else {
@@ -102,7 +98,6 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
 
   // 로그인 사용자 프로필 카드
   Widget _buildProfileCard() {
-    final Color tierColor = AuthService.getTierColor(points); // 티어 색상 가져오기
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -134,34 +129,13 @@ class _onlineMainScreenState extends State<onlineMainScreen> {
             child: const Icon(Icons.person, color: Color(0xFF5D4037), size: 24),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                nickname,
-                style: const TextStyle(
-                  color: Color(0xFFFDF5E6),
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(Icons.stars, color: tierColor, size: 12), // 아이콘 색상 적용
-                  const SizedBox(width: 4),
-                  Text(
-                    "$tier ($points P)",
-                    style: TextStyle(
-                      color: tierColor.withOpacity(0.9), // 텍스트 색상 적용
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          Text(
+            nickname,
+            style: const TextStyle(
+              color: Color(0xFFFDF5E6),
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

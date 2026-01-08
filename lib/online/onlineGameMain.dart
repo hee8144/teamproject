@@ -66,7 +66,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   }
 
   void _initSocket() {
-    socket = IO.io('http://10.0.2.2:3000',
+    socket = IO.io('http://localhost:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -121,7 +121,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       if (!mounted) return;
       int winner = int.tryParse(data['winner']?.toString() ?? '0') ?? 0;
       String type = data['type']?.toString() ?? 'unknown';
-      context.go('/gameResult?victoryType=$type&winnerName=$winner');
+      context.go('/onlineGameResult?roomId=${widget.roomId}&victoryType=$type&winnerIndex=$winner');
     });
 
     // ⚠️ 독점 경고 이벤트
