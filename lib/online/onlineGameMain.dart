@@ -71,7 +71,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경
-    socket = IO.io('http://localhost:3000',
+    socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -702,7 +702,18 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         myUpdate['position'] = 7;
         myUpdate['islandCount'] = 3;
         break;
-      case "d_tax": myUpdate['position'] = 26; break;
+      case "d_tax":
+        myUpdate['position'] = 26;
+        socket.emit('move_complete', {
+          'roomId': widget.roomId,
+          'playerIndex': myIndex,
+          'finalPos': 26,
+          'isDouble': nextIsDouble,
+        });
+
+        // 3. 여기서 함수 종료 (action_complete를 중복으로 보내지 않기 위함)
+        setState(() => isActionActive = false);
+        return;
       case "d_rest":
         myUpdate['restCount'] = 1;
         _completeAction(updateData, isDouble: false);
