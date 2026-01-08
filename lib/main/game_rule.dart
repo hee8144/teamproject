@@ -225,21 +225,21 @@ class _GameRulePageState extends State<GameRulePage> {
       ],
     ),
     _RuleData(
-      title: '찬스',
+      title: '찬스 카드',
       imagePath: 'assets/rules/chance.png',
       tooltips: [
         _TooltipData(
           tooltipLines: [
-            '찬스',
-            '찬스 칸에 도착하면 문화재 퀴즈에 도전하게 됩니다.',
+            '찬스 카드',
+            '찬스 카드에 도착하면 문화재 퀴즈에 도전하게 됩니다.',
             '퀴즈를 맞히면 좋은 효과가 발동할 확률이 기본 50% 대신 70%로 바뀝니다.',
             '좋은 효과(월급 보너스, 통행료 면제 등)나 나쁜 효과(건물 파괴, 통행료 반값 등)가 확률에 따라 발동됩니다',
 
           ],
-          iconTopRatio: 0.05,
-          iconRightRatio: 0.5,
+          iconTopRatio: 0.47,
+          iconRightRatio: 0.37,
           tooltipTopRatio: 0.05,
-          tooltipLeftRatio: 0.15,
+          tooltipLeftRatio: 0.05,
         ),
       ],
     ),
