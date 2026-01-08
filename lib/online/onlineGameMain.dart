@@ -124,7 +124,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       if (!mounted) return;
       int winner = int.tryParse(data['winner']?.toString() ?? '0') ?? 0;
       String type = data['type']?.toString() ?? 'unknown';
-      context.go('/gameResult?victoryType=$type&winnerName=$winner');
+      context.go('/onlineGameResult?roomId=${widget.roomId}&victoryType=$type&winnerIndex=$winner');
     });
 
     // ⚠️ 독점 경고 이벤트
@@ -512,7 +512,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         },
       );
     }
-
   }
 
   Widget _showEventDialog() {
@@ -554,7 +553,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   Future<void> _stopHighlight(int index, String event) async {
     setState(() { _highlightOwner = null; });
-
     _glowController.stop();
     _glowController.reset();
 
@@ -822,7 +820,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               width: boardSize, height: boardSize,
               child: Stack(
                 children: [
-                  if( !_isMoving)
+                  if( !isActionActive || !_isMoving)
                     Center(
                       child: Container(
                         width: boardSize * 0.75, height: boardSize * 0.75,
