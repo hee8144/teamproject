@@ -820,18 +820,20 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               width: boardSize, height: boardSize,
               child: Stack(
                 children: [
-                  Center(
-                    child: Container(
-                      width: boardSize * 0.75, height: boardSize * 0.75,
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                      child: onlineDiceApp(
-                        key: diceAppKey,
-                        turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
-                        totalTurn: gameState!['totalTurn'] ?? 20,
-                        isBot: false,
-                        onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
-                        isOnline: true,
-                        isMyTurn: isMyTurn,
+                  if( !isActionActive && !_isMoving)
+                    Center(
+                      child: Container(
+                        width: boardSize * 0.75, height: boardSize * 0.75,
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                        child: onlineDiceApp(
+                          key: diceAppKey,
+                          turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
+                          totalTurn: gameState!['totalTurn'] ?? 20,
+                          isBot: false,
+                          onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
+                          isOnline: true,
+                          isMyTurn: isMyTurn,
+                        ),
                       ),
                     ),
                   ),
