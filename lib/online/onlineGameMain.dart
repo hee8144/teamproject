@@ -836,7 +836,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                         ),
                       ),
                     ),
-                  ),
                   ...List.generate(28, (index) => _buildGameTile(index, tileSize)),
                   ...List.generate(4, (index) => _buildAnimatedPlayer(index, tileSize)),
                 ],
