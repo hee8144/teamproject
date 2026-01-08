@@ -4,7 +4,7 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
   final Alignment alignment;
   final Map<String, dynamic> playerData;
   final Color color;
-  final String name; // "user1", "user2" ...
+  final String name; // "user1", "user2" ... (내부 식별자)
   final String? moneyEffect; // 돈 변화 이펙트 텍스트
   final VoidCallback? onTap;
 
@@ -32,10 +32,22 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
     // 게임에 참여하지 않는 유저(N)는 표시 안 함
     if (type == "N") return const SizedBox();
 
-    // 파산 여부 확인 (온라인 코드 기준 'D'가 파산/접속종료)
+    // 파산 여부 확인
     bool isBankrupt = (type == "D");
 
-    String displayName = "PLAYER${name.replaceAll('user', '')}";
+    // ✅ [수정된 부분] 닉네임 표시 로직
+    // 1. DB(playerData)에 저장된 실제 닉네임을 가져옴
+    String? storedName = playerData['name'];
+    String displayName;
+
+    if (storedName != null && storedName.isNotEmpty && storedName != name) {
+      // 닉네임이 존재하고, 단순히 "user1" 같은 키값이 아니라면 그 닉네임 사용
+      displayName = storedName;
+    } else {
+      // 닉네임이 없으면 기존 방식대로 PLAYER + 번호
+      displayName = "PLAYER${name.replaceAll('user', '')}";
+    }
+
     if (isBankrupt) displayName = "파산";
 
     // 위치 판단 (위쪽/왼쪽)
@@ -45,7 +57,6 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
     String money = _formatMoney(playerData['money']);
     String totalMoney = _formatMoney(playerData['totalMoney']);
 
-    // 온라인 데이터에 랭크나 더블 통행료 정보가 없으면 기본값 처리
     int rank = playerData['rank'] ?? 0;
     bool isDoubleToll = playerData['isDoubleToll'] ?? false;
     String card = playerData['card'] ?? "";
@@ -83,7 +94,7 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // 1. 카드 아이콘 (파산 시 숨김)
+            // 1. 카드 아이콘
             if (cardIcon != null && !isBankrupt)
               Positioned(
                 top: isTop ? null : -12,
@@ -139,12 +150,17 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
                           if (!isLeft && isDoubleToll) _buildDoubleBadge(),
                           if (!isLeft && !isDoubleToll) const SizedBox(width: 1),
 
-                          Text(
-                            displayName,
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isBankrupt ? Colors.grey.shade600 : Colors.white,
-                                fontSize: 12
+                          // 닉네임 텍스트
+                          Flexible(
+                            child: Text(
+                              displayName,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isBankrupt ? Colors.grey.shade600 : Colors.white,
+                                  fontSize: 12
+                              ),
+                              overflow: TextOverflow.ellipsis, // 닉네임 길면 ... 처리
+                              maxLines: 1,
                             ),
                           ),
 
@@ -184,7 +200,7 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
               ),
             ),
 
-            // 4. 돈 변화 이펙트 (여기선 텍스트만 렌더링, 실제 값은 외부에서 주입 필요)
+            // 4. 돈 변화 이펙트
             if (moneyEffect != null && !isBankrupt)
               Positioned(
                 top: effectTopPos,
