@@ -586,6 +586,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (event == "priceDown") {
       updateData['board']['b$index'] = {'multiply': 0.5};
     } else if (event == "trip") {
+      setState(() => isActionActive = false);
+
       socket.emit('travel_move', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,
@@ -697,10 +699,12 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
         myUpdate['money'] = currentMoney + 3000000;
+        setState(() => isActionActive = false);
         break;
       case "d_island":
         myUpdate['position'] = 7;
         myUpdate['islandCount'] = 3;
+        setState(() => isActionActive = false);
         break;
       case "d_tax":
         myUpdate['position'] = 26;
@@ -717,11 +721,13 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       case "d_rest":
         myUpdate['restCount'] = 1;
         _completeAction(updateData, isDouble: false);
+        setState(() => isActionActive = false);
         return;
       case "d_priceUp": myUpdate['isDoubleToll'] = true; break;
       case "d_move":
         int randomPos = (myIndex + (DateTime.now().millisecond % 27)) % 28;
         myUpdate['position'] = randomPos;
+        setState(() => isActionActive = false);
         break;
       case "c_shield": myUpdate['card'] = "shield"; break;
       case "c_escape": myUpdate['card'] = "escape"; break;
