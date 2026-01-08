@@ -57,11 +57,9 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
           tooltipLines: [
             '플레이어 정보',
             '클릭 시 상세 정보를 보여줍니다.',
-            '현금: 현재 보유하고 있는 소지금',
+            '현금: 현재 보유하고 있는 소지금, 소지금이 0원이 되면 파산합니다.(게임 탈락) ',
             '자산: 현금 + 소유 건물 가격',
             '순위: 총 자산 기준',
-
-
 
           ],
           iconTopRatio: 0.2,
