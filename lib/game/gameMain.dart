@@ -139,10 +139,9 @@
     }
 
     Future<void> _onDiceRoll(int val1, int val2) async {
-      //-- 로그 기록 --
-      int currentTurnNum = 21 - totalTurn;
+      //-- 로그 기록 (이미 시작된 로그에 주사위 값 추가) --
       int diceSum = val1 + val2;
-      _logManager.startTurnLog(currentTurnNum, diceSum);
+      _logManager.addDiceLog(diceSum);
       //-------------------
       bool isTraveling = players["user$currentTurn"]["isTraveling"] ?? false;
       if (isTraveling) {
@@ -179,6 +178,9 @@
     }
 
     Future<void> _checkAndStartTurn() async {
+      int currentTurnNum = 21 - totalTurn;
+      _logManager.startTurnLog(currentTurnNum); // 턴 로그 시작 (주사위는 아직)
+
       String type = players["user$currentTurn"]?["type"] ?? "N";
 
       if (type == "N" || type == "D" || type == "BD") {
@@ -213,8 +215,7 @@
       int restCount = players["user$currentTurn"]["restCount"] ?? 0;
 
       if (restCount > 0) {
-        int currentTurnNum = 21 - totalTurn;
-        _logManager.startTurnLog(currentTurnNum, 0); // 주사위 0
+        _logManager.addDiceLog(0); // 주사위 0
         _logManager.addActionLog("💤 한 턴 쉬어갑니다.");
         
         await fs.collection("games").doc("users").update({ "user$currentTurn.restCount": 0 });
@@ -261,13 +262,21 @@
             final result = await showDialog(context: context, useSafeArea: false, builder: (context)=>CardUseDialog(user: currentTurn));
             if(result) {
               _logManager.addActionLog("🎫 무인도 탈출권 사용 (탈출 성공!)");
-              fs.collection("games").doc("users").update({ "user$currentTurn.card" : "N" });
+              await fs.collection("games").doc("users").update({ 
+                "user$currentTurn.card" : "N",
+                "user$currentTurn.islandCount": 0 
+              });
+              setState(() { 
+                players["user$currentTurn"]["card"] = "N";
+                players["user$currentTurn"]["islandCount"] = 0;
+              });
               await _readPlayer();
               return;
             }
           }
           final bool? paidToEscape = await showDialog<bool>(context: context, barrierDismissible: false, builder: (context) => IslandDialog(user: currentTurn));
           if (paidToEscape == true) {
+            _logManager.addActionLog("💸 보석금 100만 지불 (무인도 탈출!)");
             await fs.collection("games").doc("users").update({ "user$currentTurn.islandCount": 0 });
             setState(() { players["user$currentTurn"]["islandCount"] = 0; });
             _triggerMoneyEffect("user$currentTurn", -1000000);
@@ -448,6 +457,13 @@
       await _readLocal();
       await _readPlayer();
       await rankChange();
+
+      //-- 로그 초기화 및 시작 메시지 --
+      _logManager.clearLogs();
+      for(int i=1; i<=4; i++) {
+        _logManager.addLog("user$i", "🎮 문화재 마블 오프라인 게임이 시작되었습니다!");
+      }
+      //--------------------------
 
       if(mounted) {
         setState(() { _isLoading = false; });
@@ -697,7 +713,12 @@
                 int currentBuildingLevel = (boardList[tileKey] != null) ? (boardList[tileKey]["level"] ?? 0) : 0;
                 if (myLevel > currentBuildingLevel) {
                   final constructionResult = await showDialog(context: context, barrierDismissible: false, builder: (context) { return ConstructionDialog(user: player, buildingId: changePosition); });
-                  if (constructionResult != null) {
+                  if (constructionResult != null && constructionResult is Map) {
+                    int cost = constructionResult['totalCost'] ?? 0;
+                    int level = constructionResult['level'] ?? 1;
+                    String levelText = (level >= 4) ? "랜드마크" : "$level단계";
+                    _logManager.addActionLog("🏛️ $levelText 추가 건설 (-${_formatMoney(cost)})");
+
                     setState(() { boardList[tileKey]["level"] = constructionResult["level"]; boardList[tileKey]["owner"] = constructionResult["user"]; });
                     await _readPlayer(); await _checkWinCondition(player); await _readLocal();
                   }
@@ -765,6 +786,7 @@
         }
       }
       else if(changePosition == 0){
+        _logManager.addActionLog("🚩 출발지 도착! 무료 업그레이드 기회");
         if (playerType != 'B') {
           bool hasUpgradableLand = false;
           boardList.forEach((key, val) { int owner = int.tryParse(val['owner'].toString()) ?? 0; int level = val['level'] ?? 0; if(val['type'] == 'land' && owner == player && level < 4) hasUpgradableLand = true; });
@@ -772,6 +794,7 @@
         }
       }
       else if(changePosition == 21){
+        _logManager.addActionLog("✈️ 여행 칸에 도착했습니다!");
         if (playerType != 'B') {
           setState(() { players["user$player"]["isTraveling"] = true; });
           await fs.collection("games").doc("users").update({"user$player.isTraveling": true});
