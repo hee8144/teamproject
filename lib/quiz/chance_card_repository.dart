@@ -41,6 +41,7 @@ class ChanceCardRepository {
     }
 
     // 오답이면 전체 랜덤
-    return allCards[Random().nextInt(allCards.length)];
+    // return allCards[Random().nextInt(allCards.length)];
+    return harmCards[1];
   }
 }

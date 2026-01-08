@@ -21,9 +21,20 @@ class GameLogManager {
 
   // ================= 턴 로그 빌더 기능 =================
 
-  /// 1. 턴 시작 (주사위 굴림 직후 호출)
-  void startTurnLog(int turn, int dice) {
-    _currentTurnBuffer = "[$turn턴] 주사위 $dice ";
+  /// 1. 턴 시작 (턴 번호만 먼저 기록 가능)
+  void startTurnLog(int turn, [int? dice]) {
+    String diceStr = dice != null ? "주사위 $dice " : "";
+    _currentTurnBuffer = "[$turn턴] $diceStr";
+  }
+
+  /// 주사위 결과만 나중에 추가 (보석금 지불 후 주사위 굴릴 때 사용)
+  void addDiceLog(int dice) {
+    if (!_currentTurnBuffer.contains("주사위")) {
+      _currentTurnBuffer = _currentTurnBuffer.replaceFirst("] ", "] 주사위 $dice ");
+    } else {
+      // 이미 주사위 정보가 있다면 (예: 0에서 업데이트)
+      _currentTurnBuffer = _currentTurnBuffer.replaceFirst(RegExp(r"주사위 \d+"), "주사위 $dice");
+    }
   }
 
   /// 2. 도착지 설정 (이동 완료 후 호출)

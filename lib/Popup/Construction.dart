@@ -309,7 +309,8 @@ class _ConstructionDialogState extends State<ConstructionDialog> {
                                   Navigator.pop(context, {
                                     "user": widget.user,
                                     "index": widget.buildingId,
-                                    "level": targetLevel
+                                    "level": targetLevel,
+                                    "totalCost": totalCost, // ✅ totalCost 추가
                                   });
                                 }
                               },
