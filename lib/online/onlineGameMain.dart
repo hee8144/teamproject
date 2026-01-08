@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // ✅ go_router 추가 (페이지 이동용)
+import 'package:go_router/go_router.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
 
-// 💡 팝업 및 퀴즈 위젯 import (경로는 프로젝트에 맞게 확인해주세요)
+// 💡 팝업 및 퀴즈 위젯 import
 import '../Popup/Construction.dart';
 import '../Popup/Island.dart';
 import '../Popup/Takeover.dart';
@@ -17,6 +17,9 @@ import '../quiz/quiz_question.dart';
 import '../quiz/quiz_repository.dart';
 import '../quiz/quiz_result_popup.dart';
 import 'onlinedice.dart';
+
+// ✅ WarningDialog import
+import '../Popup/warning.dart'; // 실제 경로에 맞춰주세요
 
 class OnlineGamePage extends StatefulWidget {
   final String roomId;
@@ -45,8 +48,12 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   // 💰 돈 변화 이펙트 상태 관리
   Map<String, String?> _moneyEffects = {};
 
+  // ⚠️ 온라인 게임 전용 경고 기록
+  final Set<String> _shownOnlineWarnings = {};
+
   // 주사위 제어 키
   final GlobalKey<onlineDiceAppState> diceAppKey = GlobalKey<onlineDiceAppState>();
+  bool isActionActive = false;
 
   @override
   void initState() {
@@ -61,8 +68,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경
-    socket = IO.io('http://localhost:3000',
-    // socket = IO.io('http://10.0.2.2:3000',
+    // socket = IO.io('http://localhost:3000',
+    socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -112,13 +119,34 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       });
     });
 
-    // 🏆 [추가됨] 게임 종료 이벤트 수신
+    // 🏆 게임 종료 이벤트
     socket.on('game_over', (data) {
       if (!mounted) return;
       int winner = int.tryParse(data['winner']?.toString() ?? '0') ?? 0;
       String type = data['type']?.toString() ?? 'unknown';
-      // 승리 화면으로 이동 (go_router 사용 가정)
-      context.go('/gameResult?victoryType=$type&winnerName=$winner');
+      context.go('/onlineGameResult?roomId=${widget.roomId}&victoryType=$type&winnerIndex=$winner');
+    });
+
+    // ⚠️ 독점 경고 이벤트
+    socket.on('warning_message', (data) {
+      if (!mounted) return;
+      List<int> players = List<int>.from(data['players'] ?? []);
+      String type = data['type']?.toString() ?? 'line';
+
+      players.sort();
+      String warningKey = "$type-${players.join('_')}";
+
+      if (_shownOnlineWarnings.contains(warningKey)) {
+        return;
+      }
+
+      _shownOnlineWarnings.add(warningKey);
+
+      showDialog(
+        context: context,
+        barrierColor: Colors.transparent,
+        builder: (_) => WarningDialog(players: players, type: type),
+      );
     });
 
     socket.on('dice_animation', (data) {
@@ -163,29 +191,22 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     });
   }
 
-  // 매개변수에 bool isTravel = false를 추가합니다.
   Future<void> _animateMovement(int playerIndex, int steps, bool isDouble, {bool isTravel = false}) async {
     setState(() => _isMoving = true);
 
     String userKey = 'user$playerIndex';
-    // 1. 현재 클라이언트 화면에 표시되고 있는 말의 위치
     int currentPosInUI = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
-
-    // 2. 실제 이동해야 할 칸 수 계산
     int actualSteps = steps;
 
-    // 여행(isTravel)이거나 steps가 0인 경우 최종 목적지 기반으로 계산
     if (isTravel || steps == 0) {
       int finalTargetPos = int.tryParse(gameState!['users'][userKey]['position']?.toString() ?? '0') ?? 0;
       actualSteps = (finalTargetPos - currentPosInUI + 28) % 28;
-
       if (actualSteps == 0) {
         setState(() => _isMoving = false);
         return;
       }
     }
 
-    // 3. 애니메이션 시작
     for (int i = 0; i < actualSteps; i++) {
       await Future.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
@@ -198,18 +219,13 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     setState(() => _isMoving = false);
 
-    // 4. ✨ 수정 포인트: 내 캐릭터이면서 '여행이 아닐 때만' 보고를 보냅니다.
-    // 여행 이동 시에는 서버가 이미 handleTileEvent를 예약해두었으므로 보고를 생략합니다.
     if (playerIndex == myIndex && !isTravel) {
-      print("📢 일반 이동 완료 보고 전송: $currentPosInUI");
       socket.emit('move_complete', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,
         'finalPos': currentPosInUI,
         'isDouble': isDouble,
       });
-    } else {
-      print("✈ 여행 이동 완료: 서버 이벤트를 기다립니다.");
     }
   }
 
@@ -228,8 +244,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (type == 'festival_event') {
       _handleHighlightAction("festival", isDouble);
     } else if (type == 'travel_select') {
-      // 여행지 선택 하이라이트 실행
-      // isDouble은 false로 전달 (여행 이동 후에는 보통 턴이 종료되므로)
       _handleHighlightAction("trip", false);
     } else if (type == 'start_event') {
       await _showSimpleDialog("출발지에 도착했습니다!\n원하는 내 땅을 무료로 업그레이드 하세요.");
@@ -385,7 +399,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         int takeoverCost = (tileData['tollPrice'] ?? 0) * 2;
         int currentTotalMoneyAfterToll = myTotalMoney - toll;
 
-        // 자산은 인수 비용의 절반만큼 차감 (인수비용=2배, 자산가치=1배)
+        // 자산은 인수 비용의 절반만큼 차감
         int decreasedAsset = (takeoverCost / 2).floor();
         int newTotalMoney = currentTotalMoneyAfterToll - decreasedAsset;
 
@@ -431,7 +445,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
             };
           }
         } else {
-          print("⛔ [인수] 레벨 부족으로 추가 건설 없이 소유권만 변경.");
           updateData['board']['b$pos'] = {
             'level': currentLevel,
             'owner': myIndex.toString(),
@@ -449,7 +462,10 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   // --- 하이라이트 이벤트 ---
   Future<void> _handleHighlightAction(String type, bool isDouble) async {
     bool hasTarget = false;
-
+    setState(() {
+      isActionActive = true;
+    });
+    print(isActionActive);
     gameState!['board'].forEach((key, val) {
       int owner = int.tryParse(val['owner']?.toString() ?? '0') ?? 0;
       if (type == "festival" || type == "priceDown" || type == "start") {
@@ -464,6 +480,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     if (!hasTarget) {
       await _showSimpleDialog(type == "festival" ? "선택할 내 땅이 없습니다!" : "선택할 상대 땅이 없습니다!");
       _completeAction({}, isDouble: isDouble);
+      setState(() {
+        isActionActive = false;
+      });
       return;
     }
 
@@ -482,7 +501,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     _glowController.repeat(reverse: true);
 
     if (mounted) {
-      showDialog(
+      await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (BuildContext dialogContext) {
@@ -575,41 +594,38 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       _pendingIsDouble = false;
       return;
 
-      // 💡 중요: 여행 이동은 'move_complete'와 유사한 효과를 내야 하므로
-      // 서버에서 이동 후의 땅 로직(건설/통행료)을 다시 실행하도록 설계해야 합니다.
     } else if (event == "start") {
-      // 1. 클릭한 땅 번호(index)에 대해 건설 팝업창을 띄웁니다.
       final result = await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => ConstructionDialog(
           user: myIndex,
-          buildingId: index, // 클릭한 땅 번호
-          gameState: gameState, // 💡 출발지 보너스이므로 '무료' 옵션이 있다면 추가 (없다면 아래 cost 로직 참고)
+          buildingId: index,
+          gameState: gameState,
         ),
       );
 
-      // 2. 팝업에서 건설을 확정했다면 그 결과를 서버에 보냅니다.
       if (result != null && result is Map) {
-        // 출발지 보너스이므로 돈(money)은 차감하지 않고 보드 정보만 업데이트
         updateData['board']['b$index'] = {
           'level': result['level'],
           'owner': myIndex.toString()
         };
-        // 돈 차감 로직을 넣지 않으면 '무료 건설'이 됩니다.
       } else {
-        // 취소했다면 아무것도 하지 않고 함수 종료 (턴은 유지됨)
         return;
       }
     }
-
+    if (mounted) {
+      setState(() {
+        isActionActive = false;
+      });
+    }
     _completeAction(updateData, isDouble: _pendingIsDouble);
     _pendingIsDouble = false;
   }
 
-  // --- 찬스 카드 ---
   Future<void> _handleChanceEvent(Map<String, dynamic> data, bool isDouble) async {
     if (gameState == null) return;
+    setState(() => isActionActive = true);
     QuizQuestion? question = await QuizRepository.getRandomQuiz();
     bool isCorrect = false;
     int? selectedIndex;
@@ -652,6 +668,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     if (actionResult == null) {
       _completeAction({}, isDouble: isDouble);
+      setState(() => isActionActive = false);
       return;
     }
 
@@ -666,18 +683,17 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           'roomId': widget.roomId,
           'playerIndex': myIndex,
         });
+        setState(() => isActionActive = false);
         return;
       case "c_start":
-      // 1. 상태 업데이트 데이터 준비
         myUpdate['position'] = 0;
-
-        // 2. 서버에 이동 완료 보고 (이래야 서버의 handleTileEvent가 실행됨)
         socket.emit('move_complete', {
           'roomId': widget.roomId,
           'playerIndex': myIndex,
           'finalPos': 0,
           'isDouble': nextIsDouble,
         });
+        setState(() => isActionActive = false);
         return;
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
@@ -699,16 +715,17 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         break;
       case "c_shield": myUpdate['card'] = "shield"; break;
       case "c_escape": myUpdate['card'] = "escape"; break;
-      case "c_festival": _handleHighlightAction("festival", nextIsDouble); return;
-      case "c_earthquake": _handleHighlightAction("earthquake", nextIsDouble); return;
-      case "d_storm": _handleHighlightAction("storm", nextIsDouble); return;
-      case "d_priceDown": _handleHighlightAction("priceDown", nextIsDouble); return;
-      default: _completeAction({}, isDouble: nextIsDouble); return;
+      case "c_festival":await _handleHighlightAction("festival", nextIsDouble); setState(() => isActionActive = false);return;
+      case "c_earthquake":await _handleHighlightAction("earthquake", nextIsDouble); setState(() => isActionActive = false);return;
+      case "d_storm":await _handleHighlightAction("storm", nextIsDouble); setState(() => isActionActive = false);return;
+      case "d_priceDown":await _handleHighlightAction("priceDown", nextIsDouble); setState(() => isActionActive = false);return;
+      default: _completeAction({}, isDouble: nextIsDouble); setState(() => isActionActive = false);return;
     }
     _completeAction(updateData, isDouble: nextIsDouble);
   }
 
   Future<void> _handleIslandEvent(Map<String, dynamic> data) async {
+    setState(() => isActionActive = true);
     final bool result = await showDialog(
       context: context,
       barrierDismissible: false,
@@ -723,6 +740,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else {
       socket.emit('island_wait_complete', {'roomId': widget.roomId, 'playerIndex': myIndex});
     }
+    setState(() => isActionActive = false);
   }
 
   void _completeAction(Map<String, dynamic> stateUpdate, {bool isDouble = false}) {
@@ -754,11 +772,11 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     return Offset(x, y);
   }
 
-  String _formatMoney(dynamic amount) {
-    if (amount == null) return "0원";
-    int val = int.tryParse(amount.toString()) ?? 0;
-    if (val >= 10000) return "${val ~/ 10000}만";
-    return "$val원";
+  // ✅ [수정됨] 3자리 쉼표 포맷팅
+  String _formatMoney(dynamic number) {
+    if (number == null) return "0";
+    return number.toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
   }
 
   Color _getColor(int i) {
@@ -798,26 +816,26 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           children: [
             Container(width: double.infinity, height: double.infinity,
                 decoration: const BoxDecoration(image: DecorationImage(image: AssetImage('assets/board-background.PNG'), fit: BoxFit.cover))),
-
             SizedBox(
               width: boardSize, height: boardSize,
               child: Stack(
                 children: [
-                  Center(
-                    child: Container(
-                      width: boardSize * 0.75, height: boardSize * 0.75,
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                      child: onlineDiceApp(
-                        key: diceAppKey,
-                        turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
-                        totalTurn: gameState!['totalTurn'] ?? 20,
-                        isBot: false,
-                        onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
-                        isOnline: true,
-                        isMyTurn: isMyTurn,
+                  if( !isActionActive || !_isMoving)
+                    Center(
+                      child: Container(
+                        width: boardSize * 0.75, height: boardSize * 0.75,
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                        child: onlineDiceApp(
+                          key: diceAppKey,
+                          turn: int.tryParse(gameState!['currentTurn']?.toString() ?? '1') ?? 1,
+                          totalTurn: gameState!['totalTurn'] ?? 20,
+                          isBot: false,
+                          onRoll: (v1, v2) => socket.emit('roll_dice', {'roomId': widget.roomId}),
+                          isOnline: true,
+                          isMyTurn: isMyTurn,
+                        ),
                       ),
                     ),
-                  ),
                   ...List.generate(28, (index) => _buildGameTile(index, tileSize)),
                   ...List.generate(4, (index) => _buildAnimatedPlayer(index, tileSize)),
                 ],
@@ -878,16 +896,14 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     final tileData = gameState!['board']['b$index'] ?? {};
     final String type = tileData['type'] ?? 'land';
 
-    // 하이라이트 여부 판단
     bool isHighlighted = false;
     if (_highlightOwner != null) {
-      if (_highlightOwner == 99) isHighlighted = true; // 여행 모드일 때
+      if (_highlightOwner == 99) isHighlighted = true;
     }
 
     return Positioned(
       left: pos.dx, top: pos.dy,
       child: GestureDetector(
-        // 💡 여기서 클릭 감지 (하이라이트 중일 때)
         onTap: () async {
           if (_highlightOwner == 99) {
             await _stopHighlight(index, eventNow);
@@ -902,7 +918,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           ),
           child: Stack(
             children: [
-              // 기존 타일 내용 표시
               type == 'land'
                   ? _buildLandContent(tileData, index)
                   : Center(
@@ -914,7 +929,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                   ),
                 ),
               ),
-              // 💡 특수 타일 위에도 하이라이트 효과 표시
               if (isHighlighted && type != 'land')
                 FadeTransition(
                   opacity: _glowAnimation,
@@ -937,6 +951,32 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     final int owner = int.tryParse(tileData['owner']?.toString() ?? '0') ?? 0;
     final bool isFestival = tileData['isFestival'] ?? false;
 
+    // --- 통행료 계산 ---
+    int currentToll = 0;
+
+    // 건물이 없거나(레벨0) 주인이 없으면 0원
+    if (buildLevel > 0 && owner != 0) {
+      // 1. 기본 통행료
+      int basePrice = int.tryParse(tileData["tollPrice"]?.toString() ?? "0") ?? 0;
+
+      // 2. 레벨 배수
+      int levelMult = 0;
+      switch (buildLevel) {
+        case 1: levelMult = 2; break;
+        case 2: levelMult = 6; break;
+        case 3: levelMult = 14; break;
+        case 4: levelMult = 30; break;
+      }
+
+      // 3. 축제/multiply 배수
+      double multiply = double.tryParse(tileData["multiply"]?.toString() ?? "1.0") ?? 1.0;
+      if (isFestival && multiply == 1.0) multiply *= 2;
+
+      // 최종 계산
+      currentToll = (basePrice * levelMult * multiply).round();
+    }
+    // ----------------
+
     bool isHighlighted = false;
     if (_highlightOwner != null) {
       if (_highlightOwner == 99) isHighlighted = true;
@@ -950,14 +990,14 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     return GestureDetector(
       onTap: () async {
         if (_highlightOwner != null) {
-          if (_highlightOwner == 99) { // 여행
+          if (_highlightOwner == 99) {
             await _stopHighlight(index, eventNow);
             return;
           } else if (owner == _highlightOwner || (_highlightOwner == -1 && owner != 0 && owner != myIndex)) {
             await _stopHighlight(index, eventNow);
             return;
           }
-          return; // 하이라이트 중인데 엉뚱한 곳 클릭 시 무시
+          return;
         }
 
         if (tileData != null && tileData["type"] == "land") {
@@ -1013,7 +1053,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                               maxLines: 1,
                             ),
                           ),
-                          Text(_formatMoney(tileData["tollPrice"] ?? 0), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
+                          // ✅ 계산된 통행료 표시 (3자리 쉼표)
+                          Text(_formatMoney(currentToll), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
                         ],
                       ),
                     ],
@@ -1113,7 +1154,6 @@ class _TopRightTriangleClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-// 💡 [추가된 커스텀 패널 클래스]
 class OnlinePlayerInfoPanel extends StatelessWidget {
   final Alignment alignment;
   final Map<String, dynamic> playerData;
@@ -1251,7 +1291,6 @@ class OnlinePlayerInfoPanel extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      // ✅ [수정완료] 현금과 자산 표시
                       _moneyText("현금", money, isLeft),
                       _moneyText("자산", totalMoney, isLeft),
                     ],

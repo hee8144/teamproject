@@ -10,6 +10,7 @@ import 'package:teamproject/online/onlineGameMain.dart';
 import 'package:teamproject/online/onlineWatingRoom.dart';
 import 'package:teamproject/online/onlineMain.dart';
 import 'online/onlineRoomList.dart'; // 닉네임 받는 페이지
+import 'online/OnlineGameResult.dart';
 
 import '../firebase_options.dart';
 import 'game/gameMain.dart';
@@ -42,7 +43,20 @@ final GoRouter router = GoRouter(
     GoRoute(path: '/', builder: (context, state) => Login()),
     GoRoute(path: '/main', builder: (context, state) => MainScreen()),
     GoRoute(path: '/onlinemain', builder: (context, state) => onlineMainScreen()),
+    GoRoute(
+      path: '/onlineGameResult',
+      builder: (context, state) {
+        final roomId = state.uri.queryParameters['roomId'] ?? '';
+        final victoryType = state.uri.queryParameters['victoryType'] ?? 'unknown';
+        final winnerIndex = state.uri.queryParameters['winnerIndex'] ?? '0';
 
+        return OnlineGameResult(
+          roomId: roomId,
+          victoryType: victoryType,
+          winnerIndex: winnerIndex,
+        );
+      },
+    ),
     // ✅ [수정됨] 닉네임을 받아서 OnlineRoomListPage로 전달
     GoRoute(
       path: '/onlineRoom',
