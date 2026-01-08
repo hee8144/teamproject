@@ -462,7 +462,10 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   // --- 하이라이트 이벤트 ---
   Future<void> _handleHighlightAction(String type, bool isDouble) async {
     bool hasTarget = false;
-    isActionActive = true;
+    setState(() {
+      isActionActive = true;
+    });
+    print(isActionActive);
     gameState!['board'].forEach((key, val) {
       int owner = int.tryParse(val['owner']?.toString() ?? '0') ?? 0;
       if (type == "festival" || type == "priceDown" || type == "start") {
@@ -477,7 +480,9 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     if (!hasTarget) {
       await _showSimpleDialog(type == "festival" ? "선택할 내 땅이 없습니다!" : "선택할 상대 땅이 없습니다!");
       _completeAction({}, isDouble: isDouble);
-      isActionActive = false;
+      setState(() {
+        isActionActive = false;
+      });
       return;
     }
 
@@ -496,7 +501,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     _glowController.repeat(reverse: true);
 
     if (mounted) {
-      showDialog(
+      await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (BuildContext dialogContext) {
@@ -507,7 +512,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         },
       );
     }
-    isActionActive = false;
+
   }
 
   Widget _showEventDialog() {
@@ -549,6 +554,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   Future<void> _stopHighlight(int index, String event) async {
     setState(() { _highlightOwner = null; });
+
     _glowController.stop();
     _glowController.reset();
 
@@ -610,13 +616,18 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         return;
       }
     }
-
+    if (mounted) {
+      setState(() {
+        isActionActive = false;
+      });
+    }
     _completeAction(updateData, isDouble: _pendingIsDouble);
     _pendingIsDouble = false;
   }
 
   Future<void> _handleChanceEvent(Map<String, dynamic> data, bool isDouble) async {
     if (gameState == null) return;
+    setState(() => isActionActive = true);
     QuizQuestion? question = await QuizRepository.getRandomQuiz();
     bool isCorrect = false;
     int? selectedIndex;
@@ -659,6 +670,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     if (actionResult == null) {
       _completeAction({}, isDouble: isDouble);
+      setState(() => isActionActive = false);
       return;
     }
 
@@ -673,6 +685,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           'roomId': widget.roomId,
           'playerIndex': myIndex,
         });
+        setState(() => isActionActive = false);
         return;
       case "c_start":
         myUpdate['position'] = 0;
@@ -682,6 +695,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           'finalPos': 0,
           'isDouble': nextIsDouble,
         });
+        setState(() => isActionActive = false);
         return;
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
@@ -703,16 +717,17 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         break;
       case "c_shield": myUpdate['card'] = "shield"; break;
       case "c_escape": myUpdate['card'] = "escape"; break;
-      case "c_festival": _handleHighlightAction("festival", nextIsDouble); return;
-      case "c_earthquake": _handleHighlightAction("earthquake", nextIsDouble); return;
-      case "d_storm": _handleHighlightAction("storm", nextIsDouble); return;
-      case "d_priceDown": _handleHighlightAction("priceDown", nextIsDouble); return;
-      default: _completeAction({}, isDouble: nextIsDouble); return;
+      case "c_festival":await _handleHighlightAction("festival", nextIsDouble); setState(() => isActionActive = false);return;
+      case "c_earthquake":await _handleHighlightAction("earthquake", nextIsDouble); setState(() => isActionActive = false);return;
+      case "d_storm":await _handleHighlightAction("storm", nextIsDouble); setState(() => isActionActive = false);return;
+      case "d_priceDown":await _handleHighlightAction("priceDown", nextIsDouble); setState(() => isActionActive = false);return;
+      default: _completeAction({}, isDouble: nextIsDouble); setState(() => isActionActive = false);return;
     }
     _completeAction(updateData, isDouble: nextIsDouble);
   }
 
   Future<void> _handleIslandEvent(Map<String, dynamic> data) async {
+    setState(() => isActionActive = true);
     final bool result = await showDialog(
       context: context,
       barrierDismissible: false,
@@ -727,6 +742,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else {
       socket.emit('island_wait_complete', {'roomId': widget.roomId, 'playerIndex': myIndex});
     }
+    setState(() => isActionActive = false);
   }
 
   void _completeAction(Map<String, dynamic> stateUpdate, {bool isDouble = false}) {
@@ -806,7 +822,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
               width: boardSize, height: boardSize,
               child: Stack(
                 children: [
-                  if(!isActionActive)
+                  if( !_isMoving)
                     Center(
                       child: Container(
                         width: boardSize * 0.75, height: boardSize * 0.75,
