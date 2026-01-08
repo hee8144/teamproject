@@ -5,27 +5,41 @@ import 'package:carousel_slider/carousel_controller.dart';
 import '../auth/auth_service.dart';
 
 class GameRulePage extends StatefulWidget {
-  final String fromPage; // ✅ 전달받을 값 추가
+  final String fromPage;
 
   const GameRulePage({
     super.key,
-    this.fromPage = 'unknown', // 기본값 설정
+    this.fromPage = 'unknown',
   });
 
   @override
   State<GameRulePage> createState() => _GameRulePageState();
 }
 
-class _GameRulePageState extends State<GameRulePage> {
+class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderStateMixin {
   final CarouselSliderController _controller = CarouselSliderController();
   int _currentIndex = 0;
-
   int? _openedTooltipIndex;
+
+  // ✅ 애니메이션 관련 변수
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _opacityAnimation;
+  bool _isAnimating = false; // 현재 애니메이션 진행 중인지 여부
 
   final List<_RuleData> rules = [
     _RuleData(
+      title: '목차',
+      imagePath: '', // 목차는 이미지 없음
+      tooltips: [],
+      isToc: true,
+      showInToc: false, // 목차에 표시 안 함
+    ),
+    _RuleData(
       title: '기본 진행 방법',
       imagePath: 'assets/rules/game_start_rule.png',
+      showInToc: true, // 목차에 표시
+      tocTitle: '기본 진행 방법', // 목차에 표시될 이름
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -42,10 +56,11 @@ class _GameRulePageState extends State<GameRulePage> {
         _TooltipData(
           tooltipLines: [
             '플레이어 정보',
-            '현금: 현재 보유하고 있는 소지금',
+            '클릭 시 상세 정보를 보여줍니다.',
+            '현금: 현재 보유하고 있는 소지금, 소지금이 0원이 되면 파산합니다.(게임 탈락) ',
             '자산: 현금 + 소유 건물 가격',
             '순위: 총 자산 기준',
-            '파산: 보유 현금이 부족하여 부동산을 매각해도 통행료, 세금 등을 지불할 수 없을 때, 파산자는 보드판에서 본인의 건물을 모두 치우고 게임에서 빠집니다.',
+
           ],
           iconTopRatio: 0.2,
           iconRightRatio: 0.1,
@@ -70,6 +85,7 @@ class _GameRulePageState extends State<GameRulePage> {
     _RuleData(
       title: '건설',
       imagePath: 'assets/rules/game_build.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -97,36 +113,9 @@ class _GameRulePageState extends State<GameRulePage> {
       ],
     ),
     _RuleData(
-      title: '퀴즈',
-      imagePath: 'assets/rules/quiz.png',
-      tooltips: [
-        _TooltipData(
-          tooltipLines: [
-            '퀴즈',
-            '찬스 카드 밟았을 때 100% 확률로 퀴즈 발동 -> 맞추면 50% 에서 70%로 이로운 효과 확률 상승',
-            '상대 땅을 밟았을 때 50% 확률로 퀴즈 발동 -> 맞추면 통행료 50% 할인',
-          ],
-          iconTopRatio: 0.3,
-          iconRightRatio: 0.5,
-          tooltipTopRatio: 0.2,
-          tooltipLeftRatio: 0.0,
-        ),
-        _TooltipData(
-          tooltipLines: [
-            '제한 시간',
-            '퀴즈를 푸는 데는 제한시간이 있습니다.',
-            '제한 시간이 지나면 답을 제출하지 못한 걸로 간주합니다.',
-          ],
-          iconTopRatio: 0.1,
-          iconRightRatio: 0.1,
-          tooltipTopRatio: 0.1,
-          tooltipLeftRatio: 0.0,
-        ),
-      ],
-    ),
-    _RuleData(
       title: '통행료 & 건물 인수',
       imagePath: 'assets/rules/toll.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -156,8 +145,40 @@ class _GameRulePageState extends State<GameRulePage> {
       ],
     ),
     _RuleData(
+      title: '퀴즈',
+      imagePath: 'assets/rules/quiz.png',
+      showInToc: true, // 목차에 표시
+      tocTitle: '퀴즈 & 문화재', // 목차에 표시될 이름
+      tooltips: [
+        _TooltipData(
+          tooltipLines: [
+            '퀴즈',
+            '찬스 카드 밟았을 때 100% 확률로 퀴즈 발동 -> 맞추면 50% 에서 70%로 이로운 효과 확률 상승',
+            '상대 땅을 밟았을 때 50% 확률로 퀴즈 발동 -> 맞추면 통행료 50% 할인',
+          ],
+          iconTopRatio: 0.3,
+          iconRightRatio: 0.5,
+          tooltipTopRatio: 0.2,
+          tooltipLeftRatio: 0.0,
+        ),
+        _TooltipData(
+          tooltipLines: [
+            '제한 시간',
+            '퀴즈를 푸는 데는 제한시간이 있습니다.',
+            '제한 시간이 지나면 답을 제출하지 못한 걸로 간주합니다.',
+          ],
+          iconTopRatio: 0.1,
+          iconRightRatio: 0.1,
+          tooltipTopRatio: 0.1,
+          tooltipLeftRatio: 0.0,
+        ),
+      ],
+    ),
+
+    _RuleData(
       title: '문화재 상세보기1',
       imagePath: 'assets/rules/show_detail1.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -184,6 +205,7 @@ class _GameRulePageState extends State<GameRulePage> {
     _RuleData(
       title: '문화재 상세보기2',
       imagePath: 'assets/rules/show_detail2.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -197,9 +219,12 @@ class _GameRulePageState extends State<GameRulePage> {
         ),
       ],
     ),
+
     _RuleData(
       title: '출발지',
       imagePath: 'assets/rules/origin.png',
+      showInToc: true, // 목차에 표시
+      tocTitle: '특수 칸', // 목차에 표시될 이름
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -224,28 +249,31 @@ class _GameRulePageState extends State<GameRulePage> {
         ),
       ],
     ),
+
     _RuleData(
-      title: '찬스',
+      title: '찬스 카드',
       imagePath: 'assets/rules/chance.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
-            '찬스',
-            '찬스 칸에 도착하면 문화재 퀴즈에 도전하게 됩니다.',
+            '찬스 카드',
+            '찬스 카드에 도착하면 문화재 퀴즈에 도전하게 됩니다.',
             '퀴즈를 맞히면 좋은 효과가 발동할 확률이 기본 50% 대신 70%로 바뀝니다.',
             '좋은 효과(월급 보너스, 통행료 면제 등)나 나쁜 효과(건물 파괴, 통행료 반값 등)가 확률에 따라 발동됩니다',
 
           ],
-          iconTopRatio: 0.05,
-          iconRightRatio: 0.5,
+          iconTopRatio: 0.47,
+          iconRightRatio: 0.37,
           tooltipTopRatio: 0.05,
-          tooltipLeftRatio: 0.15,
+          tooltipLeftRatio: 0.05,
         ),
       ],
     ),
     _RuleData(
       title: '무인도',
       imagePath: 'assets/rules/uninhabited.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -262,6 +290,7 @@ class _GameRulePageState extends State<GameRulePage> {
     _RuleData(
       title: '지역 축제',
       imagePath: 'assets/rules/festival.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -279,6 +308,7 @@ class _GameRulePageState extends State<GameRulePage> {
     _RuleData(
       title: '국내 여행',
       imagePath: 'assets/rules/domestic_trip.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -295,6 +325,7 @@ class _GameRulePageState extends State<GameRulePage> {
     _RuleData(
       title: '국세청',
       imagePath: 'assets/rules/tax.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -309,25 +340,31 @@ class _GameRulePageState extends State<GameRulePage> {
         ),
       ],
     ),
+
     _RuleData(
       title: '승리 조건(파산 승리)',
       imagePath: 'assets/rules/bankruptcy_victory.png',
+      showInToc: true, // 목차에 표시
+      tocTitle: '승리 조건', // 목차에 표시될 이름
       tooltips: [
         _TooltipData(
           tooltipLines: [
             '파산 승리',
             '모든 상대방을 파산시키면 승리합니다.',
+            '파산: 보유 현금이 부족하여 부동산을 매각해도 통행료, 세금 등을 지불할 수 없을 때, 파산자는 보드판에서 본인의 건물을 모두 치우고 게임에서 빠집니다.',
           ],
           iconTopRatio: 0.05,
           iconRightRatio: 0.65,
-          tooltipTopRatio: 0.3,
-          tooltipLeftRatio: 0.3,
+          tooltipTopRatio: 0.05,
+          tooltipLeftRatio: 0.4,
         ),
       ],
     ),
+
     _RuleData(
       title: '승리 조건(라인 승리)',
       imagePath: 'assets/rules/line_victory.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -344,6 +381,7 @@ class _GameRulePageState extends State<GameRulePage> {
     _RuleData(
       title: '승리 조건(트리플 승리)',
       imagePath: 'assets/rules/triple_victory.png',
+      showInToc: false,
       tooltips: [
         _TooltipData(
           tooltipLines: [
@@ -357,14 +395,82 @@ class _GameRulePageState extends State<GameRulePage> {
         ),
       ],
     ),
-
-
   ];
 
   @override
+  void initState() {
+    super.initState();
+
+    // 펄스 애니메이션 컨트롤러 설정
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    // 크기 애니메이션 (1.0 -> 1.3 -> 1.0)
+    _pulseAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 1.3)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.3, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+    ]).animate(_pulseController);
+
+    // 투명도 애니메이션 (반짝임 효과)
+    _opacityAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.4),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.4, end: 1.0),
+        weight: 50,
+      ),
+    ]).animate(_pulseController);
+
+    // 2번 반복 후 정지
+    _pulseController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        if (!_isAnimating) {
+          setState(() {
+            _isAnimating = true;
+          });
+          _pulseController.forward(from: 0);
+        } else {
+          _pulseController.stop();
+          setState(() {
+            _isAnimating = false;
+          });
+        }
+      }
+    });
+
+    // 첫 번째 슬라이드 애니메이션 시작 (목차는 애니메이션 없음)
+    // _startSlideAnimation(); // 목차에서는 시작하지 않음
+  }
+
+  // 슬라이드 애니메이션 시작 메서드
+  void _startSlideAnimation() {
+    setState(() {
+      _isAnimating = false;
+    });
+    _pulseController.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // widget.fromPage 로 전달받은 값 사용 가능
-    print('From: ${widget.fromPage}'); // 확인용
+    print('From: ${widget.fromPage}');
 
     return Scaffold(
       body: Stack(
@@ -401,7 +507,6 @@ class _GameRulePageState extends State<GameRulePage> {
                           },
                           child: const Icon(Icons.arrow_back, size: 36),
                         ),
-
                         const SizedBox(width: 16),
                         const Icon(
                           Icons.info_outline,
@@ -436,12 +541,22 @@ class _GameRulePageState extends State<GameRulePage> {
                                 _currentIndex = index;
                                 _openedTooltipIndex = null;
                               });
+                              // 새 슬라이드로 이동할 때 애니메이션 시작 (목차가 아닐 때만)
+                              if (index > 0) {
+                                _startSlideAnimation();
+                              }
                             },
                           ),
                           items: rules.asMap().entries.map((entry) {
                             final ruleIndex = entry.key;
                             final rule = entry.value;
 
+                            // 목차 슬라이드
+                            if (rule.isToc) {
+                              return _buildTocSlide();
+                            }
+
+                            // 일반 슬라이드
                             return Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: ClipRRect(
@@ -468,8 +583,7 @@ class _GameRulePageState extends State<GameRulePage> {
                                               ),
                                               decoration: BoxDecoration(
                                                 color: Colors.black.withOpacity(0.55),
-                                                borderRadius:
-                                                BorderRadius.circular(12),
+                                                borderRadius: BorderRadius.circular(12),
                                               ),
                                               child: Text(
                                                 rule.title,
@@ -484,54 +598,69 @@ class _GameRulePageState extends State<GameRulePage> {
                                           ...rule.tooltips.asMap().entries.map((t) {
                                             final tooltipIndex = t.key;
                                             final tooltip = t.value;
-                                            final uniqueIndex =
-                                                ruleIndex * 10 + tooltipIndex;
+                                            final uniqueIndex = ruleIndex * 10 + tooltipIndex;
 
                                             return Stack(
                                               children: [
                                                 Positioned(
-                                                  top: constraints.maxHeight *
-                                                      tooltip.iconTopRatio,
-                                                  right: constraints.maxWidth *
-                                                      tooltip.iconRightRatio,
+                                                  top: constraints.maxHeight * tooltip.iconTopRatio,
+                                                  right: constraints.maxWidth * tooltip.iconRightRatio,
                                                   child: GestureDetector(
                                                     onTap: () {
                                                       setState(() {
                                                         _openedTooltipIndex =
-                                                        _openedTooltipIndex ==
-                                                            uniqueIndex
+                                                        _openedTooltipIndex == uniqueIndex
                                                             ? null
                                                             : uniqueIndex;
                                                       });
                                                     },
-                                                    child: Container(
-                                                      width: 42,
-                                                      height: 42,
-                                                      decoration: BoxDecoration(
-                                                        shape: BoxShape.circle,
-                                                        color: Colors.black,
-                                                        border: Border.all(
-                                                          color: Colors.white,
-                                                          width: 2,
-                                                        ),
-                                                      ),
-                                                      child: const Icon(
-                                                        Icons.info_outline,
-                                                        size: 24,
-                                                        color: Colors.white,
-                                                      ),
+                                                    child: AnimatedBuilder(
+                                                      animation: _pulseController,
+                                                      builder: (context, child) {
+                                                        // 현재 슬라이드인 경우에만 애니메이션 적용
+                                                        final shouldAnimate = _currentIndex == ruleIndex;
+
+                                                        return Transform.scale(
+                                                          scale: shouldAnimate ? _pulseAnimation.value : 1.0,
+                                                          child: Opacity(
+                                                            opacity: shouldAnimate ? _opacityAnimation.value : 1.0,
+                                                            child: Container(
+                                                              width: 42,
+                                                              height: 42,
+                                                              decoration: BoxDecoration(
+                                                                shape: BoxShape.circle,
+                                                                color: Colors.black,
+                                                                border: Border.all(
+                                                                  color: Colors.white,
+                                                                  width: 2,
+                                                                ),
+                                                                boxShadow: shouldAnimate
+                                                                    ? [
+                                                                  BoxShadow(
+                                                                    color: Colors.white.withOpacity(0.6),
+                                                                    blurRadius: 8,
+                                                                    spreadRadius: 2,
+                                                                  ),
+                                                                ]
+                                                                    : [],
+                                                              ),
+                                                              child: const Icon(
+                                                                Icons.info_outline,
+                                                                size: 24,
+                                                                color: Colors.white,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
                                                     ),
                                                   ),
                                                 ),
-                                                if (_openedTooltipIndex ==
-                                                    uniqueIndex)
+                                                if (_openedTooltipIndex == uniqueIndex)
                                                   Positioned(
-                                                    top: constraints.maxHeight *
-                                                        tooltip.tooltipTopRatio,
-                                                    left: constraints.maxWidth *
-                                                        tooltip.tooltipLeftRatio,
-                                                    child: _buildTooltipBox(
-                                                        tooltip.tooltipLines),
+                                                    top: constraints.maxHeight * tooltip.tooltipTopRatio,
+                                                    left: constraints.maxWidth * tooltip.tooltipLeftRatio,
+                                                    child: _buildTooltipBox(tooltip.tooltipLines),
                                                   ),
                                               ],
                                             );
@@ -545,7 +674,6 @@ class _GameRulePageState extends State<GameRulePage> {
                             );
                           }).toList(),
                         ),
-                        // 왼쪽 화살표 버튼
                         if (_currentIndex > 0)
                           Positioned(
                             left: 0,
@@ -576,7 +704,6 @@ class _GameRulePageState extends State<GameRulePage> {
                               ),
                             ),
                           ),
-                        // 오른쪽 화살표 버튼
                         if (_currentIndex < rules.length - 1)
                           Positioned(
                             right: 0,
@@ -615,6 +742,106 @@ class _GameRulePageState extends State<GameRulePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTocSlide() {
+    // showInToc가 true인 항목만 필터링
+    final tocItems = rules.asMap().entries
+        .where((entry) => entry.value.showInToc)
+        .toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '게임 규칙 목차',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              // const SizedBox(height: 30),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: tocItems.length,
+                  itemBuilder: (context, index) {
+                    final entry = tocItems[index];
+                    final ruleIndex = entry.key; // 실제 rules 리스트의 인덱스
+                    final rule = entry.value;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: InkWell(
+                        onTap: () {
+                          _controller.animateToPage(
+                            ruleIndex,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE6AD5C).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFE6AD5C),
+                              width: 2,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                '${index + 1}',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFE6AD5C),
+                                ),
+                              ),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                child: Text(
+                                  rule.tocTitle ?? rule.title,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.arrow_forward_ios,
+                                color: Color(0xFFE6AD5C),
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -714,18 +941,23 @@ class _GameRulePageState extends State<GameRulePage> {
       }),
     );
   }
-
 }
 
 class _RuleData {
   final String title;
   final String imagePath;
   final List<_TooltipData> tooltips;
+  final bool isToc;
+  final bool showInToc;
+  final String? tocTitle;
 
   _RuleData({
     required this.title,
     required this.imagePath,
     required this.tooltips,
+    this.isToc = false,
+    this.showInToc = false,
+    this.tocTitle,
   });
 }
 
