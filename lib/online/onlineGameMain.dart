@@ -19,7 +19,7 @@ import '../quiz/quiz_result_popup.dart';
 import 'onlinedice.dart';
 
 // ✅ WarningDialog import
-import '../Popup/warning.dart'; // 실제 경로에 맞춰주세요
+import '../Popup/warning.dart';
 
 class OnlineGamePage extends StatefulWidget {
   final String roomId;
@@ -51,9 +51,11 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   // ⚠️ 온라인 게임 전용 경고 기록
   final Set<String> _shownOnlineWarnings = {};
 
+  // 액션 활성화 상태 (중복 실행 방지)
+  bool isActionActive = false;
+
   // 주사위 제어 키
   final GlobalKey<onlineDiceAppState> diceAppKey = GlobalKey<onlineDiceAppState>();
-  bool isActionActive = false;
 
   @override
   void initState() {
@@ -63,13 +65,13 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       duration: const Duration(milliseconds: 500),
     );
     _glowAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(_glowController);
+
     _initSocket();
   }
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경
-    // socket = IO.io('http://localhost:3000',
-    socket = IO.io('http://10.0.2.2:3000',
+    socket = IO.io('http://localhost:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -110,7 +112,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       }
 
       setState(() {
-        final newState = Map<String, dynamic>.from(data);
         if (_isMoving && gameState != null) {
           newState['users'] = gameState!['users'];
         }
@@ -290,7 +291,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     final tile = gameState!['board']['b$pos'];
     final int owner = int.tryParse(tile['owner']?.toString() ?? '0') ?? 0;
-
     final int currentLevel = int.tryParse(tile['level']?.toString() ?? '0') ?? 0;
     final int myLevel = int.tryParse(gameState!['users']['user$myIndex']['level']?.toString() ?? '1') ?? 1;
 
@@ -298,7 +298,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
     if (owner == myIndex) {
       if (myLevel <= currentLevel) {
-        print("⛔ [내 땅] 레벨 제한(내 레벨: $myLevel, 건물: $currentLevel)으로 증축 불가.");
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("레벨이 부족하여 증축할 수 없습니다!"), duration: Duration(seconds: 1)));
         _completeAction({}, isDouble: isDouble);
         return;
@@ -399,7 +398,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         int takeoverCost = (tileData['tollPrice'] ?? 0) * 2;
         int currentTotalMoneyAfterToll = myTotalMoney - toll;
 
-        // 자산은 인수 비용의 절반만큼 차감
         int decreasedAsset = (takeoverCost / 2).floor();
         int newTotalMoney = currentTotalMoneyAfterToll - decreasedAsset;
 
@@ -462,27 +460,28 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
   // --- 하이라이트 이벤트 ---
   Future<void> _handleHighlightAction(String type, bool isDouble) async {
     bool hasTarget = false;
-    setState(() {
-      isActionActive = true;
-    });
-    print(isActionActive);
+    setState(() => isActionActive = true);
+
     gameState!['board'].forEach((key, val) {
       int owner = int.tryParse(val['owner']?.toString() ?? '0') ?? 0;
+      int level = int.tryParse(val['level']?.toString() ?? '0') ?? 0;
+
       if (type == "festival" || type == "priceDown" || type == "start") {
         if (owner == myIndex) hasTarget = true;
       } else if (type == "earthquake" || type == "storm") {
-        if (owner != 0 && owner != myIndex) hasTarget = true;
+        if (owner != 0 && owner != myIndex && level < 4) hasTarget = true;
       } else if (type == "trip") {
         hasTarget = true;
       }
     });
 
     if (!hasTarget) {
-      await _showSimpleDialog(type == "festival" ? "선택할 내 땅이 없습니다!" : "선택할 상대 땅이 없습니다!");
+      await _showSimpleDialog(
+          type == "festival" ? "선택할 내 땅이 없습니다!" :
+          (type == "start" ? "건설할 내 땅이 없습니다!" : "공격할 수 있는 상대 땅(랜드마크 제외)이 없습니다!")
+      );
       _completeAction({}, isDouble: isDouble);
-      setState(() {
-        isActionActive = false;
-      });
+      setState(() => isActionActive = false);
       return;
     }
 
@@ -571,6 +570,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       var tileData = gameState!['board'][tileKey];
       int currentLevel = tileData['level'] ?? 0;
       String ownerNum = tileData['owner'].toString();
+
       int newLevel = (currentLevel > 0) ? currentLevel - 1 : 0;
 
       updateData['board'][tileKey] = {
@@ -578,6 +578,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         'owner': newLevel == 0 ? "0" : ownerNum,
         'isFestival': false
       };
+
       int price = (tileData['tollPrice'] ?? 0) as int;
       int ownerMoney = (gameState!['users']['user$ownerNum']['money'] ?? 0) as int;
       updateData['users']['user$ownerNum'] = {'money': ownerMoney - (price ~/ 2)};
@@ -615,9 +616,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       }
     }
     if (mounted) {
-      setState(() {
-        isActionActive = false;
-      });
+      setState(() => isActionActive = false);
     }
     _completeAction(updateData, isDouble: _pendingIsDouble);
     _pendingIsDouble = false;
@@ -816,6 +815,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           children: [
             Container(width: double.infinity, height: double.infinity,
                 decoration: const BoxDecoration(image: DecorationImage(image: AssetImage('assets/board-background.PNG'), fit: BoxFit.cover))),
+
             SizedBox(
               width: boardSize, height: boardSize,
               child: Stack(
@@ -836,6 +836,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                         ),
                       ),
                     ),
+                  ),
                   ...List.generate(28, (index) => _buildGameTile(index, tileSize)),
                   ...List.generate(4, (index) => _buildAnimatedPlayer(index, tileSize)),
                 ],
@@ -891,10 +892,20 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     );
   }
 
+  // ✅ [수정됨] 특수 타일 등 처리: 첫 공백 앞 단어 제거
   Widget _buildGameTile(int index, double tileSize) {
     final pos = _getTilePosition(index, tileSize);
     final tileData = gameState!['board']['b$index'] ?? {};
     final String type = tileData['type'] ?? 'land';
+
+    // 💡 1. 이름 처리 로직 (첫 공백 앞 단어 제거)
+    String originalName = tileData['name']?.toString() ?? "";
+    String displayName = originalName;
+    int firstSpaceIndex = originalName.indexOf(' ');
+
+    if (firstSpaceIndex != -1) {
+      displayName = originalName.substring(firstSpaceIndex + 1);
+    }
 
     bool isHighlighted = false;
     if (_highlightOwner != null) {
@@ -924,7 +935,7 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                      tileData['name'] ?? "",
+                      displayName, // 💡 수정된 이름 사용
                       style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)
                   ),
                 ),
@@ -946,20 +957,25 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     );
   }
 
+  // ✅ [수정됨] 일반 땅 처리: 첫 공백 앞 단어 제거
   Widget _buildLandContent(Map<String, dynamic> tileData, int index) {
     final int buildLevel = int.tryParse(tileData['level']?.toString() ?? '0') ?? 0;
     final int owner = int.tryParse(tileData['owner']?.toString() ?? '0') ?? 0;
     final bool isFestival = tileData['isFestival'] ?? false;
 
+    // 💡 1. 이름 처리 로직 (첫 공백 앞 단어 제거)
+    String originalName = tileData["name"]?.toString() ?? "";
+    String displayName = originalName;
+    int firstSpaceIndex = originalName.indexOf(' ');
+
+    if (firstSpaceIndex != -1) {
+      displayName = originalName.substring(firstSpaceIndex + 1);
+    }
+
     // --- 통행료 계산 ---
     int currentToll = 0;
-
-    // 건물이 없거나(레벨0) 주인이 없으면 0원
     if (buildLevel > 0 && owner != 0) {
-      // 1. 기본 통행료
       int basePrice = int.tryParse(tileData["tollPrice"]?.toString() ?? "0") ?? 0;
-
-      // 2. 레벨 배수
       int levelMult = 0;
       switch (buildLevel) {
         case 1: levelMult = 2; break;
@@ -967,21 +983,21 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         case 3: levelMult = 14; break;
         case 4: levelMult = 30; break;
       }
-
-      // 3. 축제/multiply 배수
       double multiply = double.tryParse(tileData["multiply"]?.toString() ?? "1.0") ?? 1.0;
       if (isFestival && multiply == 1.0) multiply *= 2;
-
-      // 최종 계산
       currentToll = (basePrice * levelMult * multiply).round();
     }
     // ----------------
 
     bool isHighlighted = false;
     if (_highlightOwner != null) {
-      if (_highlightOwner == 99) isHighlighted = true;
-      else if (_highlightOwner == -1 && owner != 0 && owner != myIndex) isHighlighted = true;
-      else if (_highlightOwner == myIndex && owner == myIndex) isHighlighted = true;
+      if (_highlightOwner == 99) {
+        isHighlighted = true;
+      } else if (_highlightOwner == myIndex && owner == myIndex) {
+        isHighlighted = true;
+      } else if (_highlightOwner == -1 && owner != 0 && owner != myIndex) {
+        if (buildLevel < 4) isHighlighted = true;
+      }
     }
     bool isFestivalLocation = tileData['isFestival'] == true;
     double multiply = (tileData["multiply"] as num? ?? 1.0).toDouble();
@@ -993,8 +1009,17 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
           if (_highlightOwner == 99) {
             await _stopHighlight(index, eventNow);
             return;
-          } else if (owner == _highlightOwner || (_highlightOwner == -1 && owner != 0 && owner != myIndex)) {
+          } else if (owner == _highlightOwner) {
             await _stopHighlight(index, eventNow);
+            return;
+          } else if (_highlightOwner == -1 && owner != 0 && owner != myIndex) {
+            if (buildLevel < 4) {
+              await _stopHighlight(index, eventNow);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("랜드마크는 공격할 수 없습니다!"), duration: Duration(seconds: 1)),
+              );
+            }
             return;
           }
           return;
@@ -1046,15 +1071,14 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 2.0),
                             child: Text(
-                              tileData["name"]?.toString() ?? "",
-                              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
+                              displayName, // 💡 수정된 이름 사용
+                              style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold),
                               textAlign: TextAlign.center,
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                             ),
                           ),
-                          // ✅ 계산된 통행료 표시 (3자리 쉼표)
-                          Text(_formatMoney(currentToll), style: TextStyle(fontSize: 6, color: Colors.grey[700])),
+                          Text(_formatMoney(currentToll), style: TextStyle(fontSize: 5, color: Colors.grey[700])),
                         ],
                       ),
                     ],
