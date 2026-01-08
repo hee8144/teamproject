@@ -61,7 +61,10 @@ class MainScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildRuleButtonLarge(
-                onTap: () => context.go('/gameRule'), // ✅ GoRouter 이동
+                onTap: () => context.go('/gameRule', extra: {
+                  'fromPage': 'main',  // ✅ 어디서 왔는지 전달
+                  // 필요한 다른 데이터도 추가 가능
+                }),
               ),
               const SizedBox(height: 20), // ⬇ 간격 축소
               _buildButtonPanel(

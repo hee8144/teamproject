@@ -5,7 +5,12 @@ import 'package:carousel_slider/carousel_controller.dart';
 import '../auth/auth_service.dart';
 
 class GameRulePage extends StatefulWidget {
-  const GameRulePage({super.key});
+  final String fromPage; // ✅ 전달받을 값 추가
+
+  const GameRulePage({
+    super.key,
+    this.fromPage = 'unknown', // 기본값 설정
+  });
 
   @override
   State<GameRulePage> createState() => _GameRulePageState();
@@ -358,6 +363,9 @@ class _GameRulePageState extends State<GameRulePage> {
 
   @override
   Widget build(BuildContext context) {
+    // widget.fromPage 로 전달받은 값 사용 가능
+    print('From: ${widget.fromPage}'); // 확인용
+
     return Scaffold(
       body: Stack(
         children: [
@@ -383,10 +391,9 @@ class _GameRulePageState extends State<GameRulePage> {
                       children: [
                         GestureDetector(
                           onTap: () {
-                            final bool isLoggedIn =
-                                AuthService.instance.currentUid != null;
-
-                            if (isLoggedIn) {
+                            if (widget.fromPage == 'main') {
+                              context.go('/main');
+                            } else if (widget.fromPage == 'unknown') {
                               context.go('/onlinemain');
                             } else {
                               context.go('/main');
