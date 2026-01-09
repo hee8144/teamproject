@@ -523,6 +523,46 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
                           ),
                         ),
                         const Spacer(),
+                        GestureDetector(
+                          onTap: () {
+                            _controller.animateToPage(
+                              0, // 목차는 첫 번째 슬라이드 (index 0)
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE6AD5C),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.list,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  '목차',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+
                         _buildDotIndicator(),
                       ],
                     ),
