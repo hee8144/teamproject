@@ -508,15 +508,17 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
                           child: const Icon(Icons.arrow_back, size: 36),
                         ),
                         const SizedBox(width: 16),
-                        const Icon(
-                          Icons.info_outline,
+                        Icon(
+                          _currentIndex == 0 ? Icons.touch_app : Icons.info_outline,
                           size: 20,
-                          color: Color(0xFF000000),
+                          color: const Color(0xFF000000),
                         ),
                         const SizedBox(width: 6),
-                        const Text(
-                          '아이콘을 눌러 자세한 설명을 확인하세요',
-                          style: TextStyle(
+                        Text(
+                          _currentIndex == 0
+                              ? '목차를 눌러 주요 게임 정보 슬라이드로 이동하세요.'
+                              : '아이콘을 눌러 자세한 설명을 확인하세요',
+                          style: const TextStyle(
                             fontSize: 14,
                             color: Colors.black87,
                             fontWeight: FontWeight.w500,
