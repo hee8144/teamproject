@@ -96,8 +96,6 @@ lib/
 ```
 ---
 ## 📜 발표 PPT
-
----
 [PPT](https://www.canva.com/design/DAG9t7pBUUY/z-FXVDM7JWnX0oS6_LhDgw/edit)
 ---
 ## 🎬 시연 영상
