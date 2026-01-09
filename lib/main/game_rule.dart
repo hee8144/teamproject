@@ -516,7 +516,7 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
                         const SizedBox(width: 6),
                         Text(
                           _currentIndex == 0
-                              ? '목차를 눌러 주요 게임 정보 슬라이드로 이동하세요.'
+                              ? '아래 항목을 눌러 주요 슬라이드로 이동하세요'
                               : '아이콘을 눌러 자세한 설명을 확인하세요',
                           style: const TextStyle(
                             fontSize: 14,
