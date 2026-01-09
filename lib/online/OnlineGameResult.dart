@@ -57,6 +57,17 @@ class OnlineGameResult extends StatelessWidget {
     return players;
   }
 
+  // 🗑️ 방 삭제 함수 추가
+  Future<void> _deleteRoom() async {
+    try {
+      // 1. 방 문서 삭제 (서브컬렉션인 users는 남아있을 수 있지만, 메인 문서가 사라져 목록에 안 뜸)
+      await FirebaseFirestore.instance.collection('online').doc(roomId).delete();
+      print("방($roomId) 삭제 완료");
+    } catch (e) {
+      print("방 삭제 중 오류 발생: $e");
+    }
+  }
+
   String _findWinnerName(List<Map<String, dynamic>> players) {
     if (winnerIndex != null && winnerIndex != '0') {
       final winner = players.firstWhere(
@@ -158,23 +169,25 @@ class OnlineGameResult extends StatelessWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // ✅ [수정됨] 다시 하기 버튼 -> 방 리스트로 이동
+                              // ✅ [수정됨] 방 삭제 후 이동
                               _buildActionButton(
                                 text: "다시 하기",
-                                onTap: () {
-                                  // 닉네임을 기억하고 있다면 extra에 넣어서 보내는 것이 좋습니다.
-                                  // 현재는 '게스트'로 처리될 수 있습니다.
-                                  context.go('/onlineRoom');
+                                onTap: () async {
+                                  await _deleteRoom(); // 방 삭제
+                                  if (context.mounted) {
+                                    context.go('/onlineRoom');
+                                  }
                                 },
                               ),
                               const SizedBox(height: 16),
-                              // ✅ [수정됨] 게임 종료 버튼 -> 메인 화면으로 이동
+                              // ✅ [수정됨] 방 삭제 후 이동
                               _buildActionButton(
                                 text: "게임 종료",
-                                onTap: () {
-                                  // 앱 메인 화면으로 이동
-                                  context.go('/');
-                                  // 만약 로컬 게임판으로 가고 싶다면 context.go('/gameMain'); 사용
+                                onTap: () async {
+                                  await _deleteRoom(); // 방 삭제
+                                  if (context.mounted) {
+                                    context.go('/');
+                                  }
                                 },
                               ),
                             ],

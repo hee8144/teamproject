@@ -71,7 +71,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경
-    // socket = IO.io('http://localhost:3000','http://10.0.2.2:3000',
     socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
@@ -587,6 +586,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
     } else if (event == "priceDown") {
       updateData['board']['b$index'] = {'multiply': 0.5};
     } else if (event == "trip") {
+      setState(() => isActionActive = false);
+
       socket.emit('travel_move', {
         'roomId': widget.roomId,
         'playerIndex': myIndex,
@@ -698,20 +699,35 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
       case "c_bonus":
         int currentMoney = int.tryParse(gameState!['users']['user$myIndex']['money']?.toString() ?? '0') ?? 0;
         myUpdate['money'] = currentMoney + 3000000;
+        setState(() => isActionActive = false);
         break;
       case "d_island":
         myUpdate['position'] = 7;
         myUpdate['islandCount'] = 3;
+        setState(() => isActionActive = false);
         break;
-      case "d_tax": myUpdate['position'] = 26; break;
+      case "d_tax":
+        myUpdate['position'] = 26;
+        socket.emit('move_complete', {
+          'roomId': widget.roomId,
+          'playerIndex': myIndex,
+          'finalPos': 26,
+          'isDouble': nextIsDouble,
+        });
+
+        // 3. 여기서 함수 종료 (action_complete를 중복으로 보내지 않기 위함)
+        setState(() => isActionActive = false);
+        return;
       case "d_rest":
         myUpdate['restCount'] = 1;
         _completeAction(updateData, isDouble: false);
+        setState(() => isActionActive = false);
         return;
       case "d_priceUp": myUpdate['isDoubleToll'] = true; break;
       case "d_move":
         int randomPos = (myIndex + (DateTime.now().millisecond % 27)) % 28;
         myUpdate['position'] = randomPos;
+        setState(() => isActionActive = false);
         break;
       case "c_shield": myUpdate['card'] = "shield"; break;
       case "c_escape": myUpdate['card'] = "escape"; break;
