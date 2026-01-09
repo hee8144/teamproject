@@ -891,7 +891,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
               await fs.collection("games").doc("users").update({"user$player.restCount": 1});
             }
             else if (actionResult == "d_priceUp") {
-              _logManager.addActionLog("🌩️ 함정카드: 보유 땅 통행료 2배 적용");
+              _logManager.addActionLog("🌩️ 함정카드: 다음 통행료 2배 적용");
               await fs.collection("games").doc("users").update({"user$player.isDoubleToll": true});
             }
             else if (actionResult == "d_storm") {
