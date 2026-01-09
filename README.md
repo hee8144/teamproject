@@ -31,13 +31,13 @@
 ### 1️⃣ 접속 및 멀티플레이 환경 (Auth & Multiplayer)
 | **메인 로비 & 로그인** | **온라인 방 목록 및 대기실** |
 | :---: | :---: |
-| <img src="assets/screenshots/lobby.png" width="400"> | <img width="400" alt="image" src="https://github.com/user-attachments/assets/e52caafb-bea5-4a05-aae6-396d6e0a3bf9" /> |
+| <img src="assets/screenshots/lobby.gif" width="400"> | <img width="400" alt="image" src="https://github.com/user-attachments/assets/e52caafb-bea5-4a05-aae6-396d6e0a3bf9" /> |
 | *소셜 로그인 기반 통합 세션 및 프로필* | *실시간 소켓 통신을 통한 방 생성 및 입장* |
 
 ### 2️⃣ 게임 플레이 및 데이터 연동 (Gameplay & Data)
 | **메인 게임 보드** | **특수 이벤트** |
 | :---: | :---: |
-| <img src="assets/screenshots/gameplay.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
+| <img src="assets/screenshots/mainboard.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
 | *문화재 API 데이터 기반 실시간 보드 구성* | *교육용 퀴즈 UI* |
 
 ---
