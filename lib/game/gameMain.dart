@@ -1056,7 +1056,12 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
 
         int currentPos = players["user1"]["position"];
         List<int> chances = [3, 10, 17, 24];
-        int target = chances.firstWhere((c) => c > currentPos, orElse: () => 3);
+        int target = chances.firstWhere((c) => c > currentPos + 1, orElse: () => 3);
+
+        if (target - currentPos == 1 || (target - currentPos + 28) % 28 == 1) {
+          target = 10;
+        }
+
         int needed = target - currentPos;
         if (needed <= 0) needed += 28;
         
