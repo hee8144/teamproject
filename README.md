@@ -37,11 +37,11 @@
 ### 2️⃣ 게임 플레이 및 데이터 연동 (Gameplay & Data)
 | **메인 게임 보드** | **특수 이벤트 (퀴즈)** |
 | :---: | :---: |
-| <img src="assets/screenshots/gameplay.gif" width="400"> | <img src="assets/screenshots/quiz.gif" width="400"> |
+| <img src="assets/screenshots/mainboard.gif" width="400"> | <img src="assets/screenshots/quiz.gif" width="400"> |
 | *문화재 API 데이터 기반 실시간 보드 구성* | *교육용 퀴즈 UI 및 보상 시스템* |
 
 ### 3️⃣ 게임 규칙 및 전략 가이드 (Rules & Guide)
-| **전통 두루마리 규칙서** | **지역 축제 및 특수 칸** |
+| **규칙** | **지역 축제 및 특수 칸** |
 | :---: | :---: |
 | <img src="assets/screenshots/rules.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
 | *게임 방법 및 독점 규칙 상세 안내* | *전략적 요충지 및 이벤트 칸 활용* |
