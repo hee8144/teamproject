@@ -71,7 +71,8 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
 
   void _initSocket() {
     // 💡 테스트 환경에 맞게 IP 주소 변경
-    socket = IO.io('http://localhost:3000',
+    // socket = IO.io('http://localhost:3000','http://10.0.2.2:3000',
+    socket = IO.io('http://10.0.2.2:3000',
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
@@ -836,7 +837,6 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
                         ),
                       ),
                     ),
-                  ),
                   ...List.generate(28, (index) => _buildGameTile(index, tileSize)),
                   ...List.generate(4, (index) => _buildAnimatedPlayer(index, tileSize)),
                 ],

@@ -35,7 +35,8 @@ class PlayerInfoPanel extends StatelessWidget {
     // 파산 여부 확인
     bool isBankrupt = (type == "D" || type == "BD");
 
-    String displayName = (type == "B" || type == "BD") ? "BOT" : "PLAYER${name.replaceAll('user', '')}";
+    String playerNum = name.replaceAll('user', '');
+    String displayName = (type == "B" || type == "BD") ? "Bot $playerNum" : "Player $playerNum";
     if (isBankrupt) displayName = "파산";
 
     // 위치 판단 (위쪽/왼쪽)

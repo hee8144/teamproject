@@ -8,14 +8,16 @@ class DiceApp extends StatefulWidget {
   final Function(int, int) onRoll;
   final int turn;
   final int totalTurn;
-  final bool isBot; // 💡 [추가] 봇 여부 확인 변수
+  final bool isBot;
+  final int? targetSum; // 💡 [발표용] 치트 값
 
   const DiceApp({
     Key? key,
     required this.onRoll,
     required this.turn,
     required this.totalTurn,
-    required this.isBot, // 💡 [추가] 생성자
+    required this.isBot,
+    this.targetSum, // 💡 [발표용]
   }) : super(key: key);
 
   @override
@@ -98,10 +100,23 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
       _isDouble = false;
       _isRolling = true;
     });
-    _animationX1 = _createRandomAnim(_controller1, _x1);
-    _animationY1 = _createRandomAnim(_controller1, _y1);
-    _animationX2 = _createRandomAnim(_controller2, _x2);
-    _animationY2 = _createRandomAnim(_controller2, _y2);
+    if (widget.targetSum != null) {
+      int sum = widget.targetSum!;
+      int t1 = (sum / 2).floor();
+      int t2 = sum - t1;
+
+      // _createTargetAnim은 이미 파일 내부에 정의되어 있습니다.
+      _animationX1 = _createTargetAnim(_controller1, _x1, t1, true);
+      _animationY1 = _createTargetAnim(_controller1, _y1, t1, false);
+      _animationX2 = _createTargetAnim(_controller2, _x2, t2, true);
+      _animationY2 = _createTargetAnim(_controller2, _y2, t2, false);
+    } else {
+      // 일반적인 랜덤 굴리기
+      _animationX1 = _createRandomAnim(_controller1, _x1);
+      _animationY1 = _createRandomAnim(_controller1, _y1);
+      _animationX2 = _createRandomAnim(_controller2, _x2);
+      _animationY2 = _createRandomAnim(_controller2, _y2);
+    }
     _controller1.forward(from: 0.0);
     _controller2.forward(from: 0.0);
   }
@@ -126,15 +141,30 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
     }
   }
 
-  void _calculateResult() {
-    int val1 = _getFaceValue(_x1, _y1);
-    int val2 = _getFaceValue(_x2, _y2);
+  void _calculateResult() async {
+    int val1, val2;
+    
+    // 💡 [발표용] 치트 로직
+    if (widget.targetSum != null) {
+      val1 = (widget.targetSum! / 2).floor();
+      val2 = widget.targetSum! - val1;
+      // 짝수일 경우 더블이 되도록 단순 계산 (예: 4 -> 2,2)
+    } else {
+      val1 = _getFaceValue(_x1, _y1);
+      val2 = _getFaceValue(_x2, _y2);
+    }
+    
     setState(() {
       _totalResult = val1 + val2;
       _isDouble = (val1 == val2);
       _isRolling = false;
-      widget.onRoll(val1, val2);
     });
+
+    await Future.delayed(const Duration(milliseconds: 800));
+    
+    if (mounted) {
+      widget.onRoll(val1, val2);
+    }
   }
 
   @override
@@ -166,7 +196,7 @@ class DiceAppState extends State<DiceApp> with TickerProviderStateMixin {
                   : null,
             ),
             Text("남은턴 : ${widget.totalTurn}", style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-            Text("user${widget.turn}님의 턴", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            Text(widget.isBot ? "Bot ${widget.turn}의 턴" : "Player ${widget.turn}님의 턴", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
             Text(
                 _isRolling ? "Rolling..." : "TOTAL: $_totalResult",
                 style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)
