@@ -101,7 +101,7 @@ lib/
 [PPT](https://www.canva.com/design/DAG9t7pBUUY/z-FXVDM7JWnX0oS6_LhDgw/edit)
 ---
 ## 🎬 시연 영상
-
+[로컬](https://drive.google.com/file/d/11vGx8dul61a5T6oFikvMmwVpiaEQ0uHP/view)
 ---
 
 ## 📂 기타 산출물 링크
