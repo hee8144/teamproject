@@ -23,8 +23,17 @@ class GameLogManager {
 
   /// 1. 턴 시작 (턴 번호만 먼저 기록 가능)
   void startTurnLog(int turn, [int? dice]) {
-    String diceStr = dice != null ? "주사위 $dice " : "";
-    _currentTurnBuffer = "[$turn턴] $diceStr";
+    String diceStr = (dice != null && dice != 0) ? "주사위 $dice " : "";
+
+    if (_currentTurnBuffer.isEmpty) {
+      _currentTurnBuffer = "[$turn턴] $diceStr";
+    } else {
+      if (!_currentTurnBuffer.contains("주사위") && dice != null && dice != 0) {
+        _currentTurnBuffer = _currentTurnBuffer.replaceFirst("] ", "] 주사위 $dice ");
+      } else if (dice != null && dice != 0) {
+        _currentTurnBuffer += "\n[$turn턴 추가굴림] 주사위 $dice ";
+      }
+    }
   }
 
   /// 주사위 결과만 나중에 추가 (보석금 지불 후 주사위 굴릴 때 사용)
@@ -67,4 +76,7 @@ class GameLogManager {
     _logs.forEach((key, value) => value.clear());
     _currentTurnBuffer = "";
   }
+
+
+
 }

@@ -8,7 +8,6 @@ class PlayerDetailPopup extends StatefulWidget {
   final Map<String, dynamic> boardData;
   final List<String> logs; // ✅ 로그 데이터 추가
   final Color playerColor;
-  final bool isTestMode;
 
   const PlayerDetailPopup({
     super.key,
@@ -17,7 +16,6 @@ class PlayerDetailPopup extends StatefulWidget {
     required this.boardData,
     required this.logs, // ✅ 필수 인자로 추가
     required this.playerColor,
-    this.isTestMode = false,
   });
 
   @override
@@ -36,21 +34,7 @@ class _PlayerDetailPopupState extends State<PlayerDetailPopup> {
   void initState() {
     super.initState();
     _calculateOwnedLands();
-    if (widget.isTestMode) {
-      _injectMockData();
-    } else {
-      _fetchRealUserInfo();
-    }
-  }
-
-  void _injectMockData() {
-    setState(() {
-      realNickname = "테스트_전설_여행자";
-      realPoints = 12500;
-      realTier = "전설의 유람객";
-      winCount = 45;
-      totalGames = 50;
-    });
+    _fetchRealUserInfo();
   }
 
   // 소유한 땅 목록 및 레벨 계산
@@ -73,22 +57,8 @@ class _PlayerDetailPopupState extends State<PlayerDetailPopup> {
 
   // 로그인 유저일 경우 실제 정보 가져오기
   Future<void> _fetchRealUserInfo() async {
-    if (widget.playerKey == "user1") {
-      final uid = AuthService.instance.currentUid;
-      if (uid != null) {
-        final doc = await FirebaseFirestore.instance.collection('members').doc(uid).get();
-        if (doc.exists) {
-          final data = doc.data() as Map<String, dynamic>;
-          setState(() {
-            realNickname = data['nickname'];
-            realPoints = data['point'];
-            realTier = AuthService.getTierName(realPoints ?? 0);
-            winCount = data['winCount'] ?? 0;
-            totalGames = data['totalGames'] ?? 0;
-          });
-        }
-      }
-    }
+    // 오프라인 모드에서는 실제 계정 정보를 가져오지 않음
+    return;
   }
 
   String get winRate {
@@ -106,13 +76,14 @@ class _PlayerDetailPopupState extends State<PlayerDetailPopup> {
   @override
   Widget build(BuildContext context) {
     String type = widget.playerData['type'] ?? "P";
-    String displayName = (type == "B") ? "인공지능 봇" : (realNickname ?? "여행자 ${widget.playerKey.replaceAll('user', '')}");
+    String playerNum = widget.playerKey.replaceAll('user', '');
+    String displayName = (type == "B") ? "Bot $playerNum" : (realNickname ?? "Player $playerNum");
 
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
         width: 450,
-        height: 320, // 탭 공간 확보를 위해 높이 약간 증가
+        height: 320,
         decoration: BoxDecoration(
           color: const Color(0xFFFDF5E6),
           borderRadius: BorderRadius.circular(15),
@@ -175,7 +146,7 @@ class _PlayerDetailPopupState extends State<PlayerDetailPopup> {
                                       displayName,
                                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
                                     ),
-                                    if (realTier != null)
+                                    if (realTier != null && type != "B")
                                       Column(
                                         children: [
                                           Text(
@@ -190,6 +161,30 @@ class _PlayerDetailPopupState extends State<PlayerDetailPopup> {
                                         ],
                                       ),
                                     const Divider(color: Colors.brown, height: 20),
+                                    Builder(builder: (context) {
+                                      String cardKey = widget.playerData['card'] ?? "N";
+                                      String cardText = "없음";
+                                      Color cardColor = Colors.brown;
+
+                                      if (cardKey == "shield") {
+                                        cardText = "🛡️ 인수 방어권";
+                                        cardColor = Colors.blue[800]!;
+                                      } else if (cardKey == "escape") {
+                                        cardText = "🏝️ 무인도 탈출권";
+                                        cardColor = Colors.orange[800]!;
+                                      }
+
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 2),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            const Text("보유 카드", style: TextStyle(fontSize: 11, color: Colors.brown)),
+                                            Text(cardText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cardColor)),
+                                          ],
+                                        ),
+                                      );
+                                    }),
                                     _infoRow("보유 현금", "${_formatMoney(widget.playerData['money'])}원"),
                                     _infoRow("총 자산", "${_formatMoney(widget.playerData['totalMoney'])}원"),
                                   ],
