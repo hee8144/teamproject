@@ -43,7 +43,7 @@
 ### 3️⃣ 게임 규칙 및 전략 가이드 (Rules & Guide)
 | **규칙** | **지역 축제 및 특수 칸** |
 | :---: | :---: |
-| <img src="assets/screenshots/rules.gif" width="400"> | <img src="assets/screenshots/event.gif" width="400"> |
+| <img src="assets/screenshots/rules.gif" width="400"> | <img src="assets/screenshots/events.gif" width="400"> |
 | *게임 방법 및 독점 규칙 상세 안내* | *전략적 요충지 및 이벤트 칸 활용* |
 
 ---
