@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/Logo.png" width="400" alt="문화재 마블 로고">
+  <img src="assets/Logo.png" width="200" alt="문화재 마블 로고">
 </p>
 
 # 🏯 문화재 마블
