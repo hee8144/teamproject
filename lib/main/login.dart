@@ -211,7 +211,7 @@ class LoginScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _buildCustomButton(
-            text: "비회원으로 시작하기",
+            text: "로컬 모드",
             textColor: Colors.white,
             startColor: const Color(0xFFFF7043),
             endColor: const Color(0xFFE64A19),
