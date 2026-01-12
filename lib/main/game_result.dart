@@ -5,20 +5,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
 
-// Future<void> main() async {
-//   WidgetsFlutterBinding.ensureInitialized();
-//   await Firebase.initializeApp();
-//
-//   runApp(
-//     MaterialApp(
-//       debugShowCheckedModeBanner: false,
-//       home: const GameResult(
-//         victoryType: 'bankruptcy',
-//         winnerName: '0',
-//       ),
-//     ),
-//   );
-// }
+//파일 단독 실행용(발표용)
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+
+  runApp(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const GameResult(
+        victoryType: 'bankruptcy',
+        winnerName: '0',
+      ),
+    ),
+  );
+}
 
 class GameResult extends StatelessWidget {
   final String victoryType;

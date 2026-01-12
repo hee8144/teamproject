@@ -539,7 +539,7 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
                               color: const Color(0xFFE6AD5C),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: Colors.white,
+                                color: Colors.black,
                                 width: 1.5,
                               ),
                             ),
@@ -548,14 +548,14 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
                                 Icon(
                                   Icons.list,
                                   size: 18,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
                                   '목차',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.white,
+                                    color: Colors.black,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -857,7 +857,7 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
                                     style: const TextStyle(
                                       fontSize: 24,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white, // ✅ 변경
+                                      color: Colors.black, // ✅ 변경
                                     ),
                                   ),
                                   const SizedBox(width: 20),
@@ -867,13 +867,13 @@ class _GameRulePageState extends State<GameRulePage> with SingleTickerProviderSt
                                       style: const TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.white, // ✅ 변경
+                                        color: Colors.black, // ✅ 변경
                                       ),
                                     ),
                                   ),
                                   const Icon(
                                     Icons.arrow_forward_ios,
-                                    color: Colors.white, // ✅ 변경
+                                    color: Colors.black, // ✅ 변경
                                     size: 20,
                                   ),
                                 ],
