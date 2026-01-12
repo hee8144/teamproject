@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/Logo.png" width="400" alt="문화재 마블 로고">
+  <img src="assets/Logo.png" width="200" alt="문화재 마블 로고">
 </p>
 
 # 🏯 문화재 마블
@@ -43,14 +43,8 @@
 ### 3️⃣ 게임 규칙 및 전략 가이드 (Rules & Guide)
 | **규칙** | **지역 축제 및 특수 칸** |
 | :---: | :---: |
-| <img src="assets/screenshots/rules.png" width="400"> | <img src="assets/screenshots/events.png" width="400"> |
+| <img src="assets/screenshots/rules.gif" width="400"> | <img src="assets/screenshots/events.gif" width="400"> |
 | *게임 방법 및 독점 규칙 상세 안내* | *전략적 요충지 및 이벤트 칸 활용* |
-
-### 4️⃣ 찬스 카드 및 상세 기록 (Chance Cards & Logs)
-| **3D 찬스 카드 연출** | **플레이어 상세 기록 (장부)** |
-| :---: | :---: |
-| <img src="assets/screenshots/chance.gif" width="400"> | <img src="assets/screenshots/logs.gif" width="400"> |
-| *Matrix4 기반의 화려한 카드 회전 애니메이션* | *모든 플레이 기록을 실시간으로 추적하는 로그 시스템* |
 
 ---
 
