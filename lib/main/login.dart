@@ -1,44 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ 추가
-import 'package:firebase_core/firebase_core.dart';
-import 'mainUI.dart';
+import 'package:go_router/go_router.dart';
+import 'package:fluttertoast/fluttertoast.dart'; // ✅ 추가
+import '../auth/login_dialog.dart';
+import '../auth/auth_service.dart'; // ✅ 추가
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // ✅ 필수
+class Login extends StatefulWidget { // ✅ StatefulWidget으로 변경
+  const Login({super.key});
 
-  // ✅ Firebase 초기화 (가장 중요)
-  await Firebase.initializeApp();
-  // FlutterFire CLI 사용 중이면 ↓
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
-
-  // ✅ 가로모드만 허용
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-
-  runApp(const MyApp());
+  @override
+  State<Login> createState() => _LoginState();
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class _LoginState extends State<Login> {
+  bool _isAutoLoginReady = false; // ✅ 추가
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ 자동 로그인 체크만 하고 대기
+    _checkAutoLogin();
+  }
+
+  Future<void> _checkAutoLogin() async {
+    final uid = await AuthService.instance.tryAutoLogin();
+    if (uid != null && mounted) {
+      setState(() {
+        _isAutoLoginReady = true; // ✅ 정보가 있으면 플래그만 설정
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'NanumMyeongjo',
-      ),
-      home: const LoginScreen(),
-    );
+    return LoginScreen(isAutoLoginReady: _isAutoLoginReady);
   }
 }
 
 class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
+  final bool isAutoLoginReady;
+  const LoginScreen({super.key, this.isAutoLoginReady = false});
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +61,6 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
           ),
-
           // 2. 콘텐츠 레이어
           SafeArea(
             child: Center(
@@ -75,6 +74,29 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
           ),
+
+          // 3. 회원가입 유도 버튼 (자동 로그인 준비 상태가 아닐 때만 표시)
+          if (!isAutoLoginReady)
+            Positioned(
+              bottom: 23,
+              left: 20,
+              child: TextButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const LoginDialog(isSignUpMode: true),
+                  );
+                },
+                icon: const Icon(Icons.person_add, color: Colors.black, size: 20),
+                label: const Text(
+                  "아직 회원이 아니신가요?",
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -157,28 +179,44 @@ class LoginScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _buildCustomButton(
-            text: "로그인 (추후 제작 예정...)",
+            text: "로그인",
             textColor: const Color(0xFF5D4037),
             startColor: const Color(0xFFFFE0B2),
             endColor: const Color(0xFFFFCC80),
             borderColor: const Color(0xFFA1887F),
-            onTap: () => print("로그인 버튼 클릭"),
+            onTap: () async {
+              if (isAutoLoginReady) {
+                // ✅ 자동 로그인 정보가 있으면 닉네임 가져와서 인사 후 입장
+                final String? uid = AuthService.instance.currentUid;
+                if (uid != null) {
+                  final String nickname = await AuthService.instance.getNickname(uid);
+                  Fluttertoast.showToast(
+                    msg: "🏯 $nickname님, 다시 오신 것을 환영합니다!",
+                    gravity: ToastGravity.TOP,
+                    backgroundColor: const Color(0xFF5D4037),
+                    textColor: Colors.white,
+                  );
+                }
+                context.go('/onlinemain');
+              } else {
+                // ❌ 없으면 기존처럼 다이얼로그 표시
+                showDialog(
+                  context: context,
+                  builder: (context) => const LoginDialog(),
+                );
+              }
+              // context.go('/onlinemain');
+
+            },
           ),
           const SizedBox(height: 10),
           _buildCustomButton(
-            text: "비회원으로 시작하기",
+            text: "로컬 모드",
             textColor: Colors.white,
             startColor: const Color(0xFFFF7043),
             endColor: const Color(0xFFE64A19),
             borderColor: const Color(0xFFBF360C),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MainScreen(),
-                ),
-              );
-            },
+            onTap: () => context.go('/main'), // ✅ GoRouter 이동
           ),
         ],
       ),
@@ -191,14 +229,14 @@ class LoginScreen extends StatelessWidget {
     required Color startColor,
     required Color endColor,
     required Color borderColor,
-    required VoidCallback onTap,
+    required VoidCallback? onTap, // nullable
   }) {
     return Container(
       width: double.infinity,
       height: 50,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [startColor, endColor],
+          colors: onTap != null ? [startColor, endColor] : [Colors.grey.shade400, Colors.grey.shade400],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -209,12 +247,12 @@ class LoginScreen extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(30),
-          onTap: onTap,
+          onTap: onTap, // null이면 클릭 불가
           child: Center(
             child: Text(
               text,
               style: TextStyle(
-                color: textColor,
+                color: onTap != null ? textColor : Colors.grey.shade700, // 비활성화 시 색 변경
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -224,4 +262,5 @@ class LoginScreen extends StatelessWidget {
       ),
     );
   }
+
 }

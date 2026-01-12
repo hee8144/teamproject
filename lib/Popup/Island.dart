@@ -3,87 +3,113 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class IslandDialog extends StatefulWidget {
   final int user;
-  const IslandDialog({super.key, required this.user});
+  final Map<String, dynamic>? gameState; // null이면 로컬, 있으면 온라인
+
+  const IslandDialog({
+    super.key,
+    required this.user,
+    this.gameState,
+  });
 
   @override
   State<IslandDialog> createState() => _IslandDialogState();
 }
 
 class _IslandDialogState extends State<IslandDialog> {
+  final FirebaseFirestore fs = FirebaseFirestore.instance;
+
+  int turn = 0;
+  int money = 0;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.gameState != null) {
+      final userData = widget.gameState!['users']['user${widget.user}'];
+      turn = userData['islandCount'] ?? 0;
+      money = userData['money'] ?? 0;
+    } else {
+      _fetchFromFirebase();
+    }
+  }
+
+  Future<void> _fetchFromFirebase() async {
+    final snap = await fs.collection("games").doc("users").get();
+    if (!mounted || !snap.exists) return;
+    final data = snap.data()!;
+    final userData = data['user${widget.user}'];
+    setState(() {
+      turn = userData['islandCount'] ?? 0;
+      money = userData['money'] ?? 0;
+    });
+  }
+
+  Future<void> _payment() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      if (widget.gameState == null) {
+        await fs.collection("games").doc("users").update({
+          "user${widget.user}.money": FieldValue.increment(-1000000),
+          "user${widget.user}.totalMoney": FieldValue.increment(-1000000),
+          "user${widget.user}.islandCount": 0,
+        });
+      }
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      debugPrint("무인도 결제 오류: $e");
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final FirebaseFirestore fs = FirebaseFirestore.instance;
     final size = MediaQuery.of(context).size;
-
-    Future<void> payment() async{
-      await fs.collection("games").doc("users").set({
-        "user${widget.user}.money" :FieldValue.increment(-1000000)
-      });
-    }
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(12),
       child: Container(
-        width: size.width * 0.9,
-        height: size.height * 0.75,
+        // 💡 [수정] 너비를 90%에서 70%로 줄여 가로 모드에서 더 안정감 있게 배치
+        width: size.width * 0.7,
+        constraints: BoxConstraints(maxHeight: size.height * 0.9),
         decoration: BoxDecoration(
           color: const Color(0xFFF9F6F1),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: const Color(0xFF8D6E63),
-            width: 2,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 10,
-              offset: Offset(0, 5),
-            ),
-          ],
+          border: Border.all(color: const Color(0xFF8D6E63), width: 2),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            /// 헤더
+            /// 헤더 (기존 디자인 유지)
             Container(
-              height: 64,
+              height: 60,
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: Color(0xFF3E4A59),
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               alignment: Alignment.center,
               child: const Text(
                 "🏝 무인도",
-                style: TextStyle(
-                  fontSize: 22,
-                  color: Color(0xFFFFE082),
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.1,
-                ),
+                style: TextStyle(fontSize: 22, color: Color(0xFFFFE082), fontWeight: FontWeight.bold),
               ),
             ),
 
-            /// 본문
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+            /// 본문 (스크롤 추가하여 잘림 방지)
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Text(
-                      "무인도에 도착했습니다.\n"
-                          "일정 턴 동안 이동할 수 없습니다.",
+                      "무인도에 도착했습니다.\n$turn 턴 동안 이동할 수 없습니다.",
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        height: 1.4,
-                      ),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -91,22 +117,15 @@ class _IslandDialogState extends State<IslandDialog> {
                           child: Text(
                             "💰 구조 비용 100만원을 지불하면\n즉시 탈출할 수 있습니다.",
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              height: 1.5,
-                            ),
+                            style: const TextStyle(fontSize: 16, height: 1.5),
                           ),
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            "• 더블이 나오면 즉시 탈출\n"
-                                "• 3턴 경과 시 자동 탈출",
+                            "• 더블이 나오면 즉시 탈출\n• $turn턴 경과 시 자동 탈출",
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              height: 1.5,
-                            ),
+                            style: const TextStyle(fontSize: 16, height: 1.5),
                           ),
                         )
                       ],
@@ -116,61 +135,25 @@ class _IslandDialogState extends State<IslandDialog> {
               ),
             ),
 
-            /// 버튼 영역 (양옆 배치)
+            /// 버튼 (기존 디자인 유지)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  /// 구조 비용
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () async {
-                        await payment();
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8D6E63),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        "100만원 지불",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
-                      ),
+                      onPressed: (money >= 1000000 && !_isProcessing) ? _payment : null,
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF8D6E63)),
+                      child: _isProcessing
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text("100만원 지불", style: TextStyle(color: Colors.white)),
                     ),
                   ),
-
-                  const SizedBox(width: 12),
-
-                  /// 주사위 굴리기
+                  const SizedBox(width: 10),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
-                        // TODO: 주사위 굴리기
-                        Navigator.pop(context);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(
-                          color: Color(0xFF5D4037),
-                          width: 2,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        "주사위 굴리기",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF5D4037),
-                        ),
-                      ),
+                      onPressed: _isProcessing ? null : () => Navigator.pop(context, false),
+                      child: const Text("주사위 굴리기"),
                     ),
                   ),
                 ],

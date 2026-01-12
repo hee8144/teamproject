@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:teamproject/main/game_waiting_room.dart';
-import 'package:teamproject/main/game_rule.dart';
+import 'package:go_router/go_router.dart';
 import 'package:teamproject/main/login.dart';
+import 'package:teamproject/main/game_rule.dart';
+import 'package:teamproject/main/game_waiting_room.dart';
+import '../auth/auth_service.dart';
+import '../widgets/loading_screen.dart';
 
 class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
@@ -24,7 +27,6 @@ class MainScreen extends StatelessWidget {
               ),
             ),
           ),
-
           // ================= UI (가로 전용) =================
           SafeArea(
             child: Padding(
@@ -38,7 +40,6 @@ class MainScreen extends StatelessWidget {
   }
 
   /* ===================== 가로 모드 전용 ===================== */
-
   Widget _buildLandscapeLayout(BuildContext context, Size size) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -52,9 +53,7 @@ class MainScreen extends StatelessWidget {
             height: size.height * 0.75,
           ),
         ),
-
         const SizedBox(width: 30),
-
         // ---------- 오른쪽 : 버튼 영역 ----------
         Expanded(
           flex: 4,
@@ -62,18 +61,12 @@ class MainScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildRuleButtonLarge(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const GameRulePage(),
-                    ),
-                  );
-                },
+                onTap: () => context.go('/gameRule', extra: {
+                  'fromPage': 'main',  // ✅ 어디서 왔는지 전달
+                  // 필요한 다른 데이터도 추가 가능
+                }),
               ),
-
               const SizedBox(height: 20), // ⬇ 간격 축소
-
               _buildButtonPanel(
                 context: context,
                 maxWidth: size.width * 0.55,
@@ -86,7 +79,6 @@ class MainScreen extends StatelessWidget {
   }
 
   /* ===================== 버튼 패널 ===================== */
-
   Widget _buildButtonPanel({
     required BuildContext context,
     required double maxWidth,
@@ -95,7 +87,7 @@ class MainScreen extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Container(
         padding: const EdgeInsets.symmetric(
-          vertical: 16, // ⬅ 기존 22 → 16
+          vertical: 16,
           horizontal: 26,
         ),
         decoration: BoxDecoration(
@@ -116,28 +108,28 @@ class MainScreen extends StatelessWidget {
             children: [
               _buildMainButton(
                 text: "방 만들기",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const GameWaitingRoom(),
-                    ),
-                  );
-                },
+                onTap: () => context.go('/gameWaitingRoom'), // ✅ 즉시 이동으로 원복
               ),
-
-              const SizedBox(height: 12), // ⬅ 기존 16 → 12
-
+              const SizedBox(height: 12),
               _buildMainButton(
                 text: "처음으로",
-                onTap: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginScreen(),
+                onTap: () async {
+                  // 비회원이므로 세션 종료 없이 바로 이동 (로딩은 선택사항)
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const LoadingScreen(
+                      isOverlay: true,
+                      message: "초기 화면으로 이동 중...",
+                      type: LoadingType.inkBrush,
                     ),
-                        (route) => false,
                   );
+                  
+                  await Future.delayed(const Duration(milliseconds: 500)); // 짧은 연출
+
+                  if (context.mounted) {
+                    context.go('/');
+                  }
                 },
               ),
             ],
@@ -148,13 +140,12 @@ class MainScreen extends StatelessWidget {
   }
 
   /* ===================== 메인 버튼 ===================== */
-
   Widget _buildMainButton({
     required String text,
     required VoidCallback onTap,
   }) {
     return Container(
-      height: 56, // ⬅ 기존 64 → 56
+      height: 56,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
@@ -173,7 +164,7 @@ class MainScreen extends StatelessWidget {
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 20, // ⬅ 살짝만 축소
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF5D4037),
               ),
@@ -185,42 +176,49 @@ class MainScreen extends StatelessWidget {
   }
 
   /* ===================== 룰 버튼 ===================== */
-
-  Widget _buildRuleButtonLarge({
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 130,
-        height: 130,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          border: Border.all(
-            color: const Color(0xFFE6AD5C),
-            width: 3.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+  Widget _buildRuleButtonLarge({required VoidCallback onTap}) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        splashColor: Colors.brown.withValues(alpha: 0.2),
+        highlightColor: Colors.brown.withValues(alpha: 0.12),
+        hoverColor: Colors.brown.withValues(alpha: 0.08),
+        child: Container(
+          width: 130,
+          height: 130,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Image.asset(
-            'assets/game_rule.png',
-            fit: BoxFit.contain,
+            border: Border.all(
+              color: const Color(0xFFE6AD5C),
+              width: 3.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Image.asset(
+              'assets/game_rule.png',
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       ),
     );
   }
+
+
 }

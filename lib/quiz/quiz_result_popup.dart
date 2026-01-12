@@ -23,37 +23,29 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
     final bool isTimeout = widget.selectedIndex == -1;
     final size = MediaQuery.of(context).size;
 
-    // 결과에 따른 테마 색상 및 텍스트 설정
     String resultTitle;
     Color themeColor;
     IconData resultIcon;
 
     if (isTimeout) {
       resultTitle = "시간 초과!";
-      themeColor = const Color(0xFFD84315); // 진한 주황
+      themeColor = const Color(0xFFD84315);
       resultIcon = Icons.timer_off_outlined;
     } else if (widget.isCorrect) {
       resultTitle = "정답입니다!";
-      themeColor = const Color(0xFF2E7D32); // 진한 초록
+      themeColor = const Color(0xFF2E7D32);
       resultIcon = Icons.check_circle_outline;
     } else {
       resultTitle = "오답입니다!";
-      themeColor = const Color(0xFFC62828); // 진한 빨강
+      themeColor = const Color(0xFFC62828);
       resultIcon = Icons.cancel_outlined;
     }
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Stack(
         children: [
-          // 배경 오버레이
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(color: Colors.black.withOpacity(0.7)),
-            ),
-          ),
           Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -62,10 +54,10 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
               ),
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFDF5E6), // 한지 배경
+                  color: const Color(0xFFFDF5E6),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFF5D4037), // 나무 테두리
+                    color: const Color(0xFF5D4037),
                     width: 6,
                   ),
                   boxShadow: [
@@ -81,7 +73,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                     // 상단 타이틀 바
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: const BoxDecoration(
                         color: Color(0xFF5D4037),
                         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
@@ -109,8 +101,8 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(resultIcon, size: 80, color: themeColor),
-                                  const SizedBox(height: 16),
+                                  Icon(resultIcon, size: 70, color: themeColor),
+                                  const SizedBox(height: 10),
                                   Text(
                                     resultTitle,
                                     style: TextStyle(
@@ -139,19 +131,10 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  const Text(
-                                    "💡 상세 해설",
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF4E342E),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  
                                   // 해설 내용을 스크롤 가능하게 배치
                                   Expanded(
                                     child: SingleChildScrollView(
+                                      physics: const BouncingScrollPhysics(),
                                       child: _buildExplanationContent(),
                                     ),
                                   ),
@@ -164,15 +147,16 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFF5D4037),
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14), // 클릭 영역 확대
+                                        elevation: 4,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                       ),
-                                      onPressed: () => Navigator.pop(context),
+                                      onPressed: () => Navigator.of(context).pop(),
                                       child: const Text(
-                                        "확인",
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                        "확 인",
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
                                       ),
                                     ),
                                   ),
@@ -193,14 +177,13 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
     );
   }
 
-  // 좌측 하단: 오답일 때만 내가 선택한 답을 보여줌
+
   Widget _buildMySelectionBox(bool isTimeout) {
-    // 정답인 경우에는 박스를 보여주지 않음
     if (widget.isCorrect) return const SizedBox.shrink();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
@@ -221,7 +204,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
               widget.question.choices[widget.selectedIndex],
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFC62828),
                 decoration: TextDecoration.lineThrough,
@@ -233,9 +216,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
     );
   }
 
-  // 우측: 해설 내용 파싱 및 카드 UI 구성
   Widget _buildExplanationContent() {
-    // 1. 해설 텍스트 가져오기
     String rawExplanation = "";
     if (widget.isCorrect) {
       rawExplanation = widget.question.explanations[widget.question.correctIndex];
@@ -269,7 +250,7 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
           child: Text(
             titleSection,
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: widget.isCorrect ? Colors.green[800] : Colors.red[800],
             ),
@@ -297,18 +278,18 @@ class _QuizResultPopupState extends State<QuizResultPopup> {
                     Text(
                       "문화재 정보",
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF5D4037),
                       ),
                     ),
                   ],
                 ),
-                const Divider(height: 16, color: Color(0xFFEFEBE9)),
+                const Divider(height: 14, color: Color(0xFFEFEBE9)),
                 Text(
                   bodySection,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 13,
                     height: 1.6,
                     color: Color(0xFF3E2723),
                   ),
