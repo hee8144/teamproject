@@ -178,7 +178,7 @@ class _GameMainState extends State<GameMain> with TickerProviderStateMixin {
       }
       return;
     }
-
+//주사위
     int total = val1 + val2;
     bool isDouble = (val1 == val2);
     movePlayer(total, currentTurn, isDouble);
