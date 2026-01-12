@@ -723,14 +723,14 @@ class _OnlineGamePageState extends State<OnlineGamePage> with TickerProviderStat
         _completeAction(updateData, isDouble: false);
         setState(() => isActionActive = false);
         return;
-      case "d_priceUp": myUpdate['isDoubleToll'] = true; break;
+      case "d_priceUp": myUpdate['isDoubleToll'] = true; setState(() => isActionActive = false); break;
       case "d_move":
         int randomPos = (myIndex + (DateTime.now().millisecond % 27)) % 28;
         myUpdate['position'] = randomPos;
         setState(() => isActionActive = false);
         break;
-      case "c_shield": myUpdate['card'] = "shield"; break;
-      case "c_escape": myUpdate['card'] = "escape"; break;
+      case "c_shield": myUpdate['card'] = "shield"; setState(() => isActionActive = false); break;
+      case "c_escape": myUpdate['card'] = "escape"; setState(() => isActionActive = false); break;
       case "c_festival":await _handleHighlightAction("festival", nextIsDouble); setState(() => isActionActive = false);return;
       case "c_earthquake":await _handleHighlightAction("earthquake", nextIsDouble); setState(() => isActionActive = false);return;
       case "d_storm":await _handleHighlightAction("storm", nextIsDouble); setState(() => isActionActive = false);return;
